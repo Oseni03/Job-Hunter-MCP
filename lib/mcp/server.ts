@@ -9,6 +9,7 @@ import { registerRecordApplication } from "@/lib/mcp/tools/record-application";
 import { registerPrepInterview } from "@/lib/mcp/tools/prep-interview";
 import { registerCareerStrategy } from "@/lib/mcp/tools/career-strategy";
 import { registerPortalFields } from "@/lib/mcp/tools/portal-fields";
+import { registerSearchJobs } from "@/lib/mcp/tools/search-jobs";
 
 export function registerAllTools(server: McpServer): void {
 	registerEvaluateJob(server);
@@ -18,6 +19,7 @@ export function registerAllTools(server: McpServer): void {
 	registerPrepInterview(server);
 	registerCareerStrategy(server);
 	registerPortalFields(server);
+	registerSearchJobs(server);
 }
 
 export function buildMcpHandler(): (req: Request) => Promise<Response> {

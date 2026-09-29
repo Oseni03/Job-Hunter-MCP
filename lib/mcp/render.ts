@@ -5,6 +5,7 @@ import type { RecordPlan } from "../record.ts";
 import type { PrepPlan } from "../prep.ts";
 import type { StrategyPlan } from "../strategy.ts";
 import type { FieldsPlan } from "../fields.ts";
+import type { SearchPlan } from "../search.ts";
 
 export function renderMarkdown(
 	evaluation: Evaluation,
@@ -219,4 +220,42 @@ export function renderStrategyMarkdown(plan: StrategyPlan): string {
 /** The copy-paste file text is the content; the host saves it to filePath. */
 export function renderFieldsMarkdown(plan: FieldsPlan): string {
 	return plan.copyPasteText;
+}
+
+/** Shortlist plus why-each-ranked detail; the host owns the seen store and tracker writes. */
+export function renderSearchMarkdown(plan: SearchPlan): string {
+	const lines = [
+		"## Job search results",
+		"",
+		`- Filters: keywords "${plan.filters.keywords || "(auto)"}" | location "${plan.filters.location || "(none)"}" | limit ${plan.filters.limit}`,
+		`- Sources: ${plan.sources.length > 0 ? plan.sources.join(", ") : "none ran"}`,
+		`- Candidates: ${plan.candidates.length} | stale excluded: ${plan.staleCount} | seen skipped: ${plan.seenSkipped} | applied skipped: ${plan.appliedSkipped}`,
+		"",
+	];
+	for (const candidate of plan.candidates) {
+		lines.push(
+			`### ${candidate.title} at ${candidate.company} (${candidate.quickFit.band}, ${candidate.quickFit.score}/100)`,
+			`- Key: \`${candidate.key}\` | [posting](${candidate.url})`,
+			`- Posted: ${candidate.postedDate ?? "unknown"} | deadline: ${candidate.deadline ?? "unknown"}${candidate.dateUnknown ? " (date unknown, flagged)" : ""} | status: ${candidate.status}`,
+			`- Portal: ${candidate.portal} | source: ${candidate.source}`,
+			`- Language gate: ${candidate.language.verdict} — ${candidate.language.note}`,
+			...(candidate.quickFit.strengths.length > 0
+				? [`- Strengths: ${candidate.quickFit.strengths.join("; ")}`]
+				: []),
+			...(candidate.quickFit.gaps.length > 0 ? [`- Gaps: ${candidate.quickFit.gaps.join("; ")}`] : []),
+			...(candidate.consolidationNote ? [`- ${candidate.consolidationNote}`] : []),
+			...(candidate.referralLinks.length > 0
+				? [`- Referrals: ${candidate.referralLinks.join(", ")}`]
+				: []),
+			"",
+		);
+	}
+	for (const note of plan.notes) {
+		lines.push(`- Note: ${note}`);
+	}
+	for (const error of plan.errors) {
+		lines.push(`- Error: ${error}`);
+	}
+	lines.push("", "Route picks back to evaluate-job for a full evaluation before drafting.");
+	return lines.join("\n");
 }

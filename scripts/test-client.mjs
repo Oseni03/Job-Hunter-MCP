@@ -162,6 +162,26 @@ async function main() {
     });
     console.log("Fields", JSON.stringify(fields, null, 2));
 
+    const search = await client.callTool({
+        name: "search-jobs",
+        arguments: {
+            keywords: "Python ML Engineer",
+            location: "Berlin, Germany",
+            limit: 10,
+            profile,
+            portalResults: [
+                {
+                    title: "ML Engineer",
+                    company: "Acme",
+                    url: "https://example.com/jobs/1",
+                    description: "Python and SQL for fraud detection.",
+                    postedDate: "2026-09-20",
+                },
+            ],
+        },
+    });
+    console.log("Search", JSON.stringify(search, null, 2));
+
     await client.close();
 }
 

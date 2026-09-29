@@ -415,8 +415,7 @@ export const PortalFieldsInput = z
 
 export const PortalFieldsOutput = z
 	.object({
-		filePath: z.string().describe("Copy-paste file path; the host owns the write"),
-		copyPasteText: z.string(),
+		filePath: z.string().describe("Copy-paste file path; the host owns the write"),		copyPasteText: z.string(),
 		selfIntros: z.array(
 			z.object({
 				roleType: z.string(),
@@ -445,5 +444,88 @@ export const PortalFieldsOutput = z
 		scopeNotes: z.array(z.string()),
 		ungrounded: z.array(z.string()),
 		warnings: z.array(z.string()),
+	})
+	.strict();
+
+export const PortalPostingInput = z
+	.object({
+		title: z.string().min(1).describe("Posting title as listed"),
+		company: z.string().min(1).describe("Employer name as listed"),
+		url: z.string().min(1).describe("Resolvable posting URL; fragments are stripped"),
+		description: z.string().optional().describe("Listed description or snippet for quick-fit"),
+		postedDate: z.string().optional().describe("Posted date (YYYY-MM-DD preferred); absent stays unknown"),
+		deadline: z.string().optional().describe("Deadline (YYYY-MM-DD preferred); absent stays unknown"),
+		portal: z.string().optional().describe("Portal tag; defaults to linkedin"),
+	})
+	.strict();
+
+export const SearchJobsInput = z
+	.object({
+		keywords: z.string().optional().describe("Explicit keyword query; absent derives from the profile"),
+		location: z.string().optional().describe("Explicit location; absent derives from the profile"),
+		remoteMode: z
+			.enum(["remote", "hybrid", "onsite"])
+			.optional()
+			.describe("Workplace filter for the live portal path"),
+		jobType: z.string().optional().describe("Job-type filter for the live portal path"),
+		limit: z.number().int().positive().optional().describe("Result cap; capped at 20 server-side"),
+		portalResults: z
+			.array(PortalPostingInput)
+			.optional()
+			.describe("Caller-supplied portal CLI output (host ran the CLI); skips every fetch"),
+		seenKeys: z.array(z.string()).optional().describe("Caller-held dedupe store keys"),
+		appliedPairs: z.array(z.string()).optional().describe("Caller-held applied company||title pairs"),
+		profile: ProfileSchema.partial()
+			.optional()
+			.describe("Per-call profile override; replaces the embedded default field by field"),
+	})
+	.strict();
+
+export const SearchCandidateSchema = z
+	.object({
+		key: z.string(),
+		title: z.string(),
+		company: z.string(),
+		url: z.string(),
+		postedDate: z.string().nullable(),
+		deadline: z.string().nullable(),
+		dateUnknown: z.boolean(),
+		status: z.enum(["active", "expired", "unknown"]),
+		portal: z.string(),
+		source: z.enum(["portal-live", "brightdata", "web-fallback"]),
+		quickFit: z.object({
+			score: z.number(),
+			band: z.enum(["high", "medium", "low"]),
+			strengths: z.array(z.string()),
+			gaps: z.array(z.string()),
+		}),
+		language: z.object({
+			verdict: z.enum(["PASS", "FLAG", "FAIL"]),
+			note: z.string(),
+		}),
+		consolidationNote: z.string().nullable(),
+		referralLinks: z.array(z.string()),
+	})
+	.strict();
+
+export const SearchJobsOutput = z
+	.object({
+		filters: z.object({
+			keywords: z.string(),
+			location: z.string(),
+			remoteMode: z.enum(["remote", "hybrid", "onsite"]).optional(),
+			jobType: z.string().optional(),
+			limit: z.number(),
+		}),
+		queries: z.array(
+			z.object({ category: z.string(), language: z.string(), query: z.string() }),
+		),
+		candidates: z.array(SearchCandidateSchema),
+		staleCount: z.number(),
+		seenSkipped: z.number(),
+		appliedSkipped: z.number(),
+		sources: z.array(z.enum(["portal-live", "brightdata", "web-fallback"])),
+		notes: z.array(z.string()),
+		errors: z.array(z.string()),
 	})
 	.strict();
