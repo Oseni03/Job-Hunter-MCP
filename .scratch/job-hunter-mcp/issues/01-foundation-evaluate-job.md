@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** done (commit b74c8e6; tsc clean, 62/62 node:test green, live HTTP verified incl. 401-without-token)
 
 - [ ] `evaluate-job` gates Eligibility before scoring (citizen/PR/clearance FAIL stops, silence marked unverified with role-level check) and runs Language Gate (undeclared language FAIL, higher-bar FLAG with quoted requirement plus declared level, then proceeds)
 - [ ] Scores use five dimensions with weights Technical 30 / Experience 25 / Behavioral 15 / Career 30, location PASS/FAIL/FLAG unweighted, verdict bands 75/60/45/30, and returns score table plus verdict, strengths, gaps, recommendation
