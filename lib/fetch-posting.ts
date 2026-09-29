@@ -10,9 +10,16 @@ export interface FetchResponse {
 	body: string;
 }
 
+export interface FetchRequestInit {
+	method?: string;
+	body?: string;
+	timeoutMs?: number;
+}
+
 export type FetchLike = (
 	url: string,
 	headers?: Record<string, string>,
+	init?: FetchRequestInit,
 ) => Promise<FetchResponse>;
 
 const BOT_UA = "job-hunter-bot/1.0 (+https://github.com/job-hunter)";
@@ -39,9 +46,18 @@ const AGGREGATOR_HOSTS = [
 	"hubstaff.",
 ];
 
-export function defaultFetch(url: string, headers: Record<string, string> = {}): Promise<FetchResponse> {
+export function defaultFetch(
+	url: string,
+	headers: Record<string, string> = {},
+	init: FetchRequestInit = {},
+): Promise<FetchResponse> {
 	const merged = Object.keys(headers).length > 0 ? headers : { "User-Agent": BOT_UA };
-	return fetch(url, { headers: merged, signal: AbortSignal.timeout(15000) }).then(async (res) => ({
+	return fetch(url, {
+		method: init.method ?? "GET",
+		headers: merged,
+		body: init.body,
+		signal: AbortSignal.timeout(init.timeoutMs ?? 15000),
+	}).then(async (res) => ({
 		status: res.status,
 		body: await res.text(),
 	}));

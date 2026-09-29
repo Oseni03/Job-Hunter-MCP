@@ -8,6 +8,8 @@ import { verifyBearerToken } from "@/lib/auth";
 import { evaluateJob } from "@/lib/evaluate";
 import type { Evaluation } from "@/lib/evaluate";
 import { fetchPosting } from "@/lib/fetch-posting";
+import { refineEvaluation } from "@/lib/llm";
+import type { RefinementSource, SamplingSender } from "@/lib/llm";
 import { ProfileSchema, resolveProfile } from "@/lib/profile";
 import { researchCompany } from "@/lib/research-company";
 
@@ -25,6 +27,14 @@ const EvaluateJobInput = z
 		profile: ProfileSchema.partial()
 			.optional()
 			.describe("Per-call profile override; replaces the embedded default field by field"),
+		llm: z
+			.object({
+				mode: z.enum(["auto", "off"]).default("auto"),
+				model: z.string().min(1).optional().describe("Groq model override (sampling uses the host model)"),
+			})
+			.strict()
+			.optional()
+			.describe("LLM refinement: sampling, then Groq, then heuristic scaffold unchanged"),
 	})
 	.strict();
 
@@ -63,10 +73,32 @@ const EvaluationSchema = z
 			websiteUrl: z.string().nullable(),
 			websiteNotes: z.string().nullable(),
 		}),
+		refinement: z.object({
+			source: z.enum(["sampling", "groq", "heuristic"]),
+			model: z.string().nullable(),
+			note: z.string(),
+		}),
 		fetchSteps: z.array(z.string()),
 		discrepancies: z.array(z.string()),
 	})
 	.strict();
+
+/** Adapts the MCP server's request sender for sampling; null when unavailable. */
+function makeSamplingSender(extra: unknown): SamplingSender | null {
+	if (typeof extra !== "object" || extra === null) {
+		return null;
+	}
+	const sendRequest = (extra as { sendRequest?: unknown }).sendRequest;
+	if (typeof sendRequest !== "function") {
+		return null;
+	}
+	const sender = sendRequest as (
+		request: { method: string; params?: Record<string, unknown> },
+		schema: z.ZodType,
+		options?: { timeout?: number },
+	) => Promise<unknown>;
+	return (method, params) => sender({ method, params }, z.unknown(), { timeout: 60000 });
+}
 
 function renderMarkdown(
 	evaluation: Evaluation,
@@ -75,6 +107,7 @@ function renderMarkdown(
 	websiteUrl: string | null,
 	fetchSteps: string[],
 	discrepancies: string[],
+	refinement: { source: RefinementSource; model: string | null; note: string },
 ): string {
 	const researchLine = !company
 		? "skipped (no company given)"
@@ -117,6 +150,7 @@ function renderMarkdown(
 		`- Source: ${evaluation.source}`,
 		`- Fetch escalation: ${fetchSteps.join(" > ")}`,
 		`- Company research: ${researchLine}`,
+		`- Refinement: ${refinement.source}${refinement.model ? ` (${refinement.model})` : ""} — ${refinement.note}`,
 	);
 	for (const discrepancy of discrepancies) {
 		lines.push(`- Discrepancy: ${discrepancy}`);
@@ -140,7 +174,7 @@ const handler = createMcpHandler((server) => {
 				openWorldHint: true,
 			},
 		},
-		async (input) => {
+		async (input, extra) => {
 			if (!input.postingText && !input.postingUrl) {
 				return {
 					isError: true,
@@ -173,11 +207,19 @@ const handler = createMcpHandler((server) => {
 				postingText = fetched.text;
 			}
 
-			const evaluation = evaluateJob({
+			const heuristic = evaluateJob({
 				postingText: postingText as string,
 				profile,
 				source: input.postingUrl ?? "pasted-text",
 			});
+			const outcome = await refineEvaluation(heuristic, postingText as string, profile, {
+				mode: input.llm?.mode ?? "auto",
+				groqApiKey: process.env.GROQ_API_KEY || undefined,
+				model: input.llm?.model ?? process.env.LLM_MODEL ?? undefined,
+				samplingSender: makeSamplingSender(extra),
+			});
+			const evaluation = outcome.evaluation;
+			const refinement = { source: outcome.source, model: outcome.model, note: outcome.note };
 
 			let companyResearch = {
 				cached: false,
@@ -206,10 +248,11 @@ const handler = createMcpHandler((server) => {
 				companyResearch.websiteUrl,
 				fetchSteps,
 				discrepancies,
+				refinement,
 			);
 			return {
 				content: [{ type: "text" as const, text }],
-				structuredContent: { ...evaluation, companyResearch, fetchSteps, discrepancies },
+				structuredContent: { ...evaluation, companyResearch, refinement, fetchSteps, discrepancies },
 			};
 		},
 	);
