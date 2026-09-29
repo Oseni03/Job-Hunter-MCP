@@ -1,6 +1,7 @@
 import type { Evaluation } from "@/lib/evaluate";
 import type { RefinementSource } from "@/lib/llm";
 import type { RequirementMatch } from "@/lib/tailor";
+import { RecordPlan } from "@/lib/record";
 
 export function renderMarkdown(
 	evaluation: Evaluation,
@@ -160,5 +161,23 @@ export function renderCoverMarkdown(output: {
 	]) {
 		lines.push(`- Warning: ${warning}`);
 	}
+	return lines.join("\n");
+}
+
+export function renderRecordMarkdown(plan: RecordPlan): string {
+	const lines = [
+		`## Record application: ${plan.action}`,
+		"",
+		`- Row: \`${plan.row}\``,
+		...(plan.rowIndex === null ? [] : [`- Updated data row ${plan.rowIndex} (other rows untouched)`]),
+		...(plan.appendedAlongsideFinal ? ["- Appended alongside final rows for the same company and role"] : []),
+		...(plan.headerUpgraded ? ["- Legacy header upgraded with the deadline column"] : []),
+		"",
+		...(plan.archiveText !== null && plan.archiveFile
+			? [`- Archive: \`${plan.archiveFile}\` (host writes unless it exists)`]
+			: [`- Archive skipped: ${plan.archiveNote ?? "no archive file resolved"}`]),
+		"",
+		"- Host owns the writes: job_search_tracker.csv gets the returned tracker text verbatim; seen_jobs.json is never touched.",
+	];
 	return lines.join("\n");
 }

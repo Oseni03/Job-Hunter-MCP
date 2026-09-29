@@ -97,6 +97,28 @@ async function main() {
     });
     console.log("EmptySlug", JSON.stringify(emptySlug, null, 2));
 
+    const recordArgs = {
+        company: "Acme",
+        role: "Senior ML Engineer",
+        fitScore: 84,
+        cvFile: "cv/main_acme_senior-ml-engineer.tex",
+        coverLetterFile: "cover_letters/cover_acme_senior-ml-engineer.tex",
+        postingUrl: "https://example.com/jobs/1",
+        deadline: "2026-04-01",
+        postingText,
+        trackerText: "",
+        today: "2026-03-01",
+    };
+    const recordAppend = await client.callTool({ name: "record-application", arguments: recordArgs });
+    console.log("RecordAppend", JSON.stringify(recordAppend, null, 2));
+
+    const appendedTracker = recordAppend.structuredContent?.trackerText ?? "";
+    const recordUpdate = await client.callTool({
+        name: "record-application",
+        arguments: { ...recordArgs, trackerText: appendedTracker, deadline: undefined },
+    });
+    console.log("RecordUpdate", JSON.stringify(recordUpdate, null, 2));
+
     await client.close();
 }
 

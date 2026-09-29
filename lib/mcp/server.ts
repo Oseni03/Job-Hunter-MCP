@@ -5,11 +5,13 @@ import { verifyBearerToken } from "@/lib/auth";
 import { registerEvaluateJob } from "@/lib/mcp/tools/evaluate-job";
 import { registerTailorCv } from "@/lib/mcp/tools/tailor-cv";
 import { registerWriteCoverLetter } from "@/lib/mcp/tools/write-cover-letter";
+import { registerRecordApplication } from "@/lib/mcp/tools/record-application";
 
 export function registerAllTools(server: McpServer): void {
 	registerEvaluateJob(server);
 	registerTailorCv(server);
 	registerWriteCoverLetter(server);
+	registerRecordApplication(server);
 }
 
 export function buildMcpHandler(): (req: Request) => Promise<Response> {
