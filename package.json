@@ -9,7 +9,8 @@
     "type-check": "tsc --noEmit",
     "test": "node --test --import ./scripts/alias-loader.mjs tests/*.test.ts",
     "lint": "eslint .",
-    "test:client": "node scripts/test-client.mjs"
+    "test:client": "node scripts/test-client.mjs",
+    "golden": "node --import ./scripts/alias-loader.mjs scripts/golden-check.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "^2.0.0",
