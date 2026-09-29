@@ -1,38 +1,230 @@
-import { createMcpHandler } from "mcp-handler";
+import { join } from "node:path";
+
+import { createMcpHandler, withMcpAuth } from "mcp-handler";
+import type { AuthInfo } from "@modelcontextprotocol/server";
 import { z } from "zod";
+
+import { verifyBearerToken } from "@/lib/auth";
+import { evaluateJob } from "@/lib/evaluate";
+import type { Evaluation } from "@/lib/evaluate";
+import { fetchPosting } from "@/lib/fetch-posting";
+import { ProfileSchema, resolveProfile } from "@/lib/profile";
+import { researchCompany } from "@/lib/research-company";
+
+const EvaluateJobInput = z
+	.object({
+		postingText: z
+			.string()
+			.min(1)
+			.optional()
+			.describe("Full posting text, pasted by the caller (preferred input)"),
+		postingUrl: z.string().url().optional().describe("Posting URL to fetch when no text is pasted"),
+		company: z.string().min(1).optional().describe("Employer name (drives employer-site search and research)"),
+		role: z.string().min(1).optional().describe("Role title (drives employer-site search)"),
+		companyUrl: z.string().url().optional().describe("Official company site override for research"),
+		profile: ProfileSchema.partial()
+			.optional()
+			.describe("Per-call profile override; replaces the embedded default field by field"),
+	})
+	.strict();
+
+const GateSchema = z.object({
+	verdict: z.string(),
+	quote: z.string().optional(),
+	note: z.string(),
+});
+
+const EvaluationSchema = z
+	.object({
+		scored: z.boolean(),
+		eligibility: GateSchema,
+		languageGate: GateSchema,
+		dimensions: z.array(
+			z.object({
+				dimension: z.string(),
+				score: z.number().nullable(),
+				status: z.string().optional(),
+				notes: z.string(),
+			}),
+		),
+		overallScore: z.number().nullable(),
+		verdict: z.string().nullable(),
+		strengths: z.array(z.string()),
+		gaps: z.array(z.string()),
+		recommendation: z.string(),
+		shouldCallEmployer: z.object({ suggest: z.boolean(), reason: z.string() }),
+		needsConfirmation: z.literal(true),
+		deadline: z.string().nullable(),
+		source: z.string(),
+		archive: z.string(),
+		companyResearch: z.object({
+			cached: z.boolean(),
+			cacheFile: z.string(),
+			websiteUrl: z.string().nullable(),
+			websiteNotes: z.string().nullable(),
+		}),
+		fetchSteps: z.array(z.string()),
+		discrepancies: z.array(z.string()),
+	})
+	.strict();
+
+function renderMarkdown(
+	evaluation: Evaluation,
+	company: string | undefined,
+	role: string | undefined,
+	websiteUrl: string | null,
+	fetchSteps: string[],
+	discrepancies: string[],
+): string {
+	const researchLine = !company
+		? "skipped (no company given)"
+		: (websiteUrl ?? "attempted, no official site found");
+	const lines: string[] = [
+		`## Job Fit Evaluation: ${role ?? "Role"} at ${company ?? "Company"}`,
+		"",
+		"| Dimension | Score | Notes |",
+		"|-----------|-------|-------|",
+	];
+	for (const dim of evaluation.dimensions) {
+		const score = dim.score === null ? (dim.status ?? "") : `${dim.score}/100`;
+		lines.push(`| ${dim.dimension} | ${score} | ${dim.notes} |`);
+	}
+	lines.push(
+		"",
+		`**Overall Score: ${evaluation.overallScore ?? "n/a"}/100** (weighted average of scored dimensions)`,
+		"",
+		`### Verdict: ${evaluation.verdict ?? "Not scored — a gate failed"}`,
+		"",
+		"### Key Strengths for This Role",
+		...(evaluation.strengths.length > 0 ? evaluation.strengths.map((s) => `- ${s}`) : ["- none identified"]),
+		"",
+		"### Gaps to Address",
+		...(evaluation.gaps.length > 0 ? evaluation.gaps.map((g) => `- ${g}`) : ["- none identified"]),
+		"",
+		"### Recommendation",
+		evaluation.recommendation,
+		"",
+		"### Gates",
+		`- Eligibility: ${evaluation.eligibility.verdict} — ${evaluation.eligibility.quote ?? evaluation.eligibility.note}`,
+		`- Language: ${evaluation.languageGate.verdict} — ${evaluation.languageGate.quote ?? evaluation.languageGate.note}`,
+		"",
+		"### Pre-Application: Call the Employer",
+		`- Suggest calling: ${evaluation.shouldCallEmployer.suggest ? "yes" : "no"} — ${evaluation.shouldCallEmployer.reason}`,
+		"- needsConfirmation: true (confirm with the candidate before drafting)",
+		"",
+		"### Meta",
+		`- Deadline: ${evaluation.deadline ?? "not stated"}`,
+		`- Source: ${evaluation.source}`,
+		`- Fetch escalation: ${fetchSteps.join(" > ")}`,
+		`- Company research: ${researchLine}`,
+	);
+	for (const discrepancy of discrepancies) {
+		lines.push(`- Discrepancy: ${discrepancy}`);
+	}
+	return lines.join("\n");
+}
 
 const handler = createMcpHandler((server) => {
 	server.registerTool(
-		"echo",
+		"evaluate-job",
 		{
-			title: "Echo",
-			description: "Echo a message",
-			inputSchema: z
-				.object({
-					message: z
-						.string()
-						.min(1)
-						.max(100)
-						.describe("Message to echo back"),
-				})
-				.strict(),
-			outputSchema: z
-				.object({
-					message: z.string().describe("Echoed message"),
-				})
-				.strict(),
+			title: "Evaluate job fit",
+			description:
+				"Eligibility + Language gates, five-dimension weighted score, verdict, strengths, gaps, recommendation, and employer-call advice for one posting. Posting text preferred; URL fallback fetches with escalation.",
+			inputSchema: EvaluateJobInput,
+			outputSchema: EvaluationSchema,
 			annotations: {
 				readOnlyHint: true,
 				destructiveHint: false,
 				idempotentHint: true,
-				openWorldHint: false,
+				openWorldHint: true,
 			},
 		},
-		async ({ message }) => ({
-			content: [{ type: "text", text: `Tool echo: ${message}` }],
-			structuredContent: { message },
-		})
+		async (input) => {
+			if (!input.postingText && !input.postingUrl) {
+				return {
+					isError: true,
+					content: [{ type: "text" as const, text: "Provide postingText (preferred) or postingUrl." }],
+				};
+			}
+			const profile = resolveProfile(input.profile);
+
+			let postingText = input.postingText;
+			let fetchSteps = ["pasted-text"];
+			let discrepancies: string[] = [];
+			if (!postingText) {
+				const fetched = await fetchPosting(input.postingUrl as string, {
+					company: input.company,
+					role: input.role,
+				});
+				fetchSteps = fetched.steps;
+				discrepancies = fetched.discrepancies;
+				if (!fetched.ok || !fetched.text) {
+					return {
+						isError: true,
+						content: [
+							{
+								type: "text" as const,
+								text: `Posting genuinely unavailable: ${fetched.steps.join(" > ")}. ${fetched.error ?? ""}`,
+							},
+						],
+					};
+				}
+				postingText = fetched.text;
+			}
+
+			const evaluation = evaluateJob({
+				postingText: postingText as string,
+				profile,
+				source: input.postingUrl ?? "pasted-text",
+			});
+
+			let companyResearch = {
+				cached: false,
+				cacheFile: "",
+				websiteUrl: null as string | null,
+				websiteNotes: null as string | null,
+			};
+			if (input.company) {
+				const research = await researchCompany({
+					company: input.company,
+					cacheDir: join(process.cwd(), "company_research"),
+					companyUrl: input.companyUrl,
+				});
+				companyResearch = {
+					cached: research.cached,
+					cacheFile: research.cacheFile,
+					websiteUrl: research.entry.sources.website?.url ?? null,
+					websiteNotes: research.entry.sources.website?.notes ?? null,
+				};
+			}
+
+			const text = renderMarkdown(
+				evaluation,
+				input.company,
+				input.role,
+				companyResearch.websiteUrl,
+				fetchSteps,
+				discrepancies,
+			);
+			return {
+				content: [{ type: "text" as const, text }],
+				structuredContent: { ...evaluation, companyResearch, fetchSteps, discrepancies },
+			};
+		},
 	);
 });
 
-export { handler as GET, handler as POST };
+async function verifyToken(_req: Request, bearerToken?: string): Promise<AuthInfo | undefined> {
+	const expected = process.env.MCP_AUTH_TOKEN || undefined;
+	if (!verifyBearerToken(bearerToken, expected).authorized) {
+		return undefined;
+	}
+	return { token: bearerToken ?? "local-dev", clientId: "job-hunter-client", scopes: [] };
+}
+
+const authed = withMcpAuth(handler, verifyToken, {
+	required: Boolean(process.env.MCP_AUTH_TOKEN),
+});
+
+export { authed as GET, authed as POST };
