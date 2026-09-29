@@ -4,15 +4,15 @@ import {
 	extractStrengths,
 	overallScore,
 	scoreDimensions,
-} from "./evaluate.ts";
+} from "@/lib/evaluate.ts";
 import {
 	defaultFetch,
 	extractTitle,
 	stripHtml,
-} from "./fetch-posting.ts";
-import type { FetchLike } from "./fetch-posting.ts";
-import { isCanonical, makeKey } from "./job-key.ts";
-import type { Profile } from "./profile.ts";
+} from "@/lib/fetch-posting.ts";
+import type { FetchLike } from "@/lib/fetch-posting.ts";
+import { isCanonical, makeKey } from "@/lib/job-key.ts";
+import type { Profile } from "@/lib/profile.ts";
 
 /**
  * Job discovery planner (ticket 05). Pure planning over caller-held or

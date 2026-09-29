@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { registerPrepInterview } from "../lib/mcp/tools/prep-interview.ts";
+import { registerPrepInterview } from "@/lib/mcp/tools/prep-interview.ts";
 
 type ToolResult = {
 	content: { type: string; text: string }[];

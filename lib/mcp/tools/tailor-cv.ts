@@ -1,9 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { resolveProfile } from "@/lib/profile";
-import { buildTailoredCv } from "@/lib/tailor";
-import { TailorCvInput, TailorCvOutput } from "@/lib/mcp/schemas";
-import { renderTailoredCvMarkdown } from "@/lib/mcp/render";
+import { sectionHeadings } from "@/lib/latex.ts";
+import { resolveProfile } from "@/lib/profile.ts";
+import { buildTailoredCv } from "@/lib/tailor.ts";
+import { documentSignals } from "@/lib/verify.ts";
+import { TailorCvInput, TailorCvOutput } from "@/lib/mcp/schemas.ts";
+import { renderTailoredCvMarkdown } from "@/lib/mcp/render.ts";
 
 export function registerTailorCv(server: McpServer): void {
 	server.registerTool(
@@ -33,9 +35,14 @@ export function registerTailorCv(server: McpServer): void {
 				};
 			}
 			const { ok: _cvOk, ...cvStructured } = result;
+			const language = input.cvLanguage ?? "en";
+			const signals = documentSignals("cv", result.tex, {
+				language,
+				sections: Object.values(sectionHeadings(language)),
+			});
 			return {
-				content: [{ type: "text" as const, text: renderTailoredCvMarkdown(result) }],
-				structuredContent: cvStructured,
+				content: [{ type: "text" as const, text: renderTailoredCvMarkdown({ ...result, signals }) }],
+				structuredContent: { ...cvStructured, signals },
 			};
 		},
 	);

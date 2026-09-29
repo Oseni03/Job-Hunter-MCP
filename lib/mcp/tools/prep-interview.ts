@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { planInterviewPrep } from "../../prep.ts";
-import { PrepInterviewInput, PrepInterviewOutput } from "../schemas.ts";
-import { renderPrepMarkdown } from "../render.ts";
+import { planInterviewPrep } from "@/lib/prep.ts";
+import { PrepInterviewInput, PrepInterviewOutput } from "@/lib/mcp/schemas.ts";
+import { renderPrepMarkdown } from "@/lib/mcp/render.ts";
 
 export function registerPrepInterview(server: McpServer): void {
 	server.registerTool(

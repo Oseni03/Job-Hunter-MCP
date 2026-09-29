@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { registerPortalFields } from "../lib/mcp/tools/portal-fields.ts";
+import { registerPortalFields } from "@/lib/mcp/tools/portal-fields.ts";
 
 type ToolResult = {
 	content: { type: string; text: string }[];

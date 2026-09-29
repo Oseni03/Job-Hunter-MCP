@@ -1,14 +1,14 @@
-import { extractDeadline, profileVocabulary } from "./evaluate.ts";
+import { extractDeadline, profileVocabulary } from "@/lib/evaluate.ts";
 import {
 	braceItem,
 	checkWritingBans,
 	escapeLatex,
 	sectionHeadings,
 	toAsciiDateRange,
-} from "./latex.ts";
-import type { SectionHeadings } from "./latex.ts";
-import { EMPTY_SLUG_ERROR, makeJobSlug } from "./job-key.ts";
-import type { Profile } from "./profile.ts";
+} from "@/lib/latex.ts";
+import type { SectionHeadings } from "@/lib/latex.ts";
+import { EMPTY_SLUG_ERROR, makeJobSlug } from "@/lib/job-key.ts";
+import type { Profile } from "@/lib/profile.ts";
 
 /**
  * Slice A: requirement coverage, logistics extraction, and factual

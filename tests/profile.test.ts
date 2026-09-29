@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { DEFAULT_PROFILE, resolveProfile } from "../lib/profile.ts";
+import { DEFAULT_PROFILE, resolveProfile } from "@/lib/profile.ts";
 
 describe("resolveProfile", () => {
 	it("returns the embedded default when no override is given", () => {

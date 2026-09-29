@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { planCareerStrategy } from "../../strategy.ts";
-import { StrategyInput, StrategyOutput } from "../schemas.ts";
-import { renderStrategyMarkdown } from "../render.ts";
+import { planCareerStrategy } from "@/lib/strategy.ts";
+import { StrategyInput, StrategyOutput } from "@/lib/mcp/schemas.ts";
+import { renderStrategyMarkdown } from "@/lib/mcp/render.ts";
 
 export function registerCareerStrategy(server: McpServer): void {
 	server.registerTool(

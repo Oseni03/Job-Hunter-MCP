@@ -6,8 +6,8 @@
  * `archiveFile` unless that file already exists.
  */
 
-import { makeJobSlug } from "./job-key.ts";
-import { archiveDirFor } from "./tailor.ts";
+import { makeJobSlug } from "@/lib/job-key.ts";
+import { archiveDirFor } from "@/lib/tailor.ts";
 
 export const TRACKER_HEADER =
 	"date,company,sector,role,role_type,channel,status,contact_person,fit_rating,notes,cv_file,cover_letter_file,source,deadline";

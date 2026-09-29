@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { defaultFetch, fetchPosting, searchEmployerSite } from "./fetch-posting.ts";
-import type { FetchLike } from "./fetch-posting.ts";
+import { defaultFetch, fetchPosting, searchEmployerSite } from "@/lib/fetch-posting.ts";
+import type { FetchLike } from "@/lib/fetch-posting.ts";
 
 /** 30-day TTL from 04-job-evaluation.md; both consumers read this constant. */
 export const RESEARCH_TTL_DAYS = 30;

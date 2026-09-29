@@ -7,7 +7,7 @@ import {
 	escapeLatex,
 	sectionHeadings,
 	toAsciiDateRange,
-} from "../lib/latex.ts";
+} from "@/lib/latex.ts";
 
 describe("escapeLatex", () => {
 	it("escapes every special in the skill table", () => {

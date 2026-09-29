@@ -1,5 +1,5 @@
-import { checkSourceConsistency } from "./tailor.ts";
-import { resolveProfile, evidencePool, type Profile } from "./profile.ts";
+import { checkSourceConsistency } from "@/lib/tailor.ts";
+import { resolveProfile, evidencePool, type Profile } from "@/lib/profile.ts";
 
 export interface EvaluationSummary {
 	fitScore?: number;

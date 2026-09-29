@@ -1,10 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { defaultFetch } from "../../fetch-posting.ts";
-import { resolveProfile } from "../../profile.ts";
-import { createBrightDataFetcher, createWebFallbackFetch, planSearch } from "../../search.ts";
-import { SearchJobsInput, SearchJobsOutput } from "../schemas.ts";
-import { renderSearchMarkdown } from "../render.ts";
+import { defaultFetch } from "@/lib/fetch-posting.ts";
+import { resolveProfile } from "@/lib/profile.ts";
+import { createBrightDataFetcher, createWebFallbackFetch, planSearch } from "@/lib/search.ts";
+import { SearchJobsInput, SearchJobsOutput } from "@/lib/mcp/schemas.ts";
+import { renderSearchMarkdown } from "@/lib/mcp/render.ts";
 
 export function registerSearchJobs(server: McpServer): void {
 	server.registerTool(

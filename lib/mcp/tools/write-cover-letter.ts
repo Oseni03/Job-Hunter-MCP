@@ -1,9 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { resolveProfile } from "@/lib/profile";
-import { buildCoverLetter } from "@/lib/tailor";
-import { CoverInput, CoverOutput } from "@/lib/mcp/schemas";
-import { renderCoverMarkdown } from "@/lib/mcp/render";
+import { resolveProfile } from "@/lib/profile.ts";
+import { buildCoverLetter } from "@/lib/tailor.ts";
+import { documentSignals } from "@/lib/verify.ts";
+import { CoverInput, CoverOutput } from "@/lib/mcp/schemas.ts";
+import { renderCoverMarkdown } from "@/lib/mcp/render.ts";
 
 export function registerWriteCoverLetter(server: McpServer): void {
 	server.registerTool(
@@ -33,9 +34,13 @@ export function registerWriteCoverLetter(server: McpServer): void {
 				};
 			}
 			const { ok: _coverOk, ...coverStructured } = result;
+			const signals = documentSignals("letter", result.tex, {
+				language: input.postingLanguage ?? "en",
+				sections: [],
+			});
 			return {
-				content: [{ type: "text" as const, text: renderCoverMarkdown(result) }],
-				structuredContent: coverStructured,
+				content: [{ type: "text" as const, text: renderCoverMarkdown({ ...result, signals }) }],
+				structuredContent: { ...coverStructured, signals },
 			};
 		},
 	);

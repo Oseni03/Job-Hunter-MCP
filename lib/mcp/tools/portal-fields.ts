@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { planPortalFields } from "../../fields.ts";
-import { PortalFieldsInput, PortalFieldsOutput } from "../schemas.ts";
-import { renderFieldsMarkdown } from "../render.ts";
+import { planPortalFields } from "@/lib/fields.ts";
+import { PortalFieldsInput, PortalFieldsOutput } from "@/lib/mcp/schemas.ts";
+import { renderFieldsMarkdown } from "@/lib/mcp/render.ts";
 
 export function registerPortalFields(server: McpServer): void {
 	server.registerTool(

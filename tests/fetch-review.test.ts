@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { fetchPosting, robotsAllows } from "../lib/fetch-posting.ts";
-import type { FetchLike } from "../lib/fetch-posting.ts";
+import { fetchPosting, robotsAllows } from "@/lib/fetch-posting.ts";
+import type { FetchLike } from "@/lib/fetch-posting.ts";
 
 function mockFetch(routes: Record<string, { status: number; body: string }>): {
 	fetchImpl: FetchLike;

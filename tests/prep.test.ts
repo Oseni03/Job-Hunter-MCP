@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { planInterviewPrep } from "../lib/prep.ts";
+import { planInterviewPrep } from "@/lib/prep.ts";
 
 const PROFILE = {
 	name: "Test Candidate",

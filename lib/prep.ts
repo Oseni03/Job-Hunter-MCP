@@ -1,6 +1,6 @@
-import { checkSourceConsistency, matchRequirements, archiveDirFor } from "./tailor.ts";
-import { makeJobSlug } from "./job-key.ts";
-import { resolveProfile, evidencePool } from "./profile.ts";
+import { checkSourceConsistency, matchRequirements, archiveDirFor } from "@/lib/tailor.ts";
+import { makeJobSlug } from "@/lib/job-key.ts";
+import { resolveProfile, evidencePool } from "@/lib/profile.ts";
 
 export const PREP_STAGES = [
 	"recruiter-screen",

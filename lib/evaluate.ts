@@ -1,4 +1,4 @@
-import type { Profile } from "./profile.ts";
+import type { Profile } from "@/lib/profile.ts";
 
 export type EligibilityVerdict = "PASS" | "FAIL" | "PROCEED_UNVERIFIED";
 export type LanguageVerdict = "PASS" | "FAIL" | "FLAG";

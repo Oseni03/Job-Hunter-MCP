@@ -1,5 +1,5 @@
-import { auditClaim, checkSourceConsistency } from "./tailor.ts";
-import { resolveProfile, evidencePool } from "./profile.ts";
+import { auditClaim, checkSourceConsistency } from "@/lib/tailor.ts";
+import { resolveProfile, evidencePool } from "@/lib/profile.ts";
 
 export const PORTAL_FIELDS_FILE = "documents/portal-fields.md";
 

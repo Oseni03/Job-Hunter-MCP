@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { fetchPosting } from "../lib/fetch-posting.ts";
-import type { FetchLike } from "../lib/fetch-posting.ts";
+import { fetchPosting } from "@/lib/fetch-posting.ts";
+import type { FetchLike } from "@/lib/fetch-posting.ts";
 
 const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)";
 

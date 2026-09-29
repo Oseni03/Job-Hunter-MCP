@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { planRecordApplication } from "../../record.ts";
-import { RecordApplicationInput, RecordApplicationOutput } from "../schemas.ts";
-import { renderRecordMarkdown } from "../render.ts";
+import { planRecordApplication } from "@/lib/record.ts";
+import { RecordApplicationInput, RecordApplicationOutput } from "@/lib/mcp/schemas.ts";
+import { renderRecordMarkdown } from "@/lib/mcp/render.ts";
 
 export function registerRecordApplication(server: McpServer): void {
 	server.registerTool(

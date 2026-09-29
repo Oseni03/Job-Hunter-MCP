@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { registerSearchJobs } from "../lib/mcp/tools/search-jobs.ts";
+import { registerSearchJobs } from "@/lib/mcp/tools/search-jobs.ts";
 
 type ToolResult = {
 	content: { type: string; text: string }[];

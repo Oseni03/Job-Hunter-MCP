@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { TRACKER_HEADER, planRecordApplication } from "../lib/record.ts";
+import { TRACKER_HEADER, planRecordApplication } from "@/lib/record.ts";
 
 const BASE = {
 	company: "Acme",

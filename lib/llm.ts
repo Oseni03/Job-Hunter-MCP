@@ -7,11 +7,11 @@ import {
 	recommendationFor,
 	scoreDimensions,
 	verdictFor,
-} from "./evaluate.ts";
-import type { EligibilityVerdict, Evaluation, LanguageVerdict } from "./evaluate.ts";
-import { defaultFetch } from "./fetch-posting.ts";
-import type { FetchLike } from "./fetch-posting.ts";
-import type { Profile } from "./profile.ts";
+} from "@/lib/evaluate.ts";
+import type { EligibilityVerdict, Evaluation, LanguageVerdict } from "@/lib/evaluate.ts";
+import { defaultFetch } from "@/lib/fetch-posting.ts";
+import type { FetchLike } from "@/lib/fetch-posting.ts";
+import type { Profile } from "@/lib/profile.ts";
 
 /** Prompt version; bump when the template changes so outputs stay attributable. */
 export const REFINE_PROMPT_VERSION = 1;

@@ -1,11 +1,27 @@
-import type { Evaluation } from "../evaluate.ts";
-import type { RefinementSource } from "../llm.ts";
-import type { RequirementMatch } from "../tailor.ts";
-import type { RecordPlan } from "../record.ts";
-import type { PrepPlan } from "../prep.ts";
-import type { StrategyPlan } from "../strategy.ts";
-import type { FieldsPlan } from "../fields.ts";
-import type { SearchPlan } from "../search.ts";
+import type { Evaluation } from "@/lib/evaluate.ts";
+import type { RefinementSource } from "@/lib/llm.ts";
+import type { RequirementMatch } from "@/lib/tailor.ts";
+import type { RecordPlan } from "@/lib/record.ts";
+import type { PrepPlan } from "@/lib/prep.ts";
+import type { StrategyPlan } from "@/lib/strategy.ts";
+import type { FieldsPlan } from "@/lib/fields.ts";
+import type { SearchPlan } from "@/lib/search.ts";
+import type { DocumentSignals } from "@/lib/verify.ts";
+
+export function signalLines(signals: DocumentSignals): string[] {
+	const lines = [
+		"### Document signals (server-side; host owns compilation)",
+		`- Page budget: ${signals.pageBudget.wordCount} words vs ${signals.pageBudget.pageLimit}-page limit${signals.pageBudget.overBudget ? " — OVER BUDGET" : ""}`,
+		...signals.pageBudget.shapingNotes.map((note) => `- Shaping: ${note}`),
+		`- LaTeX safety: ${signals.latexSafety.passed ? "pass" : "FAIL"}`,
+		...signals.latexSafety.checks
+			.filter((check) => !check.pass)
+			.map((check) => `- Safety [${check.name}]: ${check.detail}`),
+		`- Layout: ${signals.layout.degraded ? `degraded — ${signals.layout.note}` : "geometry available"}`,
+		...signals.layout.problems.map((problem) => `- Layout: ${problem}`),
+	];
+	return lines;
+}
 
 export function renderMarkdown(
 	evaluation: Evaluation,
@@ -88,6 +104,7 @@ export function renderTailoredCvMarkdown(output: {
 		contactNote?: string;
 	};
 	banViolations: string[];
+	signals: DocumentSignals;
 }): string {
 	const lines = [
 		`## Tailored CV: \`${output.filePath}\``,
@@ -116,6 +133,7 @@ export function renderTailoredCvMarkdown(output: {
 	]) {
 		lines.push(`- Warning: ${warning}`);
 	}
+	lines.push("", ...signalLines(output.signals));
 	return lines.join("\n");
 }
 
@@ -137,6 +155,7 @@ export function renderCoverMarkdown(output: {
 		contactNote?: string;
 	};
 	banViolations: string[];
+	signals: DocumentSignals;
 }): string {
 	const lines = [
 		`## Cover Letter: \`${output.filePath}\``,
@@ -165,6 +184,7 @@ export function renderCoverMarkdown(output: {
 	]) {
 		lines.push(`- Warning: ${warning}`);
 	}
+	lines.push("", ...signalLines(output.signals));
 	return lines.join("\n");
 }
 

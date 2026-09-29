@@ -182,6 +182,16 @@ async function main() {
     });
     console.log("Search", JSON.stringify(search, null, 2));
 
+    const { resources } = await client.listResources();
+    console.log("Resources", resources.map((resource) => resource.uri));
+    const framework = await client.readResource({ uri: "job-hunter://framework/evaluation" });
+    console.log("Framework", JSON.stringify(framework, null, 2).slice(0, 400));
+
+    const { prompts } = await client.listPrompts();
+    console.log("Prompts", prompts.map((prompt) => prompt.name));
+    const apply = await client.getPrompt({ name: "apply" });
+    console.log("ApplyPrompt", JSON.stringify(apply, null, 2).slice(0, 400));
+
     await client.close();
 }
 

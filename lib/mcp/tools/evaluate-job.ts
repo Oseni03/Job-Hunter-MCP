@@ -2,14 +2,14 @@ import { join } from "node:path";
 
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { evaluateJob } from "@/lib/evaluate";
-import { fetchPosting } from "@/lib/fetch-posting";
-import { refineEvaluation } from "@/lib/llm";
-import { resolveProfile } from "@/lib/profile";
-import { researchCompany } from "@/lib/research-company";
-import { EvaluateJobInput, EvaluationSchema } from "@/lib/mcp/schemas";
-import { renderMarkdown } from "@/lib/mcp/render";
-import { makeSamplingSender } from "@/lib/mcp/sampling";
+import { evaluateJob } from "@/lib/evaluate.ts";
+import { fetchPosting } from "@/lib/fetch-posting.ts";
+import { refineEvaluation } from "@/lib/llm.ts";
+import { resolveProfile } from "@/lib/profile.ts";
+import { researchCompany } from "@/lib/research-company.ts";
+import { EvaluateJobInput, EvaluationSchema } from "@/lib/mcp/schemas.ts";
+import { renderMarkdown } from "@/lib/mcp/render.ts";
+import { makeSamplingSender } from "@/lib/mcp/sampling.ts";
 
 export function registerEvaluateJob(server: McpServer): void {
 	server.registerTool(
