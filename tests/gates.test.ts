@@ -1,9 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { checkEligibility, checkLanguage } from "../evaluate.ts";
-import type { Profile } from "../profile.ts";
-import { DEFAULT_PROFILE } from "../profile.ts";
+import { checkEligibility, checkLanguage } from "../lib/evaluate.ts";
+import type { Profile } from "../lib/profile.ts";
+import { DEFAULT_PROFILE } from "../lib/profile.ts";
 
 const BASE: Profile = {
 	...DEFAULT_PROFILE,

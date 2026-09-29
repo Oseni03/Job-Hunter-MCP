@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { planPortalFields } from "../fields.ts";
+import { planPortalFields } from "../lib/fields.ts";
 
 const PROFILE = {
 	name: "Test Candidate",

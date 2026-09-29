@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { verifyBearerToken } from "../auth.ts";
+import { verifyBearerToken } from "../lib/auth.ts";
 
 describe("verifyBearerToken", () => {
 	it("leaves local dev open when no token is configured", () => {

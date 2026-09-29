@@ -10,9 +10,9 @@ import {
 	isPeopleSearchUrl,
 	planSearch,
 	resolveSearchFilters,
-} from "../search.ts";
-import type { RawPosting } from "../search.ts";
-import type { Profile } from "../profile.ts";
+} from "../lib/search.ts";
+import type { RawPosting } from "../lib/search.ts";
+import type { Profile } from "../lib/profile.ts";
 
 const PROFILE: Profile = {
 	name: "Test Candidate",

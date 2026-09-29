@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { buildTailoredCv } from "../tailor.ts";
-import type { Profile } from "../profile.ts";
+import { buildTailoredCv } from "../lib/tailor.ts";
+import type { Profile } from "../lib/profile.ts";
 
 const PROFILE: Profile = {
 	name: "Test Candidate",

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { registerCareerStrategy } from "../mcp/tools/career-strategy.ts";
+import { registerCareerStrategy } from "../lib/mcp/tools/career-strategy.ts";
 
 type ToolResult = {
 	content: { type: string; text: string }[];

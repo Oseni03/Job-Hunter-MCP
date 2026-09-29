@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "type-check": "tsc --noEmit",
-    "test": "node --test lib/__tests__/*.test.ts",
+    "test": "node --test tests/*.test.ts",
     "lint": "eslint .",
     "test:client": "node scripts/test-client.mjs"
   },

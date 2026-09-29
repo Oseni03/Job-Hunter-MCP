@@ -8,9 +8,9 @@ import {
 	extractStrengths,
 	recommendationFor,
 	shouldCallEmployer,
-} from "../evaluate.ts";
-import type { Profile } from "../profile.ts";
-import { DEFAULT_PROFILE } from "../profile.ts";
+} from "../lib/evaluate.ts";
+import type { Profile } from "../lib/profile.ts";
+import { DEFAULT_PROFILE } from "../lib/profile.ts";
 
 const PROFILE: Profile = {
 	...DEFAULT_PROFILE,

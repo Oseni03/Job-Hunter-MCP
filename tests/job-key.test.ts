@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { isCanonical, makeJobSlug, makeKey } from "../job-key.ts";
+import { isCanonical, makeJobSlug, makeKey } from "../lib/job-key.ts";
 
 describe("makeKey", () => {
 	it("builds the canonical company_role key for a simple posting", () => {

@@ -4,8 +4,8 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { normalizeCompany, readResearchCache, researchCompany } from "../research-company.ts";
-import type { FetchLike } from "../fetch-posting.ts";
+import { normalizeCompany, readResearchCache, researchCompany } from "../lib/research-company.ts";
+import type { FetchLike } from "../lib/fetch-posting.ts";
 
 function tempDir(): string {
 	return mkdtempSync(join(tmpdir(), "research-test-"));

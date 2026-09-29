@@ -6,8 +6,8 @@ import {
 	checkSourceConsistency,
 	extractLogistics,
 	matchRequirements,
-} from "../tailor.ts";
-import type { Profile } from "../profile.ts";
+} from "../lib/tailor.ts";
+import type { Profile } from "../lib/profile.ts";
 
 const PROFILE: Profile = {
 	name: "Test Candidate",

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { registerPortalFields } from "../mcp/tools/portal-fields.ts";
+import { registerPrepInterview } from "../lib/mcp/tools/prep-interview.ts";
 
 type ToolResult = {
 	content: { type: string; text: string }[];
@@ -20,46 +20,41 @@ function registered(): { name: string; handler: unknown }[] {
 			captured.push({ name, handler });
 		},
 	} as unknown as McpServer;
-	registerPortalFields(server);
+	registerPrepInterview(server);
 	return captured;
 }
 
 const ARGS = {
+	company: "Acme",
+	role: "Senior ML Engineer",
+	stage: "technical",
+	postingText: "Senior ML Engineer at Acme.\nRequirements: Python, Kubernetes.",
+	stageHistoryText: "Feedback: concern about Kubernetes depth.",
 	profile: {
 		name: "Test Candidate",
-		primarySkills: ["Python", "SQL"],
+		primarySkills: ["Python"],
 		strongDomains: ["fraud detection"],
 		careerGoals: ["ML Engineer"],
 	},
-	company: "Acme",
-	projects: [
-		{
-			name: "Fraud scoring pipeline",
-			role: "ML Engineer",
-			dates: "2024-present",
-			description: "Built a Python scoring pipeline for fraud detection with SQL features.",
-		},
-	],
-	targetWords: 200,
+	logistics: { format: "video" },
 };
 
-describe("portal-fields tool", () => {
-	it("registers under portal-fields", () => {
+describe("prep-interview tool", () => {
+	it("registers under prep-interview", () => {
 		const tools = registered();
 		assert.equal(tools.length, 1);
-		assert.equal(tools[0].name, "portal-fields");
+		assert.equal(tools[0].name, "prep-interview");
 	});
 
-	it("drafts intros, project entries, and pitches with measured counts", async () => {
+	it("builds an ordered pack and asks for missing logistics", async () => {
 		const tools = registered();
 		const result = await (tools[0].handler as LooseHandler)(ARGS, {});
 		assert.equal(result.isError, undefined);
 		const structured = result.structuredContent as Record<string, unknown>;
-		assert.equal(structured["filePath"], "documents/portal-fields.md");
-		assert.equal((structured["selfIntros"] as unknown[]).length, 2);
-		const pitches = structured["pitches"] as { charCount: number; text: string }[];
-		assert.ok(pitches.length >= 4 && pitches.length <= 6);
-		assert.deepEqual(structured["ungrounded"], []);
-		assert.ok(result.content[0].text.includes("# Portal fields (copy-paste)"));
+		assert.equal(structured["packFile"], "documents/applications/acme_senior-ml-engineer/technical-prep.md");
+		assert.deepEqual(structured["missingLogistics"], ["dateTime", "interviewers", "location"]);
+		const sources = (structured["questions"] as { source: string }[]).map((question) => question.source);
+		assert.ok(sources.indexOf("recorded-feedback") < sources.indexOf("fit-gap"));
+		assert.ok(result.content[0].text.includes("Mock run"));
 	});
 });

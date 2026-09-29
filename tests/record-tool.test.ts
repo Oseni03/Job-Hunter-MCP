@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { TRACKER_HEADER } from "../record.ts";
-import { registerRecordApplication } from "../mcp/tools/record-application.ts";
+import { TRACKER_HEADER } from "../lib/record.ts";
+import { registerRecordApplication } from "../lib/mcp/tools/record-application.ts";
 
 type ToolResult = {
 	content: { type: string; text: string }[];
