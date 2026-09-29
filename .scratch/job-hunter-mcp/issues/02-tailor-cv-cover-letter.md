@@ -4,7 +4,7 @@
 
 **Blocked by:** 01-foundation-evaluate-job.
 
-**Status:** ready-for-agent
+**Status:** done (commit bbb0748; tsc clean, 135/135 node:test green, live HTTP verified incl. EMPTY_SLUG probe)
 
 - [ ] Both tools derive the same `<company>_<role>` slug once and reuse it for CV, letter, and archive path, returning hard error with no TeX when the slug is empty
 - [ ] CV tailors profile statement (domain-transfer lead when changing fields), 5-7 competencies using the posting's own core terms as bold labels where truthful, relevance-ordered experience bullets with measurable outcomes, and correct section order per role type
