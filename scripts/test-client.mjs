@@ -23,31 +23,79 @@ async function main() {
     const { tools } = await client.listTools();
     console.log("Tools", tools.map((tool) => tool.name));
 
+    const postingText = [
+        "Senior ML Engineer at Acme.",
+        "We welcome international applicants and offer visa sponsorship.",
+        "Requirements: Python, SQL, Machine Learning.",
+        "Nice to have: Docker, Kubernetes.",
+        "Domain: fraud detection.",
+        "Remote. Apply by 15 March 2026. Ref: ACME-123.",
+    ].join("\n");
+    const profile = {
+        name: "Test Candidate",
+        primarySkills: ["Python", "SQL", "Machine Learning"],
+        secondarySkills: ["Docker"],
+        strongDomains: ["fraud detection"],
+        adjacentDomains: ["credit risk"],
+        careerGoals: ["ML Engineer"],
+        energizingTasks: ["model building"],
+        drainingTasks: ["maintenance"],
+        languages: [{ language: "English", level: "C1" }],
+    };
+
     const result = await client.callTool({
         name: "evaluate-job",
-        arguments: {
-            postingText: [
-                "Senior ML Engineer at Acme.",
-                "We welcome international applicants and offer visa sponsorship.",
-                "Requirements: Python, SQL, Machine Learning.",
-                "Domain: fraud detection.",
-                "Remote. Apply by 15 March 2026.",
-            ].join("\n"),
-            company: "Acme",
-            role: "Senior ML Engineer",
-            profile: {
-                name: "Test Candidate",
-                primarySkills: ["Python", "SQL", "Machine Learning"],
-                secondarySkills: ["Docker"],
-                strongDomains: ["fraud detection"],
-                careerGoals: ["ML Engineer"],
-                energizingTasks: ["model building"],
-                drainingTasks: ["maintenance"],
-                languages: [{ language: "English", level: "C1" }],
-            },
-        },
+        arguments: { postingText, company: "Acme", role: "Senior ML Engineer", profile },
     });
     console.log("Result", JSON.stringify(result, null, 2));
+
+    const cv = await client.callTool({
+        name: "tailor-cv",
+        arguments: {
+            postingText,
+            company: "Acme",
+            role: "Senior ML Engineer",
+            profile,
+            experience: [
+                {
+                    title: "Data Analyst",
+                    company: "R&D Corp",
+                    period: "2020-2024",
+                    bullets: ["Cut losses by 12% with Python models for fraud detection."],
+                },
+            ],
+            education: [
+                {
+                    degree: "MSc Data Science",
+                    period: "2022-2024",
+                    institution: "Test University",
+                    inProgress: true,
+                    expectedDate: "June 2026",
+                },
+            ],
+        },
+    });
+    console.log("CV", JSON.stringify(cv, null, 2));
+
+    const letter = await client.callTool({
+        name: "write-cover-letter",
+        arguments: {
+            postingText,
+            company: "Acme",
+            role: "Senior ML Engineer",
+            profile,
+            hiringManager: "Jane Smith",
+            companySpecifics: ["Acme processes payments across Europe."],
+            highlights: ["Shipped a model that cut review time by 30%."],
+        },
+    });
+    console.log("Letter", JSON.stringify(letter, null, 2));
+
+    const emptySlug = await client.callTool({
+        name: "tailor-cv",
+        arguments: { postingText: "Requirements: Python.", profile },
+    });
+    console.log("EmptySlug", JSON.stringify(emptySlug, null, 2));
 
     await client.close();
 }

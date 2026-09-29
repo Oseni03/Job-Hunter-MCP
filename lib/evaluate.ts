@@ -417,7 +417,8 @@ export function verdictFor(score: number): Verdict {
 	return "Poor Fit";
 }
 
-function profileVocabulary(profile: Profile): Set<string> {
+/** Content vocabulary of the profile: words of length 2+ from skills, domains, and goals. */
+export function profileVocabulary(profile: Profile): Set<string> {
 	const words = new Set<string>();
 	for (const phrase of [
 		...profile.primarySkills,
