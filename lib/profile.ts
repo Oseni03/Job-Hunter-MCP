@@ -60,3 +60,15 @@ export function resolveProfile(override: unknown): Profile {
 	}
 	return ProfileSchema.parse({ ...DEFAULT_PROFILE, ...(override as Record<string, unknown>) });
 }
+
+/** Candidate-stated phrases other tools ground their output in (skills, domains, goals, energizers). */
+export function evidencePool(profile: Profile): string[] {
+	return [
+		...profile.primarySkills,
+		...profile.secondarySkills,
+		...profile.strongDomains,
+		...profile.adjacentDomains,
+		...profile.careerGoals,
+		...profile.energizingTasks,
+	].filter((phrase) => phrase.trim().length >= 2);
+}

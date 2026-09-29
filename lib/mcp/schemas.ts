@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { ProfileSchema } from "@/lib/profile";
+import { ProfileSchema } from "../profile.ts";
 
 export const EvaluateJobInput = z
 	.object({
@@ -262,5 +262,188 @@ export const EvaluationSchema = z
 		}),
 		fetchSteps: z.array(z.string()),
 		discrepancies: z.array(z.string()),
+	})
+	.strict();
+
+export const StarExampleInput = z
+	.object({
+		title: z.string().min(1),
+		situation: z.string().min(1),
+		task: z.string().min(1),
+		action: z.string().min(1),
+		result: z.string().min(1),
+		useFor: z.array(z.string()).describe("Tags naming the topics this example may be used for"),
+	})
+	.strict();
+
+export const PrepLogisticsInput = z
+	.object({
+		dateTime: z.string().optional(),
+		format: z.string().optional(),
+		interviewers: z.string().optional(),
+		location: z.string().optional(),
+	})
+	.strict();
+
+export const PrepInterviewInput = z
+	.object({
+		company: z.string().min(1),
+		role: z.string().min(1),
+		stage: z.string().optional().describe("recruiter-screen, technical, hiring-manager, panel-onsite, or other"),
+		postingText: z.string().optional().describe("Exact archived posting text; absent means explicit fallback"),
+		cvText: z.string().optional().describe("Submitted CV text for probeable-claim extraction"),
+		coverText: z.string().optional().describe("Submitted cover letter text for probeable-claim extraction"),
+		stageHistoryText: z.string().optional().describe("Recorded feedback from earlier stages; never sibling-role history"),
+		starExamples: z.array(StarExampleInput).optional(),
+		companyFacts: z.array(z.string()).optional().describe("Caller-verified company facts only; echoed verbatim"),
+		logistics: PrepLogisticsInput.optional(),
+		profile: ProfileSchema.partial()
+			.optional()
+			.describe("Per-call profile override; replaces the embedded default field by field"),
+		masterCvText: z.string().optional(),
+		workspaceProfileText: z.string().optional(),
+	})
+	.strict();
+
+export const PrepInterviewOutput = z
+	.object({
+		company: z.string(),
+		role: z.string(),
+		stage: z.string(),
+		slug: z.string(),
+		packFile: z.string().describe("Suggested per-stage pack path; the host owns the write"),
+		packMarkdown: z.string(),
+		missingLogistics: z.array(z.string()),
+		fallbackNotes: z.array(z.string()),
+		questions: z.array(
+			z.object({
+				question: z.string(),
+				source: z.enum(["recorded-feedback", "fit-gap", "posting-requirement", "stage-type"]),
+				bridge: z.string().optional(),
+				evidence: z.string().optional(),
+			}),
+		),
+		starMapping: z.array(
+			z.object({ title: z.string(), useFor: z.array(z.string()), covers: z.array(z.string()) }),
+		),
+		uncoveredQuestions: z.array(z.string()),
+		newStarDrafts: z.array(
+			z.object({
+				title: z.string(),
+				situation: z.string(),
+				task: z.string(),
+				action: z.string(),
+				result: z.string(),
+				evidence: z.array(z.string()),
+				needsCandidateDetail: z.literal(true),
+			}),
+		),
+		probeableClaims: z.array(z.string()),
+		toughQuestions: z.array(z.string()),
+		questionsToAsk: z.array(z.string()),
+		warnings: z.array(z.string()),
+	})
+	.strict();
+
+export const EvaluationSummaryInput = z
+	.object({
+		fitScore: z.number().min(0).max(100).optional(),
+		verdict: z.string().optional(),
+		strengths: z.array(z.string()).optional(),
+		gaps: z.array(z.string()).optional(),
+	})
+	.strict();
+
+export const StrategyInput = z
+	.object({
+		profile: ProfileSchema.partial()
+			.optional()
+			.describe("Per-call profile override; replaces the embedded default field by field"),
+		evaluationSummary: EvaluationSummaryInput.optional().describe("Caller-passed evaluate-job output"),
+		focusAreas: z.array(z.string()).optional().describe("Candidate-nominated directions to assess"),
+		masterCvText: z.string().optional(),
+		workspaceProfileText: z.string().optional(),
+	})
+	.strict();
+
+export const StrategyOutput = z
+	.object({
+		directions: z.array(
+			z.object({
+				direction: z.string(),
+				why: z.array(z.string()),
+				evidence: z.array(z.string()),
+				gapsToClose: z.array(z.string()),
+				dimensions: z.array(z.string()),
+			}),
+		),
+		skipped: z.array(z.string()).describe("Nominated areas with no grounding; honestly excluded"),
+		avoidNotes: z.array(z.string()),
+		frameworkNote: z.string(),
+		warnings: z.array(z.string()),
+	})
+	.strict();
+
+export const ProjectInput = z
+	.object({
+		name: z.string().min(1).describe("Descriptive project name"),
+		role: z.string().min(1).describe("True project role; ownership is scoped to it"),
+		dates: z.string().min(1),
+		description: z.string().min(1),
+		inProgress: z.boolean().optional().describe("In-progress work is stated as such"),
+	})
+	.strict();
+
+export const PortalFieldsInput = z
+	.object({
+		profile: ProfileSchema.partial()
+			.optional()
+			.describe("Per-call profile override; replaces the embedded default field by field"),
+		company: z.string().min(1).optional().describe("Employer name for the self-introduction tie"),
+		employerPoints: z.array(z.string()).optional().describe("Caller-verified employer facts for the tie"),
+		experience: z.array(ExperienceInput).optional(),
+		projects: z.array(ProjectInput).optional(),
+		roleTypes: z.array(z.string()).optional().describe("Intro versions to draft; default technical and specialist"),
+		targetWords: z.number().int().positive().optional().describe("Self-introduction target word count"),
+		pitchContexts: z.array(z.string()).optional(),
+		masterCvText: z.string().optional(),
+		workspaceProfileText: z.string().optional(),
+		cvText: z.string().optional().describe("Submitted CV text; joins the audit union and consistency check"),
+		coverText: z.string().optional().describe("Submitted cover letter text; joins the audit union and check"),
+	})
+	.strict();
+
+export const PortalFieldsOutput = z
+	.object({
+		filePath: z.string().describe("Copy-paste file path; the host owns the write"),
+		copyPasteText: z.string(),
+		selfIntros: z.array(
+			z.object({
+				roleType: z.string(),
+				text: z.string(),
+				wordCount: z.number(),
+				targetWords: z.number().nullable(),
+				trimNote: z.string().nullable(),
+			}),
+		),
+		projectEntries: z.array(
+			z.object({
+				name: z.string(),
+				text: z.string(),
+				wordCount: z.number(),
+				lengthNote: z.string().nullable(),
+				short: z.string(),
+				shortWordCount: z.number(),
+				scopeNote: z.string(),
+				inProgressNote: z.string().nullable(),
+			}),
+		),
+		pitches: z.array(
+			z.object({ text: z.string(), charCount: z.number(), context: z.string(), recommended: z.boolean() }),
+		),
+		datesReference: z.array(z.string()),
+		scopeNotes: z.array(z.string()),
+		ungrounded: z.array(z.string()),
+		warnings: z.array(z.string()),
 	})
 	.strict();

@@ -1,0 +1,432 @@
+import { checkSourceConsistency, matchRequirements, archiveDirFor } from "./tailor.ts";
+import { makeJobSlug } from "./job-key.ts";
+import { resolveProfile, evidencePool } from "./profile.ts";
+
+export const PREP_STAGES = [
+	"recruiter-screen",
+	"technical",
+	"hiring-manager",
+	"panel-onsite",
+	"other",
+] as const;
+
+export type PrepStage = (typeof PREP_STAGES)[number];
+
+const LOGISTICS_KEYS = ["dateTime", "format", "interviewers", "location"] as const;
+
+export interface StarExample {
+	title: string;
+	situation: string;
+	task: string;
+	action: string;
+	result: string;
+	/** Tags naming the topics this example may be used for. */
+	useFor: string[];
+}
+
+export interface PrepLogistics {
+	dateTime?: string;
+	format?: string;
+	interviewers?: string;
+	location?: string;
+}
+
+export interface PrepInput {
+	company: string;
+	role: string;
+	stage?: string;
+	/** Exact archived posting text; absent means an explicit fallback, never a guess. */
+	postingText?: string;
+	/** Submitted CV text for probeable-claim extraction. */
+	cvText?: string;
+	/** Submitted cover letter text for probeable-claim extraction. */
+	coverText?: string;
+	/** Recorded feedback from earlier stages (tracker notes); never sibling-role history. */
+	stageHistoryText?: string;
+	starExamples?: StarExample[];
+	/** Caller-verified company facts only; echoed verbatim, never invented. */
+	companyFacts?: string[];
+	logistics?: PrepLogistics;
+	profile?: unknown;
+	masterCvText?: string;
+	workspaceProfileText?: string;
+}
+
+export type QuestionSource = "recorded-feedback" | "fit-gap" | "posting-requirement" | "stage-type";
+
+export interface LikelyQuestion {
+	question: string;
+	source: QuestionSource;
+	/** Honest bridge phrasing for fit-gap sources; pivots to profile evidence. */
+	bridge?: string;
+	/** Profile phrase grounding the question or bridge. */
+	evidence?: string;
+}
+
+export interface StarMapping {
+	title: string;
+	useFor: string[];
+	covers: string[];
+}
+
+export interface StarDraft {
+	title: string;
+	situation: string;
+	task: string;
+	action: string;
+	result: string;
+	evidence: string[];
+	needsCandidateDetail: true;
+}
+
+export interface PrepPlan {
+	company: string;
+	role: string;
+	stage: PrepStage;
+	slug: string;
+	packFile: string;
+	packMarkdown: string;
+	missingLogistics: string[];
+	fallbackNotes: string[];
+	questions: LikelyQuestion[];
+	starMapping: StarMapping[];
+	uncoveredQuestions: string[];
+	newStarDrafts: StarDraft[];
+	probeableClaims: string[];
+	toughQuestions: string[];
+	questionsToAsk: string[];
+	warnings: string[];
+}
+
+const CLAIM_PATTERN = /\d/;
+
+const STAGE_BANKS: Record<string, { likely: string[]; ask: string[] }> = {
+	"recruiter-screen": {
+		likely: ["Walk me through your background in two minutes."],
+		ask: ["What are the next steps and timeline for this process?"],
+	},
+	technical: {
+		likely: ["Talk through a recent deep-dive technical problem you solved."],
+		ask: [
+			"What does the technical deep-dive cover, and how is it evaluated?",
+			"What does the day-to-day technical stack look like?",
+		],
+	},
+	"hiring-manager": {
+		likely: ["How do you prioritize when everything is urgent?"],
+		ask: ["What does success look like in the first 90 days?"],
+	},
+	"panel-onsite": {
+		likely: ["Tell us about a disagreement with a teammate and how you resolved it."],
+		ask: ["How does the team handle on-call and incident review?"],
+	},
+	other: {
+		likely: ["Why are you interested in this role?"],
+		ask: ["What should a strong candidate demonstrate at this stage?"],
+	},
+};
+
+const TOUGH_BASE = [
+	"What is your greatest weakness?",
+	"What are your salary expectations?",
+	"Tell me about a time you failed.",
+];
+
+function normalizeStage(raw: string | undefined, fallbackNotes: string[]): PrepStage {
+	if (!raw) {
+		return "other";
+	}
+	const stage = raw.toLowerCase();
+	if ((PREP_STAGES as readonly string[]).includes(stage)) {
+		return stage as PrepStage;
+	}
+	fallbackNotes.push(`Unknown stage '${raw}' treated as 'other'; stage banks stay generic.`);
+	return "other";
+}
+
+function feedbackQuestions(stageHistoryText: string | undefined): LikelyQuestion[] {
+	if (!stageHistoryText) {
+		return [];
+	}
+	// The input is recorded feedback by contract: every non-empty line becomes a question.
+	return stageHistoryText
+		.split(/\r?\n/)
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0)
+		.map((line) => ({
+			question: `Follow up on recorded feedback: ${line}`,
+			source: "recorded-feedback",
+		}));
+}
+
+function strongestEvidence(profile: ReturnType<typeof resolveProfile>): string {
+	return (
+		profile.primarySkills[0] ??
+		profile.secondarySkills[0] ??
+		profile.strongDomains[0] ??
+		profile.careerGoals[0] ??
+		"your core background"
+	);
+}
+
+/** Content words for Use-for tag overlap (length 3+ to keep tags like "SQL" usable). */
+function tagWords(text: string): Set<string> {
+	return new Set(
+		text
+			.toLowerCase()
+			.split(/[^a-z0-9+#]+/)
+			.filter((word) => word.length >= 3),
+	);
+}
+
+function coversQuestion(example: StarExample, question: string): boolean {
+	const tags = new Set<string>();
+	for (const tag of example.useFor) {
+		for (const word of tagWords(tag)) {
+			tags.add(word);
+		}
+	}
+	for (const word of tagWords(question)) {
+		if (tags.has(word)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Builds one interview-prep pack from caller-held facts only. The server is
+ * stateless: the exact archived posting, submitted documents, and stage
+ * history arrive as inputs, and every absence degrades to an explicit
+ * fallback note. Nothing is ever pulled from sibling roles.
+ */
+export function planInterviewPrep(input: PrepInput): PrepPlan {
+	const fallbackNotes: string[] = [];
+	const stage = normalizeStage(input.stage, fallbackNotes);
+	const profile = resolveProfile(input.profile);
+	const slug = makeJobSlug(input.company, input.role);
+	const packFile = `${archiveDirFor(slug)}/${stage}-prep.md`;
+
+	const logistics = input.logistics ?? {};
+	const missingLogistics = LOGISTICS_KEYS.filter(
+		(key) => !logistics[key] || logistics[key].trim().length === 0,
+	);
+
+	const questions: LikelyQuestion[] = [];
+	if (input.stageHistoryText) {
+		questions.push(...feedbackQuestions(input.stageHistoryText));
+	} else {
+		fallbackNotes.push(
+			"No stage history held; the question set starts from the posting and stage type (no sibling-role history consulted).",
+		);
+	}
+
+	if (input.postingText) {
+		const coverage = matchRequirements(input.postingText, profile);
+		for (const match of coverage) {
+			if (match.status !== "gap" && match.status !== "bridged") {
+				continue;
+			}
+			const evidence = strongestEvidence(profile);
+			questions.push({
+				question: `How would you handle ${match.requirement} given limited background?`,
+				source: "fit-gap",
+				bridge: `Name the limited ${match.requirement} exposure plainly, then bridge to ${evidence} and how you would close the gap in the first 90 days.`,
+				evidence,
+			});
+		}
+		for (const match of coverage) {
+			if (match.status !== "matched" || match.kind !== "essential") {
+				continue;
+			}
+			questions.push({
+				question: `Walk through your experience with ${match.requirement}.`,
+				source: "posting-requirement",
+				evidence: match.evidence,
+			});
+		}
+	} else {
+		fallbackNotes.push(
+			"No archived posting held; likely questions come from stage history and stage type only (no requirements invented).",
+		);
+	}
+	for (const likely of STAGE_BANKS[stage].likely) {
+		questions.push({ question: likely, source: "stage-type" });
+	}
+
+	const examples = input.starExamples ?? [];
+	const starMapping: StarMapping[] = examples.map((example) => ({
+		title: example.title,
+		useFor: example.useFor,
+		covers: questions.filter((question) => coversQuestion(example, question.question)).map((q) => q.question),
+	}));
+	const covered = new Set(starMapping.flatMap((entry) => entry.covers));
+	const uncoveredQuestions = questions
+		.map((question) => question.question)
+		.filter((question) => !covered.has(question));
+
+	const newStarDrafts: StarDraft[] = [];
+	for (const question of questions) {
+		if (newStarDrafts.length >= 3) {
+			break;
+		}
+		if (question.source !== "fit-gap" && question.source !== "posting-requirement") {
+			continue;
+		}
+		if (covered.has(question.question)) {
+			continue;
+		}
+		const evidence = question.evidence ?? strongestEvidence(profile);
+		newStarDrafts.push({
+			title: `STAR draft for: ${question.question}`,
+			situation: `Draw from ${evidence} where applied`,
+			task: `Describe concrete example with ${evidence}`,
+			action: `Applied ${evidence} with that model`,
+			result: "Quantify from your records before the interview.",
+			evidence: [evidence],
+			needsCandidateDetail: true,
+		});
+	}
+
+	const submitted = [input.cvText, input.coverText].filter((text) => text && text.trim().length > 0);
+	if (submitted.length === 0) {
+		fallbackNotes.push("No submitted documents held; the probeable-claims list is empty.");
+	}
+	const probeableClaims: string[] = [];
+	const pool = evidencePool(profile);
+	for (const text of submitted as string[]) {
+		for (const line of text.split(/\r?\n/)) {
+			const trimmed = line.trim();
+			if (trimmed.length === 0) {
+				continue;
+			}
+			const quantified = CLAIM_PATTERN.test(trimmed);
+			const checkable = pool.some((phrase) => trimmed.toLowerCase().includes(phrase.toLowerCase()));
+			if (quantified || checkable) {
+				probeableClaims.push(trimmed);
+			}
+		}
+	}
+
+	const facts = input.companyFacts ?? [];
+	const toughQuestions = [...TOUGH_BASE];
+	if (facts.length > 0) {
+		toughQuestions.push(`Why ${input.company}? Anchor on a verified hook: ${facts[0]}`);
+	} else {
+		toughQuestions.push(`Why ${input.company}? (no verified company facts held — keep this generic)`);
+		fallbackNotes.push("No verified company facts held; tough questions stay generic.");
+	}
+
+	const questionsToAsk = [...STAGE_BANKS[stage].ask];
+	const warnings = checkSourceConsistency(profile, input.masterCvText, input.workspaceProfileText);
+
+	const packMarkdown = renderPack({
+		company: input.company,
+		role: input.role,
+		stage,
+		packFile,
+		missingLogistics,
+		fallbackNotes,
+		questions,
+		starMapping,
+		uncoveredQuestions,
+		newStarDrafts,
+		probeableClaims,
+		toughQuestions,
+		questionsToAsk,
+		warnings,
+	});
+
+	return {
+		company: input.company,
+		role: input.role,
+		stage,
+		slug,
+		packFile,
+		packMarkdown,
+		missingLogistics: [...missingLogistics],
+		fallbackNotes,
+		questions,
+		starMapping,
+		uncoveredQuestions,
+		newStarDrafts,
+		probeableClaims,
+		toughQuestions,
+		questionsToAsk,
+		warnings,
+	};
+}
+
+function renderPack(plan: {
+	company: string;
+	role: string;
+	stage: string;
+	packFile: string;
+	missingLogistics: string[];
+	fallbackNotes: string[];
+	questions: LikelyQuestion[];
+	starMapping: StarMapping[];
+	uncoveredQuestions: string[];
+	newStarDrafts: StarDraft[];
+	probeableClaims: string[];
+	toughQuestions: string[];
+	questionsToAsk: string[];
+	warnings: string[];
+}): string {
+	const lines = [
+		`## Interview prep: ${plan.role} at ${plan.company} (${plan.stage})`,
+		"",
+		`- Save this pack to \`${plan.packFile}\` (host owns the write).`,
+		...(plan.missingLogistics.length > 0
+			? [`- Missing stage logistics — ask the candidate: ${plan.missingLogistics.join(", ")}.`]
+			: ["- Stage logistics complete."]),
+		"",
+		"### Likely questions (feedback first, then fit gaps, posting, stage)",
+		...plan.questions.map(
+			(question, index) =>
+				`${index + 1}. [${question.source}] ${question.question}${question.bridge ? ` Bridge: ${question.bridge}` : ""}`,
+		),
+		"",
+		"### STAR mapping (existing examples by Use-for tags)",
+		...(plan.starMapping.length > 0
+			? plan.starMapping.map(
+					(entry) =>
+						`- ${entry.title} (${entry.useFor.join(", ") || "untagged"}): ${entry.covers.length > 0 ? entry.covers.join(" | ") : "covers nothing — retag or retire"}`,
+				)
+			: ["- No STAR examples held; drafts below seed the bank."]),
+		...(plan.uncoveredQuestions.length > 0
+			? ["", "### Uncovered questions", ...plan.uncoveredQuestions.map((question) => `- ${question}`)]
+			: []),
+		...(plan.newStarDrafts.length > 0
+			? [
+					"",
+					"### New STAR drafts (profile facts only — add your specifics)",
+					...plan.newStarDrafts.flatMap((draft) => [
+						`- ${draft.title}`,
+						`  Situation: ${draft.situation}`,
+						`  Task: ${draft.task}`,
+						`  Action: ${draft.action}`,
+						`  Result: ${draft.result}`,
+					]),
+				]
+			: []),
+		"",
+		"### Probeable claims (keep answers consistent with the submitted documents)",
+		...(plan.probeableClaims.length > 0
+			? plan.probeableClaims.map((claim) => `- Be ready to evidence: ${claim}`)
+			: ["- None held."]),
+		"",
+		"### Tough questions",
+		...plan.toughQuestions.map((question) => `- ${question}`),
+		"",
+		"### Questions to ask",
+		...plan.questionsToAsk.map((question) => `- ${question}`),
+		"",
+		"### Fallbacks and warnings",
+		...(plan.fallbackNotes.length > 0 ? plan.fallbackNotes.map((note) => `- ${note}`) : ["- None."]),
+		...plan.warnings.map((warning) => `- Warning: ${warning}`),
+		"",
+		"Mock run: ask the host to run a mock interview over these questions, coached toward the candidate's natural register.",
+	];
+	return lines.join("\n");
+}

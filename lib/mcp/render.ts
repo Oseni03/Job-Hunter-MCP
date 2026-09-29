@@ -1,7 +1,10 @@
-import type { Evaluation } from "@/lib/evaluate";
-import type { RefinementSource } from "@/lib/llm";
-import type { RequirementMatch } from "@/lib/tailor";
-import { RecordPlan } from "@/lib/record";
+import type { Evaluation } from "../evaluate.ts";
+import type { RefinementSource } from "../llm.ts";
+import type { RequirementMatch } from "../tailor.ts";
+import type { RecordPlan } from "../record.ts";
+import type { PrepPlan } from "../prep.ts";
+import type { StrategyPlan } from "../strategy.ts";
+import type { FieldsPlan } from "../fields.ts";
 
 export function renderMarkdown(
 	evaluation: Evaluation,
@@ -180,4 +183,40 @@ export function renderRecordMarkdown(plan: RecordPlan): string {
 		"- Host owns the writes: job_search_tracker.csv gets the returned tracker text verbatim; seen_jobs.json is never touched.",
 	];
 	return lines.join("\n");
+}
+
+/** The prep pack markdown is the content; the host saves it to packFile. */
+export function renderPrepMarkdown(plan: PrepPlan): string {
+	return plan.packMarkdown;
+}
+
+export function renderStrategyMarkdown(plan: StrategyPlan): string {
+	const lines = [
+		"## Career strategy",
+		"",
+		...plan.directions.flatMap((direction) => [
+			`### ${direction.direction}`,
+			...direction.why.map((reason) => `- ${reason}`),
+			`- Evidence: ${direction.evidence.join(", ") || "none"}`,
+			...(direction.gapsToClose.length > 0
+				? [`- Gaps to close: ${direction.gapsToClose.join(" | ")}`]
+				: ["- Gaps to close: none identified"]),
+			`- Framework dimensions: ${direction.dimensions.join(", ")}`,
+			"",
+		]),
+		...(plan.skipped.length > 0
+			? ["### Honestly skipped (no grounding, never recommended)", ...plan.skipped.map((entry) => `- ${entry}`), ""]
+			: []),
+		...(plan.avoidNotes.length > 0
+			? ["### Steer away", ...plan.avoidNotes.map((note) => `- ${note}`), ""]
+			: []),
+		`_${plan.frameworkNote}_`,
+		...plan.warnings.map((warning) => `- Warning: ${warning}`),
+	];
+	return lines.join("\n");
+}
+
+/** The copy-paste file text is the content; the host saves it to filePath. */
+export function renderFieldsMarkdown(plan: FieldsPlan): string {
+	return plan.copyPasteText;
 }

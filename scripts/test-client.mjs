@@ -119,6 +119,49 @@ async function main() {
     });
     console.log("RecordUpdate", JSON.stringify(recordUpdate, null, 2));
 
+    const prep = await client.callTool({
+        name: "prep-interview",
+        arguments: {
+            company: "Acme",
+            role: "Senior ML Engineer",
+            stage: "technical",
+            postingText,
+            stageHistoryText: "Feedback: concern about Kubernetes depth.",
+            profile,
+            logistics: { format: "video" },
+        },
+    });
+    console.log("Prep", JSON.stringify(prep, null, 2));
+
+    const strategy = await client.callTool({
+        name: "career-strategy",
+        arguments: {
+            profile,
+            focusAreas: ["Astronaut", "credit risk"],
+            evaluationSummary: { fitScore: 84, verdict: "Good Fit", gaps: ["Kubernetes"] },
+        },
+    });
+    console.log("Strategy", JSON.stringify(strategy, null, 2));
+
+    const fields = await client.callTool({
+        name: "portal-fields",
+        arguments: {
+            profile,
+            company: "Acme",
+            employerPoints: ["Acme processes payments across Europe."],
+            projects: [
+                {
+                    name: "Fraud scoring pipeline",
+                    role: "ML Engineer",
+                    dates: "2024-present",
+                    description: "Built a Python scoring pipeline for fraud detection with SQL features.",
+                },
+            ],
+            targetWords: 200,
+        },
+    });
+    console.log("Fields", JSON.stringify(fields, null, 2));
+
     await client.close();
 }
 

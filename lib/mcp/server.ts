@@ -6,12 +6,18 @@ import { registerEvaluateJob } from "@/lib/mcp/tools/evaluate-job";
 import { registerTailorCv } from "@/lib/mcp/tools/tailor-cv";
 import { registerWriteCoverLetter } from "@/lib/mcp/tools/write-cover-letter";
 import { registerRecordApplication } from "@/lib/mcp/tools/record-application";
+import { registerPrepInterview } from "@/lib/mcp/tools/prep-interview";
+import { registerCareerStrategy } from "@/lib/mcp/tools/career-strategy";
+import { registerPortalFields } from "@/lib/mcp/tools/portal-fields";
 
 export function registerAllTools(server: McpServer): void {
 	registerEvaluateJob(server);
 	registerTailorCv(server);
 	registerWriteCoverLetter(server);
 	registerRecordApplication(server);
+	registerPrepInterview(server);
+	registerCareerStrategy(server);
+	registerPortalFields(server);
 }
 
 export function buildMcpHandler(): (req: Request) => Promise<Response> {
