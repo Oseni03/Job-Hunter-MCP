@@ -1,0 +1,112 @@
+import { join } from "node:path";
+
+import type { McpServer } from "@modelcontextprotocol/server";
+
+import { evaluateJob } from "@/lib/evaluate";
+import { fetchPosting } from "@/lib/fetch-posting";
+import { refineEvaluation } from "@/lib/llm";
+import { resolveProfile } from "@/lib/profile";
+import { researchCompany } from "@/lib/research-company";
+import { EvaluateJobInput, EvaluationSchema } from "@/lib/mcp/schemas";
+import { renderMarkdown } from "@/lib/mcp/render";
+import { makeSamplingSender } from "@/lib/mcp/sampling";
+
+export function registerEvaluateJob(server: McpServer): void {
+	server.registerTool(
+		"evaluate-job",
+		{
+			title: "Evaluate job fit",
+			description:
+				"Eligibility + Language gates, five-dimension weighted score, verdict, strengths, gaps, recommendation, and employer-call advice for one posting. Posting text preferred; URL fallback fetches with escalation.",
+			inputSchema: EvaluateJobInput,
+			outputSchema: EvaluationSchema,
+			annotations: {
+				readOnlyHint: true,
+				destructiveHint: false,
+				idempotentHint: true,
+				openWorldHint: true,
+			},
+		},
+		async (input, extra) => {
+			if (!input.postingText && !input.postingUrl) {
+				return {
+					isError: true,
+					content: [{ type: "text" as const, text: "Provide postingText (preferred) or postingUrl." }],
+				};
+			}
+			const profile = resolveProfile(input.profile);
+
+			let postingText = input.postingText;
+			let fetchSteps = ["pasted-text"];
+			let discrepancies: string[] = [];
+			if (!postingText) {
+				const fetched = await fetchPosting(input.postingUrl as string, {
+					company: input.company,
+					role: input.role,
+				});
+				fetchSteps = fetched.steps;
+				discrepancies = fetched.discrepancies;
+				if (!fetched.ok || !fetched.text) {
+					return {
+						isError: true,
+						content: [
+							{
+								type: "text" as const,
+								text: `Posting genuinely unavailable: ${fetched.steps.join(" > ")}. ${fetched.error ?? ""}`,
+							},
+						],
+					};
+				}
+				postingText = fetched.text;
+			}
+
+			const heuristic = evaluateJob({
+				postingText: postingText as string,
+				profile,
+				source: input.postingUrl ?? "pasted-text",
+			});
+			const outcome = await refineEvaluation(heuristic, postingText as string, profile, {
+				mode: input.llm?.mode ?? "auto",
+				groqApiKey: process.env.GROQ_API_KEY || undefined,
+				model: input.llm?.model ?? process.env.LLM_MODEL ?? undefined,
+				samplingSender: makeSamplingSender(extra),
+			});
+			const evaluation = outcome.evaluation;
+			const refinement = { source: outcome.source, model: outcome.model, note: outcome.note };
+
+			let companyResearch = {
+				cached: false,
+				cacheFile: "",
+				websiteUrl: null as string | null,
+				websiteNotes: null as string | null,
+			};
+			if (input.company) {
+				const research = await researchCompany({
+					company: input.company,
+					cacheDir: join(process.cwd(), "company_research"),
+					companyUrl: input.companyUrl,
+				});
+				companyResearch = {
+					cached: research.cached,
+					cacheFile: research.cacheFile,
+					websiteUrl: research.entry.sources.website?.url ?? null,
+					websiteNotes: research.entry.sources.website?.notes ?? null,
+				};
+			}
+
+			const text = renderMarkdown(
+				evaluation,
+				input.company,
+				input.role,
+				companyResearch.websiteUrl,
+				fetchSteps,
+				discrepancies,
+				refinement,
+			);
+			return {
+				content: [{ type: "text" as const, text }],
+				structuredContent: { ...evaluation, companyResearch, refinement, fetchSteps, discrepancies },
+			};
+		},
+	);
+}
