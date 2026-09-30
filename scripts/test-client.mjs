@@ -182,15 +182,54 @@ async function main() {
     });
     console.log("Search", JSON.stringify(search, null, 2));
 
+    const rank = await client.callTool({
+        name: "rank-jobs",
+        arguments: {
+            items: [
+                {
+                    key: "acme_ml-engineer",
+                    title: "ML Engineer",
+                    company: "Acme",
+                    url: "https://example.com/jobs/1",
+                    postingText: postingText,
+                },
+            ],
+            profile,
+        },
+    });
+    console.log("Rank", JSON.stringify(rank, null, 2));
+
+    const research = await client.callTool({
+        name: "research-company",
+        arguments: {
+            company: "Acme",
+            companyUrl: "https://example.com",
+            cacheText: JSON.stringify({
+                company: "Acme",
+                fetched_date: new Date().toISOString().slice(0, 10),
+                sources: { website: { url: "https://example.com", notes: "cached discovery" } },
+            }),
+        },
+    });
+    console.log("Research", JSON.stringify(research, null, 2));
+
     const { resources } = await client.listResources();
     console.log("Resources", resources.map((resource) => resource.uri));
     const framework = await client.readResource({ uri: "job-hunter://framework/evaluation" });
     console.log("Framework", JSON.stringify(framework, null, 2).slice(0, 400));
+    const searchStrategy = await client.readResource({ uri: "job-hunter://strategy/search-queries" });
+    console.log("SearchStrategy", JSON.stringify(searchStrategy, null, 2).slice(0, 200));
+    const seenPointer = await client.readResource({ uri: "job-hunter://state/seen-keys" });
+    console.log("SeenPointer", JSON.stringify(seenPointer, null, 2).slice(0, 200));
 
     const { prompts } = await client.listPrompts();
     console.log("Prompts", prompts.map((prompt) => prompt.name));
     const apply = await client.getPrompt({ name: "apply" });
     console.log("ApplyPrompt", JSON.stringify(apply, null, 2).slice(0, 400));
+    const rankPrompt = await client.getPrompt({ name: "rank" });
+    console.log("RankPrompt", JSON.stringify(rankPrompt, null, 2).slice(0, 200));
+    const interviewPrompt = await client.getPrompt({ name: "interview" });
+    console.log("InterviewPrompt", JSON.stringify(interviewPrompt, null, 2).slice(0, 200));
 
     await client.close();
 }

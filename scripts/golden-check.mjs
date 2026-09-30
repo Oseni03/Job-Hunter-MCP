@@ -15,6 +15,14 @@ import { checkWritingBans, sectionHeadings } from "@/lib/latex.ts";
 import { isCanonical, makeKey } from "@/lib/job-key.ts";
 import { TRACKER_HEADER, planRecordApplication } from "@/lib/record.ts";
 import { SEARCH_LIMIT_MAX, SEARCH_RECENCY_DAYS, planSearch } from "@/lib/search.ts";
+import { planRank } from "@/lib/rank.ts";
+import {
+	getCompanyResearchResource,
+	getPrompt,
+	getResource,
+	listPrompts,
+	listResources,
+} from "@/lib/resources.ts";
 import { resolveProfile } from "@/lib/profile.ts";
 
 let pass = 0;
@@ -139,6 +147,66 @@ check("recency window respected", SEARCH_RECENCY_DAYS === 14 && search.staleCoun
 check("result cap respected", SEARCH_LIMIT_MAX === 20 && search.filters.limit === 20);
 check("no postings invented", search.candidates.length === 1 && search.errors.length === 0);
 
+const ranked = await planRank({
+	profile,
+	items: [
+		{
+			key: "acme_senior-ml-engineer",
+			title: "Senior ML Engineer",
+			company: "Acme",
+			url: "https://example.com/jobs/1",
+			postingText: [
+				"Senior ML Engineer at Acme.",
+				"We welcome international applicants and offer visa sponsorship.",
+				"Requirements: Python, SQL, Machine Learning.",
+				"Nice to have: Docker, Kubernetes.",
+				"Domain: fraud detection.",
+				"Remote.",
+			].join("\n"),
+			postedDate: "2026-09-20",
+		},
+	],
+	now: new Date("2026-09-29T00:00:00Z"),
+});
+check("rank triages from posting text with counts", ranked.eligibleCount === 1 && ranked.ranked.length === 1);
+check(
+	"rank never invents postings",
+	ranked.excluded.length === 0 && ranked.stateUpdates[0]?.status === "ranked",
+);
+
+const uris = listResources().map((resource) => resource.uri);
+check("resource catalog covers profiles, framework, references, and strategy", [
+	"job-hunter://profile/candidate",
+	"job-hunter://framework/evaluation",
+	"job-hunter://reference/cv-master",
+	"job-hunter://reference/cover-example",
+	"job-hunter://strategy/search-queries",
+	"job-hunter://state/seen-keys",
+	"job-hunter://state/tracker",
+].every((uri) => uris.includes(uri)));
+check(
+	"per-call resource override wins",
+	getResource("job-hunter://rules/writing", "Custom house style.").text === "Custom house style.",
+);
+const callerResearch = getCompanyResearchResource("acme-corp", {
+	callerContent: JSON.stringify({
+		company: "Acme Corp",
+		fetched_date: "2026-09-29",
+		sources: { website: { url: "https://acme.com", notes: "caller-held" } },
+	}),
+	now: new Date("2026-09-29T00:00:00Z"),
+});
+check("research caller fallback serves without server disk", callerResearch.ok === true);
+const promptNames = listPrompts().map((prompt) => prompt.name);
+check(
+	"workflow prompts cover all five flows",
+	["apply", "rank", "interview", "scrape-health", "tailor-flow"].every((name) => promptNames.includes(name)),
+);
+check(
+	"apply prompt holds the full checklist",
+	(getPrompt("apply").ok && getPrompt("apply").text.includes("grounding audit")) === true,
+);
+
 check("local dev stays open", verifyBearerToken(undefined, undefined).authorized === true);
 check("prod stays closed", verifyBearerToken(undefined, "secret").authorized === false);
 
@@ -162,9 +230,7 @@ if (!existsSync(coverExample)) {
 	}
 }
 
-console.log(`\nDEFERRED (blocked by tickets 08-11, out of scope):`);
-console.log("- rank-jobs triage tool (08) and research-company tool (09)");
-console.log("- full resource catalog (10) and workflow prompts (11)");
+console.log(`\nDEFERRED (out of scope):`);
 console.log("- full login-based auth (later phase; bearer token only)");
 console.log(`\ngolden: ${pass} pass, ${fail} fail, ${skip} skip`);
 process.exit(fail > 0 ? 1 : 0);

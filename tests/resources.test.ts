@@ -185,3 +185,106 @@ describe("full resource catalog (ticket 10)", () => {
 		assert.ok(!stale.ok && stale.error.includes("stale"), "stale entry reported explicitly");
 	});
 });
+
+describe("workflow prompts (ticket 11)", () => {
+	it("provides a full apply checklist without hardcoding the manual workflow", () => {
+		const apply = getPrompt("apply");
+		assert.equal(apply.ok, true);
+		assert.ok(apply.ok && apply.version >= 2, "full checklist versioned");
+		for (const step of [
+			"escalation",
+			"gate",
+			"ask",
+			"coverage",
+			"grounding audit",
+			"Part A",
+			"Part B",
+			"compile",
+			"text-layer",
+			"keyword",
+			"verification",
+			"record",
+			"form fields",
+		]) {
+			assert.ok(apply.ok && apply.text.toLowerCase().includes(step.toLowerCase()), `apply mentions ${step}`);
+		}
+	});
+
+	it("provides a full rank checklist from focus to shortlist", () => {
+		const rank = getPrompt("rank");
+		assert.equal(rank.ok, true);
+		for (const step of [
+			"focus",
+			"limit",
+			"state",
+			"fetch-or-expired",
+			"weights",
+			"veto",
+			"urgency",
+			"sweep",
+			"staleness",
+			"shortlist",
+			"evaluate-job",
+		]) {
+			assert.ok(rank.ok && rank.text.toLowerCase().includes(step.toLowerCase()), `rank mentions ${step}`);
+		}
+	});
+
+	it("provides a full interview checklist from archive to mock", () => {
+		const interview = getPrompt("interview");
+		assert.equal(interview.ok, true);
+		for (const step of [
+			"tracked",
+			"archive",
+			"sibling",
+			"cache-first",
+			"interviewer",
+			"STAR",
+			"consistency",
+			"tough",
+			"questions to ask",
+			"logistics",
+			"mock",
+			"roleplay",
+			"outcome",
+		]) {
+			assert.ok(
+				interview.ok && interview.text.toLowerCase().includes(step.toLowerCase()),
+				`interview mentions ${step}`,
+			);
+		}
+	});
+
+	it("provides a bounded scrape-health checklist with observed-output verdicts only", () => {
+		const health = getPrompt("scrape-health");
+		assert.equal(health.ok, true);
+		for (const step of [
+			"free-pass",
+			"sentinel",
+			"retry",
+			"degraded",
+			"broken",
+			"rate-limited",
+			"observed",
+			"confirmation",
+		]) {
+			assert.ok(health.ok && health.text.toLowerCase().includes(step.toLowerCase()), `scrape-health mentions ${step}`);
+		}
+	});
+
+	it("provides a tailor-flow checklist with page budgets and cutting order", () => {
+		const flow = getPrompt("tailor-flow");
+		assert.equal(flow.ok, true);
+		for (const step of [
+			"template override",
+			"structural reference",
+			"section",
+			"page budget",
+			"cutting order",
+			"compile",
+			"verify",
+		]) {
+			assert.ok(flow.ok && flow.text.toLowerCase().includes(step.toLowerCase()), `tailor-flow mentions ${step}`);
+		}
+	});
+});
