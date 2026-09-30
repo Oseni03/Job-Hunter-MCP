@@ -682,3 +682,67 @@ export const RankJobsOutput = z
 		errors: z.array(z.string()),
 	})
 	.strict();
+
+export const ResearchCompanyInput = z
+	.object({
+		company: z.string().min(1).describe("Employer name (drives employer-site search and research)"),
+		companyUrl: z.string().url().optional().describe("Official company site override; skips discovery search"),
+		cacheText: z
+			.string()
+			.optional()
+			.describe("Caller-held company_research/<slug>.json content; fresh entries reuse discovery without fetching"),
+	})
+	.strict();
+
+export const ResearchSourceSchema = z
+	.object({ url: z.string(), notes: z.string() })
+	.strict();
+
+export const ResearchEntrySchema = z
+	.object({
+		company: z.string(),
+		fetched_date: z.string(),
+		sources: z
+			.object({
+				website: ResearchSourceSchema.optional(),
+				reviews: ResearchSourceSchema.optional(),
+				linkedin: ResearchSourceSchema.optional(),
+				media: ResearchSourceSchema.optional(),
+			})
+			.strict(),
+		network_contacts_note: z.string().optional(),
+		interviewer_notes: z.string().optional(),
+	})
+	.strict();
+
+export const VerifiedClaimSchema = z
+	.object({
+		text: z.string(),
+		verified: z.literal(true),
+		sourceUrl: z.string(),
+		verifiedFrom: z.enum(["company-domain", "independent-reporting"]),
+	})
+	.strict();
+
+export const VerificationReportSchema = z
+	.object({
+		verifiedCount: z.number(),
+		droppedCount: z.number(),
+		sources: z.array(z.string()),
+		notes: z.array(z.string()),
+	})
+	.strict();
+
+export const ResearchCompanyOutput = z
+	.object({
+		company: z.string(),
+		cached: z.boolean(),
+		cacheFile: z.string(),
+		cacheText: z.string().describe("JSON cache payload; the host writes it verbatim to cacheFile"),
+		entry: ResearchEntrySchema,
+		claims: z.array(VerifiedClaimSchema),
+		verification: VerificationReportSchema,
+		fetchSteps: z.array(z.string()),
+		trustNote: z.string(),
+	})
+	.strict();
