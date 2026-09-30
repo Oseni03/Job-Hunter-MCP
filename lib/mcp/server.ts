@@ -9,6 +9,7 @@ import { registerRecordApplication } from "@/lib/mcp/tools/record-application.ts
 import { registerPrepInterview } from "@/lib/mcp/tools/prep-interview.ts";
 import { registerCareerStrategy } from "@/lib/mcp/tools/career-strategy.ts";
 import { registerPortalFields } from "@/lib/mcp/tools/portal-fields.ts";
+import { registerRankJobs } from "@/lib/mcp/tools/rank-jobs.ts";
 import { registerSearchJobs } from "@/lib/mcp/tools/search-jobs.ts";
 import { getPrompt, getResource, listPrompts, listResources } from "@/lib/resources.ts";
 
@@ -20,6 +21,7 @@ export function registerAllTools(server: McpServer): void {
 	registerPrepInterview(server);
 	registerCareerStrategy(server);
 	registerPortalFields(server);
+	registerRankJobs(server);
 	registerSearchJobs(server);
 }
 

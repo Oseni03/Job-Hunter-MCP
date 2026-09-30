@@ -43,10 +43,10 @@ export function registerSearchJobs(server: McpServer): void {
 					: undefined,
 				webFallbackFetch: brightDataKey ? undefined : createWebFallbackFetch(defaultFetch),
 			});
-			const { ...structured } = plan;
 			return {
 				content: [{ type: "text" as const, text: renderSearchMarkdown(plan) }],
-				structuredContent: structured,
-			};		},
+				structuredContent: { ...plan },
+			};
+		},
 	);
 }

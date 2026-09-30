@@ -10,8 +10,9 @@ import {
 	isPeopleSearchUrl,
 	planSearch,
 	resolveSearchFilters,
+	runPortalWithBackoff,
 } from "@/lib/search.ts";
-import type { RawPosting } from "@/lib/search.ts";
+import type { PortalArgs, RawPosting } from "@/lib/search.ts";
 import type { Profile } from "@/lib/profile.ts";
 
 const PROFILE: Profile = {
@@ -80,8 +81,7 @@ describe("buildAutoQueries", () => {
 	});
 });
 
-describe("isPeopleSearchUrl", () => {
-	it("refuses LinkedIn people-search pages", () => {
+describe("isPeopleSearchUrl", () => {	it("refuses LinkedIn people-search pages", () => {
 		assert.equal(isPeopleSearchUrl("https://www.linkedin.com/in/jane-smith"), true);
 		assert.equal(isPeopleSearchUrl("https://www.linkedin.com/search/results/people/?keywords=Acme"), true);
 		assert.equal(isPeopleSearchUrl("https://www.linkedin.com/jobs/view/123"), false);

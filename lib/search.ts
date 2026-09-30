@@ -172,28 +172,44 @@ export type Sleeper = (ms: number) => Promise<void>;
 
 const realSleep: Sleeper = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Low-volume backoff: retries a rate-limited portal run with exponential waits. */
+/** Low-volume backoff: walks portal pages and retries a rate-limited page with exponential waits. */
 export async function runPortalWithBackoff(
 	runner: PortalRunner,
 	args: PortalArgs,
-	options: { maxRetries?: number; sleep?: Sleeper } = {},
-): Promise<{ jobs: RawPosting[]; errors: PortalError[]; attempts: number }> {
+	options: { maxRetries?: number; sleep?: Sleeper; maxPages?: number } = {},
+): Promise<{ jobs: RawPosting[]; errors: PortalError[]; attempts: number; pages: number }> {
 	const maxRetries = options.maxRetries ?? 2;
+	const maxPages = options.maxPages ?? 3;
 	const sleep = options.sleep ?? realSleep;
 	const errors: PortalError[] = [];
+	const jobs: RawPosting[] = [];
 	let attempts = 0;
-	for (let attempt = 0; attempt <= maxRetries; attempt++) {
-		attempts = attempt + 1;
-		const result = await runner({ ...args, page: attempt + 1 });
-		errors.push(...result.errors);
-		if (!result.rateLimited) {
-			return { jobs: result.jobs, errors, attempts };
+	let pages = 0;
+	let page = args.page;
+	while (pages < maxPages && jobs.length < args.limit) {
+		let result: PortalResult | null = null;
+		for (let attempt = 0; attempt <= maxRetries; attempt++) {
+			attempts += 1;
+			result = await runner({ ...args, page });
+			errors.push(...result.errors);
+			if (!result.rateLimited) {
+				break;
+			}
+			if (attempt < maxRetries) {
+				await sleep(1000 * 2 ** attempt);
+			}
 		}
-		if (attempt < maxRetries) {
-			await sleep(1000 * 2 ** attempt);
+		if (!result || result.rateLimited) {
+			break;
 		}
+		if (result.jobs.length === 0) {
+			break;
+		}
+		jobs.push(...result.jobs);
+		pages += 1;
+		page += 1;
 	}
-	return { jobs: [], errors, attempts };
+	return { jobs, errors, attempts, pages };
 }
 
 export interface QuickFit {
@@ -308,7 +324,8 @@ function referralLinksFor(company: string): string[] {
 	return [`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(company)}`];
 }
 
-export async function planSearch(input: SearchInput): Promise<SearchPlan> {	const now = input.now ?? new Date();
+export async function planSearch(input: SearchInput): Promise<SearchPlan> {
+	const now = input.now ?? new Date();
 	const today = now.toISOString().slice(0, 10);
 	const filters = resolveSearchFilters(input.filters, input.profile);
 	const queries: AutoQuery[] =
@@ -347,7 +364,9 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {	cons
 			for (const error of outcome.errors) {
 				errors.push(`portal[${error.code}]: ${error.message}`);
 			}
-			notes.push(`Portal run finished after ${outcome.attempts} attempt(s) with backoff on rate limits.`);
+			notes.push(
+				`Portal run walked ${outcome.pages} page(s) in ${outcome.attempts} attempt(s) with backoff on rate limits.`,
+			);
 			raws = outcome.jobs;
 			source = "portal-live";
 			sources.push(source);

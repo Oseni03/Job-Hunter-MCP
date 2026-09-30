@@ -6,6 +6,7 @@ import type { PrepPlan } from "@/lib/prep.ts";
 import type { StrategyPlan } from "@/lib/strategy.ts";
 import type { FieldsPlan } from "@/lib/fields.ts";
 import type { SearchPlan } from "@/lib/search.ts";
+import type { RankPlan } from "@/lib/rank.ts";
 import type { DocumentSignals } from "@/lib/verify.ts";
 
 export function signalLines(signals: DocumentSignals): string[] {
@@ -242,7 +243,7 @@ export function renderFieldsMarkdown(plan: FieldsPlan): string {
 	return plan.copyPasteText;
 }
 
-/** Shortlist plus why-each-ranked detail; the host owns the seen store and tracker writes. */
+/** Search results plus quick-fit detail; the host owns the seen store and tracker writes. */
 export function renderSearchMarkdown(plan: SearchPlan): string {
 	const lines = [
 		"## Job search results",
@@ -277,5 +278,72 @@ export function renderSearchMarkdown(plan: SearchPlan): string {
 		lines.push(`- Error: ${error}`);
 	}
 	lines.push("", "Route picks back to evaluate-job for a full evaluation before drafting.");
+	return lines.join("\n");
+}
+
+/** Shortlist plus why-each-ranked detail; the host owns the seen store and tracker writes. */
+export function renderRankMarkdown(plan: RankPlan): string {
+	const lines = [
+		"## Ranked shortlist (triage only)",
+		"",
+		`- Eligible: ${plan.eligibleCount} | shortlisted: ${plan.shortlist.length} | below threshold: ${plan.belowThreshold.length} | excluded: ${plan.excluded.length} | deferred: ${plan.deferredCount} | tracker-excluded: ${plan.trackerExcludedCount}`,
+		`- Limits: scoring limit ${plan.limits.limit}, shortlist top ${plan.limits.top} | swept expired: ${plan.sweptExpired.length} | swept closing-soon: ${plan.sweptClosingSoon.length}`,
+		"",
+		"### Shortlist",
+	];
+	for (const entry of plan.shortlist) {
+		lines.push(
+			`- ${entry.score}/100 ${entry.verdict}: ${entry.title} at ${entry.company}${entry.urgent ? " 🔥" : ""} — [posting](${entry.url})`,
+			`  Key: \`${entry.key}\` | location ${entry.locationVerdict} | language ${entry.languageGate} | deadline ${entry.deadline ?? "unknown"} | portal ${entry.portal}`,
+		);
+	}
+	lines.push("", "### Why each ranked");
+	for (const entry of plan.shortlist) {
+		lines.push(
+			`- ${entry.title} at ${entry.company} (${entry.score}/100 ${entry.verdict}): strengths ${entry.strengths.join("; ") || "none stated"}; gaps ${entry.gaps.join("; ") || "none stated"}.`,
+		);
+		for (const flag of entry.flags) {
+			lines.push(`  - ${flag}`);
+		}
+	}
+	if (plan.closingSoon.length > 0) {
+		lines.push("", "### Closing soon (deadline within 7 days)");
+		for (const entry of plan.closingSoon) {
+			lines.push(`- 🔥 ${entry.title} at ${entry.company} — deadline ${entry.deadline} — [posting](${entry.url})`);
+		}
+	}
+	if (plan.belowThreshold.length > 0) {
+		lines.push("", "### Below threshold (scored, not shortlisted)");
+		for (const entry of plan.belowThreshold) {
+			lines.push(`- ${entry.score}/100 ${entry.verdict}: ${entry.title} at ${entry.company} — [posting](${entry.url})`);
+		}
+	}
+	if (plan.excluded.length > 0) {
+		lines.push("", "### Excluded (vetoed or expired, with reason)");
+		for (const entry of plan.excluded) {
+			lines.push(
+				`- [${entry.kind}] ${entry.title} at ${entry.company} — ${entry.reason}${entry.quote ? ` Quoted: "${entry.quote}"` : ""} — [posting](${entry.url})`,
+			);
+		}
+	}
+	if (plan.sweptExpired.length > 0 || plan.sweptClosingSoon.length > 0) {
+		lines.push("", "### Swept stored deadlines (date-only, never guessed)");
+		for (const entry of plan.sweptExpired) {
+			lines.push(`- Expired: \`${entry.key}\` — ${entry.reason}`);
+		}
+		for (const entry of plan.sweptClosingSoon) {
+			lines.push(`- Closing soon: \`${entry.key}\` — ${entry.reason}`);
+		}
+	}
+	for (const note of plan.notes) {
+		lines.push(`- Note: ${note}`);
+	}
+	for (const error of plan.errors) {
+		lines.push(`- Error: ${error}`);
+	}
+	lines.push(
+		"",
+		"Triage limits stated above; full evaluation always re-runs. Want to apply to any of these? Give me the number(s) and I will run evaluate-job on that URL with triage as context.",
+	);
 	return lines.join("\n");
 }
