@@ -1,7 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
+	getCompanyResearchResource,
 	getCvVariant,
 	getPrompt,
 	getResource,
@@ -113,5 +117,71 @@ describe("prompts", () => {
 	it("errors explicitly for unknown prompts", () => {
 		const result = getPrompt("no-such-prompt");
 		assert.equal(result.ok, false);
+	});
+});
+
+describe("full resource catalog (ticket 10)", () => {
+	it("exposes profiles, rules, framework, CV master, cover example, and search strategy as versioned resources", () => {
+		const uris = listResources().map((resource) => resource.uri);
+		for (const uri of [
+			"job-hunter://profile/candidate",
+			"job-hunter://profile/behavioral",
+			"job-hunter://rules/writing",
+			"job-hunter://framework/evaluation",
+			"job-hunter://reference/cv-master",
+			"job-hunter://reference/cover-example",
+			"job-hunter://strategy/search-queries",
+		]) {
+			assert.ok(uris.includes(uri), `missing resource ${uri}`);
+		}
+		for (const resource of listResources()) {
+			assert.ok(resource.version >= 1, `${resource.uri} marks its version`);
+		}
+		const framework = getResource("job-hunter://framework/evaluation");
+		assert.ok(framework.ok && framework.text.includes("Technical"), "framework default names dimensions");
+	});
+
+	it("exposes variant listing and state pointers as identifiers and counts only", () => {
+		const uris = listResources().map((resource) => resource.uri);
+		for (const uri of [
+			"job-hunter://templates/cv-variants",
+			"job-hunter://state/seen-keys",
+			"job-hunter://state/tracker",
+			"job-hunter://research/companies",
+		]) {
+			assert.ok(uris.includes(uri), `missing resource ${uri}`);
+		}
+		const seen = getResource("job-hunter://state/seen-keys");
+		assert.ok(seen.ok && !seen.text.includes("Acme Corp specific posting"), "pointer carries no backlog contents");
+		const tracker = getResource("job-hunter://state/tracker");
+		assert.ok(tracker.ok && tracker.text.includes("tracker"), "tracker pointer names the store");
+	});
+
+	it("reads per-company research with caller fallback so generation never depends on server disk", () => {
+		const callerText = JSON.stringify({
+			company: "Acme Corp",
+			fetched_date: new Date().toISOString().slice(0, 10),
+			sources: { website: { url: "https://acme.com", notes: "caller-held discovery" } },
+		});
+		const fromCaller = getCompanyResearchResource("acme-corp", { callerContent: callerText });
+		assert.equal(fromCaller.ok, true);
+		assert.ok(fromCaller.ok && fromCaller.fromCaller, "caller content wins");
+		assert.ok(fromCaller.ok && fromCaller.text.includes("caller-held"), "caller payload served");
+
+		const missing = getCompanyResearchResource("no-such-co", { cacheDir: mkdtempSync(join(tmpdir(), "res-missing-")) });
+		assert.equal(missing.ok, false);
+		assert.ok(!missing.ok && missing.error.includes("no-such-co"), "missing entry names the slug");
+	});
+
+	it("degrades stale research to an explicit message rather than a guess", () => {
+		const dir = mkdtempSync(join(tmpdir(), "res-stale-"));
+		const old = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+		writeFileSync(
+			join(dir, "acme-corp.json"),
+			JSON.stringify({ company: "Acme Corp", fetched_date: old, sources: {} }),
+		);
+		const stale = getCompanyResearchResource("acme-corp", { cacheDir: dir, now: new Date() });
+		assert.equal(stale.ok, false);
+		assert.ok(!stale.ok && stale.error.includes("stale"), "stale entry reported explicitly");
 	});
 });

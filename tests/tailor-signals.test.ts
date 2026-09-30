@@ -88,7 +88,7 @@ describe("write-cover-letter signals", () => {
 });
 
 describe("registered resources and prompts", () => {
-	it("exposes the six versioned resources and five workflow prompts", () => {
+	it("exposes the full versioned catalog and five workflow prompts", () => {
 		const resources: { name: string; uri: string }[] = [];
 		const prompts: string[] = [];
 		const server = {
@@ -101,8 +101,22 @@ describe("registered resources and prompts", () => {
 			},
 		} as unknown as McpServer;
 		registerAllResources(server);
-		assert.equal(resources.length, 6);
-		assert.ok(resources.some((resource) => resource.uri === "job-hunter://framework/evaluation"));
+		assert.equal(resources.length, 13);
+		for (const uri of [
+			"job-hunter://framework/evaluation",
+			"job-hunter://reference/cv-master",
+			"job-hunter://reference/cover-example",
+			"job-hunter://strategy/search-queries",
+			"job-hunter://templates/cv-variants",
+			"job-hunter://state/seen-keys",
+			"job-hunter://state/tracker",
+			"job-hunter://research/companies",
+		]) {
+			assert.ok(
+				resources.some((resource) => resource.uri === uri),
+				`missing registered resource ${uri}`,
+			);
+		}
 		assert.deepEqual(prompts.sort(), ["apply", "interview", "rank", "scrape-health", "tailor-flow"]);
 	});
 });
