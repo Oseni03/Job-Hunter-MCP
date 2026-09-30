@@ -102,6 +102,7 @@ export interface RankStateUpdate {
 	rank_verdict?: string;
 	rank_date?: string;
 	location_verdict?: string;
+	location_note?: string;
 	language_gate?: string;
 	language_note?: string;
 	deadline?: string | null;
@@ -328,7 +329,11 @@ export async function planRank(input: RankInput): Promise<RankPlan> {
 			flags.push(`⚠ location: ${locationNote}`);
 		}
 		if (languageGate.verdict === "FLAG") {
-			flags.push(`⚠ language: ${languageGate.quote ?? languageGate.note} — ${languageGate.note}`);
+			flags.push(
+				languageGate.quote
+					? `⚠ language: "${languageGate.quote}" — ${languageGate.note}`
+					: `⚠ language: ${languageGate.note}`,
+			);
 		}
 		if (staleNote) {
 			flags.push(`⚠ stale: ${staleNote}`);
@@ -368,8 +373,9 @@ export async function planRank(input: RankInput): Promise<RankPlan> {
 			rank_verdict: verdict,
 			rank_date: today,
 			location_verdict: locationVerdict,
+			location_note: locationNote,
 			language_gate: languageGate.verdict,
-			language_note: languageGate.verdict === "PASS" ? "" : `${languageGate.quote ?? ""} ${languageGate.note}`.trim(),
+			language_note: languageGate.quote ? `${languageGate.quote} — ${languageGate.note}` : languageGate.note,
 			deadline,
 			strengths: [...strengths],
 			gaps: [...gaps],

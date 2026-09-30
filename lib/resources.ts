@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { DEFAULT_PROFILE } from "@/lib/profile.ts";
-import { RESEARCH_TTL_DAYS } from "@/lib/research-company.ts";
+import { RESEARCH_TTL_DAYS, normalizeCompany } from "@/lib/research-company.ts";
 
 /**
  * Versioned resource and prompt catalog (ticket 06). Private server
@@ -339,11 +339,7 @@ export type ResearchResourceRead =
 	| { ok: false; slug: string; uri: string; error: string };
 
 function normalizeSlug(slug: string): string {
-	return slug
-		.toLowerCase()
-		.trim()
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-+|-+$/g, "");
+	return normalizeCompany(slug);
 }
 
 function researchFresh(fetchedDate: string, now: Date): boolean {

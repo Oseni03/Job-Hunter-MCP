@@ -351,7 +351,7 @@ export async function researchCompany(input: {
 			sources: [...new Set(verifiedSources)],
 			notes: [
 				`Verified ${claims.length} claim(s) against ${new Set(verifiedSources).size} fetched page(s); dropped ${droppedCount} unverifiable categor(ies). Snippets served as leads only.`,
-				"Company-domain pages verify directly; independent pages verify when their reporting is consistent with a fetched page.",
+				"Company-domain pages verify directly; single-source independent pages stay leads for a second fetched source before landing in artifacts.",
 			],
 		},
 		fetchSteps,

@@ -656,6 +656,7 @@ export const RankStateUpdateSchema = z
 		rank_verdict: z.string().optional(),
 		rank_date: z.string().optional(),
 		location_verdict: z.string().optional(),
+		location_note: z.string().optional(),
 		language_gate: z.string().optional(),
 		language_note: z.string().optional(),
 		deadline: z.string().nullable().optional(),
