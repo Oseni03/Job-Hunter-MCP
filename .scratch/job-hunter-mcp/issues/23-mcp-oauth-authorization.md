@@ -1,0 +1,15 @@
+# 23: MCP OAuth authorization (Claude remote connector support)
+
+**What to build:** Make the deployed `/mcp` endpoint speak OAuth 2.1 resource-server so Claude's remote connector (options 2 "register automatically / DCR" or 3 "your own client") can connect. The static bearer token keeps working untouched for local clients; OAuth is additive and provider-agnostic (Auth0, Clerk, WorkOS, Stytch — all standard OIDC issuers). No server sessions, no stored tokens: JWT verification only, preserving the stateless contract.
+
+**Blocked by:** 07-integrate-harden-ship.
+
+**Status:** ready-for-agent
+
+- [ ] Token verification alongside the bearer check: when `OAUTH_ISSUER` (and optional `OAUTH_AUDIENCE`, `OAUTH_JWKS_URI`) is configured, accept a JWT access token verified against the issuer's JWKS (signature, `iss`, `aud`, `exp`, clock-skew leeway as a named constant); when only `MCP_AUTH_TOKEN` is configured, keep the exact-match bearer behavior byte-for-byte; when neither is configured, stay open for local dev. Precedence and fallback order documented in one place.
+- [ ] RFC 9728 discovery: serve `/.well-known/oauth-protected-resource` describing `/mcp` (resource identifier = the public MCP URL, authorization-server pointer = `OAUTH_ISSUER`), and emit the `WWW-Authenticate: Bearer error="invalid_token", resource_metadata="…"` challenge on every 401 so Claude discovers DCR automatically instead of failing registration blind.
+- [ ] Claude-UI mapping documented: option 2 (DCR) becomes the correct choice against the issuer; option 3 works with a client registered in the same issuer (audience = the MCP resource identifier); option 1 (Claude's published identity) remains unsupported and the docs say so plainly.
+- [ ] Provider-agnostic env contract: `OAUTH_ISSUER`, `OAUTH_AUDIENCE`, `OAUTH_JWKS_URI` (default derived as `<issuer>/.well-known/jwks.json` where the provider follows OIDC discovery); one worked example (single provider, named in the docs) with copy-paste dashboard values; key rotation handled by JWKS refetch with a short cache TTL (named constant), never a restart.
+- [ ] Scope mapping decision recorded: whether the server enforces OAuth scopes per tool (e.g. read-only vs drafting) or treats any valid token as the caller — default to token-validity only (the host's tools already gate behavior), with the decision and its reasoning in the docs, not just the code.
+- [ ] Tests with fixture JWTs (locally generated keys, never real secrets): valid token accepted, wrong-issuer / wrong-audience / expired rejected, bearer-token path unchanged, open-dev path unchanged, 401 carries the `WWW-Authenticate` challenge, metadata endpoints return the configured identifiers. Contract tests extended: still no filesystem writes, still stateless.
+- [ ] Operator docs: which env set per deployment shape (local open / token-only / OAuth), what to paste into Claude's connector fields per option, how to rotate the bearer without downtime, and the curl matrix proving each shape (no-auth open, bearer accepted/rejected, JWT accepted/rejected, challenge on 401).

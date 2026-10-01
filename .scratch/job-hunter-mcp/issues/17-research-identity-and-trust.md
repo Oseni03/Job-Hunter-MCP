@@ -1,0 +1,12 @@
+# 17: Research identity and trust (right company, cache keying, failure visibility)
+
+**What to build:** Make the research pack provably about the right company. Today the first employer-site result wins with no identity check (`researchCompany` takes `candidates[0]`; `searchEmployerSite` in `lib/fetch-posting.ts:198-225` filters aggregators only), a wrong site then earns the most trusted label (`company-domain` by hostname match alone), the cache ignores `companyUrl`, non-Latin names collapse to one file, and search outages are invisible. Claim wording and quote scrubbing stay in issues 12 and 15; this issue decides identity.
+
+**Blocked by:** 09-research-company.
+
+**Status:** ready-for-agent
+
+- [ ] Identity check on the official site before it earns `company-domain`: after fetching the discovery winner, require the page text to mention the company name (normalized, first-word match as in `extractClaims`, plus a location token or the caller-supplied `companyUrl` host when given). On failure, drop the candidate, try the next discovery result, and record the rejection in `fetchSteps` (e.g. `website:identity-mismatch-dropped`) — a wrong "Acme" must never become trusted claims.
+- [ ] Cache keying honors `companyUrl`: store the resolved official host in the cache entry and treat an input `companyUrl` on a different host as a miss (fresh research, new host recorded). Today a cache hit returns before the override is even considered (`lib/research-company.ts:241-256`), so a corrected URL silently gets the old pack.
+- [ ] Non-Latin-safe cache filenames: `normalizeCompany` maps strings with no Latin characters to `""` (all stripped, hyphens trimmed) — every such company shares one file. Reuse the hash fallback already built in `makeKey` (`lib/job-key.ts:43-60`: `company-<sha6>` / numeric-ID fallback) so distinct names always map to distinct files. (Note: `resources.ts:normalizeSlug` delegates to `normalizeCompany`, so the fix propagates there too.)
+- [ ] Search failures are first-class: `searchWeb` returns `[]` on any failure (`lib/research-company.ts:144-165`), making "no results" and "DuckDuckGo broke" indistinguishable — the same defect fixed with `errors[]` in search-jobs. Return links plus an error slot (or record failures into `fetchSteps`/`verification.notes` per category), so a dead search reads as broken infrastructure, never as "nothing found". Same treatment for `searchEmployerSite`'s silent `[]`.

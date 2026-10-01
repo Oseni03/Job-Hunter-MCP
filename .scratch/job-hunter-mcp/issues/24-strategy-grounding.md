@@ -1,0 +1,12 @@
+# 24: Strategy grounding (real evidence, ranked directions, honest notes)
+
+**What to build:** Make `career-strategy` earn its directions in `lib/strategy.ts`. Four items: fix the grounding matcher, rank instead of restate, wire-or-cut the strengths claim, and share one word floor. Small issue, all in one file plus the shared helper from issue 12.
+
+**Blocked by:** 04-prep-strategy-form-fields.
+
+**Status:** ready-for-agent
+
+- [ ] Ground on meaningful whole-word overlap, not substring containment: `groundingFor` (`lib/strategy.ts:42-47`) grounds when either string contains the other, so generic terms do the work — a nominated area of plain "developer" is grounded by "backend developer" (phrase-contains-norm), and "backend developer relations" is grounded the same way in reverse. (Precision note: whole-phrase matching means "developer relations" alone does *not* match "backend developer" — neither contains the other — so fixtures must target the real cases: bare generic terms and superstring areas.) Fix: whole-word overlap over meaningful words with a generic-term stoplist ("developer", "engineer", …), and require overlap with skills or experience, not goals alone — a goal overlapping only goals is circular (pursue X because you want X), which is exactly what the skip list exists to prevent. Fixtures for each case, including the goal-only circular case landing in `skipped`.
+- [ ] Rank directions and take more evidence: today the plan restates the profile (one direction per goal and domain, insertion order, no ranking) on a single optional `evaluationSummary`. Accept an array of summaries, rank directions by evidence depth and fewest gaps, and surface gaps that recur across evaluations as the priority gaps to close. One summary stays valid input; thin evidence must read as thin (ranked low with few citations), never padded.
+- [ ] Wire strengths or fix the sentence (small): `frameworkNote` claims "strengths reinforce evidence" but `summary.strengths` is never read — evidence comes from the pool only. Either ingest strengths as additional caller-supplied evidence (labeled as such in the evidence arrays) or correct the note. No silent third option.
+- [ ] One shared word floor: `words()` here filters length ≥ 4 (`lib/strategy.ts:49-55`), prep's `tagWords` keeps ≥ 3 — "SQL" grounds a STAR tag but never a direction. Single shared helper (owned by issue 12's matching work), both consumers, fixture asserting "SQL" works in both.
