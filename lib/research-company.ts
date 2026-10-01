@@ -1,7 +1,8 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { defaultFetch, fetchPosting, searchEmployerSite, stripHtml } from "@/lib/fetch-posting.ts";
+import { defaultFetch, fetchPosting, searchEmployerSiteDetailed, stripHtml } from "@/lib/fetch-posting.ts";
 import { FETCH_CONCURRENCY, mapWithConcurrency } from "@/lib/fetch-concurrency.ts";
 import { sanitizeQuote } from "@/lib/evaluate.ts";
 import type { FetchLike } from "@/lib/fetch-posting.ts";
@@ -17,6 +18,8 @@ export interface ResearchSource {
 export interface ResearchEntry {
 	company: string;
 	fetched_date: string;
+	/** Resolved official host behind this pack; a caller companyUrl on another host is a cache miss. */
+	officialHost?: string;
 	sources: {
 		website?: ResearchSource;
 		reviews?: ResearchSource;
@@ -28,13 +31,64 @@ export interface ResearchEntry {
 	interviewer_notes?: string;
 }
 
-/** Lowercase, trim, spaces to hyphens: `Acme Corp` -> `acme-corp.json`. */
+function sha6(text: string): string {
+	return createHash("sha1").update(text, "utf8").digest("hex").slice(0, 6);
+}
+
+/** Lowercase, trim, spaces to hyphens: `Acme Corp` -> `acme-corp.json`. Non-Latin names fall back to `company-<sha6>` so distinct names never share one file. */
 export function normalizeCompany(company: string): string {
-	return company
+	const slug = company
 		.toLowerCase()
 		.trim()
 		.replace(/[^a-z0-9]+/g, "-")
 		.replace(/^-+|-+$/g, "");
+	if (slug) {
+		return slug;
+	}
+	const name = (company || "").normalize("NFC").trim().toLowerCase();
+	if (!name) {
+		return "";
+	}
+	return `company-${sha6(name)}`;
+}
+
+/**
+ * Official-site identity check: the fetched page must mention the company
+ * name (first-word match, same rule as extractClaims) plus a second company
+ * token where one exists, so a wrong "Acme" never earns the trusted
+ * company-domain label. When the caller pinned a companyUrl, the page host
+ * must also match that host (or mention it, tolerating redirects).
+ */
+export function passesOfficialIdentity(
+	text: string,
+	company: string,
+	options: { pageUrl?: string; expectedHost?: string } = {},
+): boolean {
+	const firstWord = company.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+	if (!firstWord) {
+		return false;
+	}
+	const lower = text.toLowerCase();
+	if (!lower.includes(firstWord)) {
+		return false;
+	}
+	const tokens = company
+		.toLowerCase()
+		.split(/[^a-z0-9]+/)
+		.filter((token) => token.length > 2);
+	if (tokens.length >= 2) {
+		const rest = tokens.slice(1);
+		if (!rest.some((token) => lower.includes(token))) {
+			return false;
+		}
+	}
+	if (options.expectedHost && options.pageUrl) {
+		const pageHost = hostOf(options.pageUrl);
+		if (pageHost !== options.expectedHost && !lower.includes(options.expectedHost)) {
+			return false;
+		}
+	}
+	return true;
 }
 
 export interface CacheRead {
@@ -151,13 +205,20 @@ function isPeoplePage(url: string): boolean {
  * Company-name web search (DuckDuckGo html endpoint). Returns up to 5
  * http(s) links, skipping people-search pages (never scraped). Snippets
  * are leads only: callers must fetch a result before it verifies anything.
+ * Failures are first-class: `error` is present when the search itself
+ * broke (status or transport), absent on genuine zero results.
  */
-async function searchWeb(query: string, fetchImpl: FetchLike): Promise<string[]> {
+export interface WebSearchResult {
+	links: string[];
+	error?: string;
+}
+
+async function searchWeb(query: string, fetchImpl: FetchLike): Promise<WebSearchResult> {
 	const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
 	try {
 		const res = await fetchImpl(searchUrl, { "User-Agent": "job-hunter-bot/1.0" });
 		if (res.status !== 200) {
-			return [];
+			return { links: [], error: `search-status-${res.status}` };
 		}
 		const found: string[] = [];
 		const pattern = /uddg=([^&"']+)/g;
@@ -172,9 +233,10 @@ async function searchWeb(query: string, fetchImpl: FetchLike): Promise<string[]>
 				continue;
 			}
 		}
-		return found;
-	} catch {
-		return [];
+		return { links: found };
+	} catch (error) {
+		const detail = error instanceof Error ? error.message : String(error);
+		return { links: [], error: `search-failed${detail ? `-${detail.slice(0, 80)}` : ""}` };
 	}
 }
 
@@ -251,13 +313,35 @@ export async function researchCompany(input: {
 }): Promise<ResearchResult> {
 	const now = input.now ?? new Date();
 	const cacheFile = join(input.cacheDir, `${normalizeCompany(input.company)}.json`);
+	const requestedHost = input.companyUrl ? hostOf(input.companyUrl) : "";
+
+	function entryHost(entry: ResearchEntry): string {
+		if (entry.officialHost) {
+			return entry.officialHost.toLowerCase();
+		}
+		const websiteUrl = entry.sources.website?.url;
+		return websiteUrl ? hostOf(websiteUrl) : "";
+	}
+
+	function cacheUsable(entry: ResearchEntry): boolean {
+		if (!requestedHost) {
+			return true;
+		}
+		const stored = entryHost(entry);
+		if (!stored) {
+			return false;
+		}
+		return stored === requestedHost;
+	}
 
 	if (input.cacheText) {
 		try {
 			const entry = JSON.parse(input.cacheText) as ResearchEntry;
 			const fetched = new Date(`${entry.fetched_date}T00:00:00Z`).getTime();
 			if (!Number.isNaN(fetched) && now.getTime() - fetched <= RESEARCH_TTL_DAYS * 24 * 60 * 60 * 1000) {
-				return cachedResult(cacheFile, entry);
+				if (cacheUsable(entry)) {
+					return cachedResult(cacheFile, entry);
+				}
 			}
 		} catch {
 			// Unparseable caller cache counts as a miss, never as data.
@@ -266,18 +350,14 @@ export async function researchCompany(input: {
 
 	const cached = readResearchCache(input.cacheDir, input.company, now);
 	if (cached.hit && cached.entry) {
-		return cachedResult(cacheFile, cached.entry);
+		if (cacheUsable(cached.entry)) {
+			return cachedResult(cacheFile, cached.entry);
+		}
 	}
 
 	const fetchImpl = input.fetchImpl ?? defaultFetch;
 	const fetchSteps: string[] = [];
-	let officialUrl = input.companyUrl ?? null;
-	if (!officialUrl) {
-		const candidates = await searchEmployerSite(input.company, fetchImpl);
-		fetchSteps.push("official-search");
-		officialUrl = candidates[0] ?? null;
-	}
-	const officialHost = officialUrl ? hostOf(officialUrl) : "";
+	const searchErrorNotes: string[] = [];
 
 	async function fetchCategory(url: string, label: string): Promise<{ url: string; text: string; steps: string[] } | null> {
 		const fetched = await fetchPosting(url, { fetchImpl });
@@ -287,6 +367,55 @@ export async function researchCompany(input: {
 		}
 		return null;
 	}
+
+	let officialUrl: string | null = input.companyUrl ?? null;
+	let verifiedWebsite: { url: string; text: string } | null = null;
+	let websiteFetchFailed = false;
+
+	if (officialUrl) {
+		const website = await fetchCategory(officialUrl, "website");
+		if (!website) {
+			websiteFetchFailed = true;
+			officialUrl = null;
+		} else if (
+			passesOfficialIdentity(website.text, input.company, {
+				pageUrl: website.url,
+				expectedHost: requestedHost || undefined,
+			})
+		) {
+			officialUrl = website.url;
+			verifiedWebsite = website;
+		} else {
+			fetchSteps.push("website:identity-mismatch-dropped");
+			officialUrl = null;
+		}
+	} else {
+		const discovery = await searchEmployerSiteDetailed(input.company, fetchImpl);
+		if (discovery.error) {
+			fetchSteps.push(`official-search:error-${discovery.error}`);
+			searchErrorNotes.push(
+				`Official-site search failed (${discovery.error}): infrastructure broken, not "nothing found".`,
+			);
+		} else {
+			fetchSteps.push(`official-search:${discovery.links.length}-leads`);
+		}
+		for (const candidate of discovery.links) {
+			const fetched = await fetchCategory(candidate, "website");
+			if (!fetched) {
+				continue;
+			}
+			if (passesOfficialIdentity(fetched.text, input.company)) {
+				officialUrl = fetched.url;
+				verifiedWebsite = fetched;
+				break;
+			}
+			fetchSteps.push("website:identity-mismatch-dropped");
+		}
+		if (!verifiedWebsite) {
+			officialUrl = null;
+		}
+	}
+	const officialHost = officialUrl && verifiedWebsite ? hostOf(verifiedWebsite.url) : "";
 
 	const sources: ResearchEntry["sources"] = {};
 	const claims: SourcedClaim[] = [];
@@ -300,19 +429,20 @@ export async function researchCompany(input: {
 			.slice(0, 2000);
 	}
 
-	if (officialUrl) {
-		const website = await fetchCategory(officialUrl, "website");
-		if (website) {
-			sources.website = { url: website.url, notes: storedNotes(website.text) };
-			verifiedSources.push(website.url);
-			claims.push(...extractClaims(website.text, input.company, website.url, officialHost));
-		} else {
-			droppedCount += 1;
-			fetchSteps.push("website:unreachable-dropped");
-		}
+	if (verifiedWebsite && officialUrl) {
+		sources.website = { url: verifiedWebsite.url, notes: storedNotes(verifiedWebsite.text) };
+		verifiedSources.push(verifiedWebsite.url);
+		claims.push(...extractClaims(verifiedWebsite.text, input.company, verifiedWebsite.url, officialHost));
 	} else {
 		droppedCount += 1;
-		fetchSteps.push("website:no-official-site-dropped");
+		if (input.companyUrl && websiteFetchFailed) {
+			fetchSteps.push("website:unreachable-dropped");
+		} else if (input.companyUrl) {
+			fetchSteps.push("website:no-verified-site-dropped");
+		} else {
+			const hadCandidates = fetchSteps.some((step) => step.startsWith("website:"));
+			fetchSteps.push(hadCandidates ? "website:no-verified-site-dropped" : "website:no-official-site-dropped");
+		}
 	}
 
 	const categories: Array<{ key: "reviews" | "linkedin" | "media"; query: string }> = [
@@ -324,21 +454,29 @@ export async function researchCompany(input: {
 	// candidates fetched with the shared bound, results collected per input
 	// index and emitted in input order, never completion order.
 	const categoryOutcomes = await mapWithConcurrency(categories, FETCH_CONCURRENCY, async (category) => {
-		const candidates = await searchWeb(category.query, fetchImpl);
-		const leadNote = `${category.key}-search:${candidates.length}-leads`;
-		const shortlist = candidates.slice(0, 3).filter((url) => !(officialUrl && url === officialUrl));
+		const search = await searchWeb(category.query, fetchImpl);
+		const leadNote =
+			search.error != null
+				? `${category.key}-search:error-${search.error}`
+				: `${category.key}-search:${search.links.length}-leads`;
+		const shortlist = search.links.slice(0, 3).filter((url) => !(officialUrl && url === officialUrl));
 		const fetchedList = await mapWithConcurrency(shortlist, FETCH_CONCURRENCY, async (candidate) =>
 			fetchCategory(candidate, category.key),
 		);
 		for (const fetched of fetchedList) {
 			if (fetched) {
-				return { category, leadNote, placed: fetched };
+				return { category, leadNote, placed: fetched, searchError: search.error };
 			}
 		}
-		return { category, leadNote, placed: null };
+		return { category, leadNote, placed: null, searchError: search.error };
 	});
 	for (const outcome of categoryOutcomes) {
 		fetchSteps.push(outcome.leadNote);
+		if (outcome.searchError) {
+			searchErrorNotes.push(
+				`${outcome.category.key} search failed (${outcome.searchError}): infrastructure broken, not "nothing found".`,
+			);
+		}
 		if (outcome.placed) {
 			const fetched = outcome.placed;
 			sources[outcome.category.key] = { url: fetched.url, notes: storedNotes(fetched.text) };
@@ -361,6 +499,7 @@ export async function researchCompany(input: {
 	const entry: ResearchEntry = {
 		company: input.company,
 		fetched_date: todayIso(now),
+		officialHost: officialHost || undefined,
 		sources,
 		network_contacts_note:
 			"No private lookups performed; public professional information only. Candidate-held contacts stay authoritative; nothing fabricated.",
@@ -380,6 +519,7 @@ export async function researchCompany(input: {
 			notes: [
 				`Sourced ${claims.length} claim(s) from ${new Set(verifiedSources).size} fetched page(s); dropped ${droppedCount} unsourceable categor(ies). Snippets served as leads only.`,
 				"Sourced means the sentence appeared on a fetched page, not that it is true. Company-domain pages source directly; single-source independent pages stay leads for a second fetched source before landing in artifacts.",
+				...searchErrorNotes,
 			],
 		},
 		fetchSteps,

@@ -200,16 +200,22 @@ export function titleMismatchNote(title: string, role: string): string | null {
 	);
 }
 
-/** Best-effort employer-site lookup (step 3); any failure yields no candidates. */
-export async function searchEmployerSite(
+/** Employer-site lookup with a first-class error slot: broken search is infrastructure, never "nothing found". */
+export interface EmployerSearchResult {
+	links: string[];
+	/** Present when the search itself failed (status or transport); absent on genuine zero results. */
+	error?: string;
+}
+
+export async function searchEmployerSiteDetailed(
 	query: string,
 	fetchImpl: FetchLike,
-): Promise<string[]> {
+): Promise<EmployerSearchResult> {
 	const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
 	try {
 		const res = await fetchImpl(searchUrl, { "User-Agent": BOT_UA });
 		if (res.status !== 200) {
-			return [];
+			return { links: [], error: `search-status-${res.status}` };
 		}
 		const found: string[] = [];
 		const pattern = /uddg=([^&"']+)/g;
@@ -224,10 +230,20 @@ export async function searchEmployerSite(
 				continue;
 			}
 		}
-		return found;
-	} catch {
-		return [];
+		return { links: found };
+	} catch (error) {
+		const detail = error instanceof Error ? error.message : String(error);
+		return { links: [], error: `search-failed${detail ? `-${detail.slice(0, 80)}` : ""}` };
 	}
+}
+
+/** Best-effort employer-site lookup (step 3); any failure yields no candidates. */
+export async function searchEmployerSite(
+	query: string,
+	fetchImpl: FetchLike,
+): Promise<string[]> {
+	const result = await searchEmployerSiteDetailed(query, fetchImpl);
+	return result.links;
 }
 
 export type FetchSource = "employer" | "aggregator" | "unavailable";

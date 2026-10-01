@@ -4,7 +4,7 @@
 
 **Blocked by:** 09-research-company.
 
-**Status:** ready-for-agent
+**Status:** done (commit: feat issue-17; full suite green except pre-existing tailor-cover drift failure, confirmed on clean tree)
 
 - [ ] Identity check on the official site before it earns `company-domain`: after fetching the discovery winner, require the page text to mention the company name (normalized, first-word match as in `extractClaims`, plus a location token or the caller-supplied `companyUrl` host when given). On failure, drop the candidate, try the next discovery result, and record the rejection in `fetchSteps` (e.g. `website:identity-mismatch-dropped`) — a wrong "Acme" must never become trusted claims.
 - [ ] Cache keying honors `companyUrl`: store the resolved official host in the cache entry and treat an input `companyUrl` on a different host as a miss (fresh research, new host recorded). Today a cache hit returns before the override is even considered (`lib/research-company.ts:241-256`), so a corrected URL silently gets the old pack.
