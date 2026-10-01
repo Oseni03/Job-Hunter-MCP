@@ -251,6 +251,7 @@ export function renderSearchMarkdown(plan: SearchPlan): string {
 		"",
 		`- Filters: keywords "${plan.filters.keywords || "(auto)"}" | location "${plan.filters.location || "(none)"}" | limit ${plan.filters.limit}`,
 		`- Sources: ${plan.sources.length > 0 ? plan.sources.join(", ") : "none ran"}`,
+		`- Queries run: ${plan.queriesRun.length > 0 ? plan.queriesRun.map((query) => `"${query}"`).join(", ") : "none (caller-supplied output)"}`,
 		`- Candidates: ${plan.candidates.length} | stale excluded: ${plan.staleCount} | seen skipped: ${plan.seenSkipped} | applied skipped: ${plan.appliedSkipped}`,
 		"",
 	];
@@ -265,6 +266,9 @@ export function renderSearchMarkdown(plan: SearchPlan): string {
 			`- Posted: ${candidate.postedDate ?? "unknown"} | deadline: ${candidate.deadline ?? "unknown"}${candidate.dateUnknown ? " (date unknown, flagged)" : ""} | status: ${candidate.status}`,
 			`- Portal: ${candidate.portal} | source: ${candidate.source}`,
 			`- Language gate: ${candidate.language.verdict} — ${candidate.language.note}`,
+			...(candidate.needsVerification
+				? ["- Needs verification: employer unknown — verify the company on the posting before evaluating."]
+				: []),
 			...(candidate.quickFit.strengths.length > 0
 				? [`- Strengths: ${candidate.quickFit.strengths.join("; ")}`]
 				: []),

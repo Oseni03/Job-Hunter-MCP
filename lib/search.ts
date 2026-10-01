@@ -1,3 +1,5 @@
+import { buildHackingQueries, fetchBoardJobs, filterListingsByQuery } from "@/lib/boards.ts";
+import type { BoardRef } from "@/lib/boards.ts";
 import {
 	checkLanguage,
 	extractGaps,
@@ -27,9 +29,16 @@ export const SEARCH_LIMIT_DEFAULT = 10;
 export const SEARCH_RECENCY_DAYS = 14;
 
 export type RemoteMode = "remote" | "hybrid" | "onsite";
-export type SearchSource = "portal-live" | "brightdata" | "web-fallback";
+export type SearchSource = "portal-live" | "board" | "brightdata" | "web-fallback";
 export type FitBand = "high" | "medium" | "low" | "unscored";
 export type CandidateStatus = "active" | "expired" | "unknown";
+
+/**
+ * Per-run query cap (issue 13): the active source runs at most this many
+ * queries per planSearch call (explicit query, or the first N auto-queries).
+ * Low-volume politeness stays, but the cap is now visible via queriesRun.
+ */
+export const SEARCH_QUERY_CAP = 3;
 
 /**
  * Probe texts shorter than this carry too little signal to assert a fit
@@ -257,6 +266,8 @@ export interface SearchCandidate {
 	language: { verdict: "PASS" | "FLAG" | "FAIL"; note: string };
 	consolidationNote: string | null;
 	referralLinks: string[];
+	/** True when the employer is unknown: verify before evaluating (issue 13). */
+	needsVerification: boolean;
 }
 
 /**
@@ -310,6 +321,14 @@ export interface SearchInput {
 	sleep?: Sleeper;
 	/** Optional batched LLM extraction over probe texts; heuristic is the automatic fallback. */
 	extractBatch?: BatchExtractor;
+	/**
+	 * Caller-supplied structured board refs (issue 13). Board APIs are
+	 * per-company listings with no directory or keyword search, so the host
+	 * owns the slug mapping. Boards run ahead of BrightData when present.
+	 */
+	boards?: BoardRef[];
+	/** Injected board fetcher; defaults to the default fetch. */
+	boardFetch?: FetchLike;
 }
 
 export interface SearchPlan {
@@ -320,6 +339,8 @@ export interface SearchPlan {
 	seenSkipped: number;
 	appliedSkipped: number;
 	sources: SearchSource[];
+	/** Query texts actually run this call, so the caller sees what coverage was bought (issue 13). */
+	queriesRun: string[];
 	notes: string[];
 	errors: string[];
 }
@@ -542,6 +563,36 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 
 	let raws: RawPosting[] = [];
 	let source: SearchSource | null = null;
+	const queriesRun: string[] = [];
+
+	/**
+	 * Active query set (issue 13): the explicit query, or each auto-query up
+	 * to the per-run cap. First-match-wins silence is over: every source
+	 * below runs the whole set, merges across queries, and reports queriesRun.
+	 */
+	const querySet = (filters.keywords !== "" ? [filters.keywords] : queries.map((q) => q.query)).slice(
+		0,
+		SEARCH_QUERY_CAP,
+	);
+	if (filters.keywords === "" && queries.length > SEARCH_QUERY_CAP) {
+		notes.push(
+			`Query coverage: running ${querySet.length} of ${queries.length} auto-queries (per-run cap ${SEARCH_QUERY_CAP}); re-run with explicit keywords for the rest.`,
+		);
+	}
+
+	/** Merge helper: dedupes raw postings by normalized URL across queries. */
+	function mergeRaws(lists: RawPosting[][]): RawPosting[] {
+		const seen = new Map<string, RawPosting>();
+		for (const list of lists) {
+			for (const raw of list) {
+				const key = (raw.url ?? "").split("#")[0].trim().toLowerCase();
+				if (key !== "" && !seen.has(key)) {
+					seen.set(key, raw);
+				}
+			}
+		}
+		return [...seen.values()];
+	}
 
 	if (input.portalResults) {
 		raws = input.portalResults;
@@ -552,55 +603,100 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 		if (!filters.location) {
 			errors.push("Portal search needs an explicit location (profile location is empty); no fetch ran.");
 		} else {
-			const query = filters.keywords || queries[0]?.query || "";
-			const outcome = await runPortalWithBackoff(
-				input.portal,
-				{
-					location: filters.location,
-					query,
-					jobAgeDays: SEARCH_RECENCY_DAYS,
-					remoteMode: filters.remoteMode,
-					page: 1,
-					limit: filters.limit,
-				},
-				{ sleep: input.sleep },
-			);
-			for (const error of outcome.errors) {
-				errors.push(`portal[${error.code}]: ${error.message}`);
+			const collected: RawPosting[][] = [];
+			for (const query of querySet) {
+				const outcome = await runPortalWithBackoff(
+					input.portal,
+					{
+						location: filters.location,
+						query,
+						jobAgeDays: SEARCH_RECENCY_DAYS,
+						remoteMode: filters.remoteMode,
+						page: 1,
+						limit: filters.limit,
+					},
+					{ sleep: input.sleep },
+				);
+				for (const error of outcome.errors) {
+					errors.push(`portal[${error.code}]: ${error.message}`);
+				}
+				notes.push(
+					`Portal run for "${query}" walked ${outcome.pages} page(s) in ${outcome.attempts} attempt(s) with backoff on rate limits.`,
+				);
+				collected.push(outcome.jobs);
+				queriesRun.push(query);
 			}
-			notes.push(
-				`Portal run walked ${outcome.pages} page(s) in ${outcome.attempts} attempt(s) with backoff on rate limits.`,
-			);
-			raws = outcome.jobs;
+			raws = mergeRaws(collected);
 			source = "portal-live";
 			sources.push(source);
 		}
+	} else if (input.boards && input.boards.length > 0) {
+		const boardFetch = input.boardFetch ?? defaultFetch;
+		const listings: RawPosting[] = [];
+		for (const board of input.boards) {
+			try {
+				const jobs = await fetchBoardJobs(board, boardFetch);
+				listings.push(...jobs);
+			} catch (error) {
+				errors.push(`Board ${board.provider}/${board.slug} failed (${String(error)}); no postings invented.`);
+			}
+		}
+		// Board APIs list per company with no keyword search: the query set
+		// filters client-side, merged across queries with dedupe by URL.
+		const collected: RawPosting[][] =
+			querySet.length > 0 ? querySet.map((query) => filterListingsByQuery(listings, query)) : [listings];
+		for (const query of querySet) {
+			queriesRun.push(query);
+		}
+		if (querySet.length === 0) {
+			queriesRun.push("(all board listings; no query filter)");
+		}
+		raws = mergeRaws(collected);
+		source = "board";
+		sources.push(source);
+		notes.push(
+			`Board run over ${input.boards.length} board(s) with ${listings.length} listing(s); filtered by ${queriesRun.length} querie(s).`,
+		);
 	} else if (input.brightDataKey) {
 		if (!input.brightDataFetch) {
 			errors.push("BrightData key is configured but no fetcher was injected; no fetch ran.");
 		} else {
-			const query = filters.keywords || queries[0]?.query || "";
-			try {
-				raws = await input.brightDataFetch(query);
-				source = "brightdata";
-				sources.push(source);
-			} catch (error) {
-				errors.push(`BrightData fetch failed (${String(error)}); no postings invented.`);
+			const collected: RawPosting[][] = [];
+			for (const query of querySet) {
+				try {
+					collected.push(await input.brightDataFetch(query));
+					queriesRun.push(query);
+				} catch (error) {
+					errors.push(`BrightData fetch failed for "${query}" (${String(error)}); no postings invented.`);
+				}
 			}
+			raws = mergeRaws(collected);
+			source = "brightdata";
+			sources.push(source);
 		}
 	} else if (input.webFallbackFetch) {
-		const query = filters.keywords || queries[0]?.query || "";
-		try {
-			raws = await input.webFallbackFetch(query);
-			source = "web-fallback";
-			sources.push(source);
-			notes.push("Web-search fallback results; verify each posting before evaluating.");
-		} catch (error) {
-			errors.push(`Web fallback failed (${String(error)}); no postings invented.`);
+		// Google-hacking expansion (issue 13): site:-scoped board/jobs pages,
+		// quoted terms, OR groups, and an exact-phrase fallback over the
+		// primary query — the cap keeps the run polite and visible.
+		const base = filters.keywords || queries[0]?.query || "";
+		const hacking = buildHackingQueries(base).slice(0, SEARCH_QUERY_CAP);
+		const fallbackQueries = hacking.length > 0 ? hacking : [base];
+		const collected: RawPosting[][] = [];
+		for (const query of fallbackQueries) {
+			try {
+				collected.push(await input.webFallbackFetch(query));
+				queriesRun.push(query);
+			} catch (error) {
+				errors.push(`Web fallback failed for "${query}" (${String(error)}); no postings invented.`);
+			}
 		}
+		raws = mergeRaws(collected);
+		source = "web-fallback";
+		sources.push(source);
+		notes.push("Web-search fallback results; verify each posting before evaluating.");
 	} else {
 		errors.push(
-			"No search source available (no portal runner, BrightData key, or fallback); no postings invented.",
+			"No search source available (no portal runner, board refs, BrightData key, or fallback); no postings invented.",
 		);
 	}
 
@@ -672,6 +768,9 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 			language: { verdict: languageGate.verdict, note: resolved.languageNote },
 			consolidationNote: null,
 			referralLinks: resolved.band === "high" || resolved.band === "medium" ? referralLinksFor(company) : [],
+			// Board results always carry real companies (issue 13); scraper
+			// paths keep the placeholder and flag it for host verification.
+			needsVerification: company === "Unknown company",
 		});
 		probeTexts.set(key, probeText);
 	}
@@ -709,14 +808,22 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 			Number(a.quickFit.lowEvidence) - Number(b.quickFit.lowEvidence) ||
 			a.key.localeCompare(b.key),
 	);
+	const kept = deduped.kept.slice(0, filters.limit);
+	const unverified = kept.filter((candidate) => candidate.needsVerification).length;
+	if (unverified > 0) {
+		notes.push(
+			`${unverified} candidate(s) carry an unknown employer; verify the company on the posting before evaluating.`,
+		);
+	}
 	return {
 		filters,
 		queries,
-		candidates: deduped.kept.slice(0, filters.limit),
+		candidates: kept,
 		staleCount,
 		seenSkipped: deduped.seenSkipped,
 		appliedSkipped: deduped.appliedSkipped,
 		sources,
+		queriesRun,
 		notes,
 		errors,
 	};

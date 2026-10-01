@@ -493,10 +493,22 @@ export const PortalPostingInput = z
 	})
 	.strict();
 
+export const BoardRefSchema = z
+	.object({
+		provider: z.enum(["greenhouse", "lever", "ashby"]),
+		slug: z.string().min(1).describe("Board slug: Greenhouse token, Lever org, or Ashby board name"),
+		company: z.string().min(1).describe("Company label for the board (Lever/Ashby payloads carry none)"),
+	})
+	.strict();
+
 export const SearchJobsInput = z
 	.object({
 		keywords: z.string().optional().describe("Explicit keyword query; absent derives from the profile"),
 		location: z.string().optional().describe("Explicit location; absent derives from the profile"),
+		boards: z
+			.array(BoardRefSchema)
+			.optional()
+			.describe("Structured board refs; run ahead of scrapers, filtered by the query set"),
 		remoteMode: z
 			.enum(["remote", "hybrid", "onsite"])
 			.optional()
@@ -526,7 +538,7 @@ export const SearchCandidateSchema = z
 		dateUnknown: z.boolean(),
 		status: z.enum(["active", "expired", "unknown"]),
 		portal: z.string(),
-		source: z.enum(["portal-live", "brightdata", "web-fallback"]),
+		source: z.enum(["portal-live", "board", "brightdata", "web-fallback"]),
 		quickFit: z
 			.object({
 				score: z.number(),
@@ -546,6 +558,7 @@ export const SearchCandidateSchema = z
 			.strict(),
 		consolidationNote: z.string().nullable(),
 		referralLinks: z.array(z.string()),
+		needsVerification: z.boolean(),
 	})
 	.strict();
 
@@ -567,7 +580,8 @@ export const SearchJobsOutput = z
 		staleCount: z.number(),
 		seenSkipped: z.number(),
 		appliedSkipped: z.number(),
-		sources: z.array(z.enum(["portal-live", "brightdata", "web-fallback"])),
+		sources: z.array(z.enum(["portal-live", "board", "brightdata", "web-fallback"])),
+		queriesRun: z.array(z.string()),
 		notes: z.array(z.string()),
 		errors: z.array(z.string()),
 	})

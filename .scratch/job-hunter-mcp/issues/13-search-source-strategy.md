@@ -4,7 +4,9 @@
 
 **Blocked by:** 05-search-jobs.
 
-**Status:** ready-for-agent
+**Status:** done (commit: feat issue-13; Adzuna/RemoteOK stay backups per spike note, no keys wired)
+
+Verification: `npx tsc --noEmit` clean, `npx eslint` clean on touched files, focused suites green (boards 18, search, search-tool), `contract.test.ts` green, `npm run golden` 26 pass / 0 fail / 1 skip.
 
 - [ ] Spike first: confirm Greenhouse (`boards-api.greenhouse.io`), Lever (`api.lever.co`), and Ashby (`api.ashbyhq.com/posting-api`) answer without keys and note their real company/date/description fields; Adzuna (keyed) and RemoteOK (JSON) stay backups, recorded in the spike note
 - [ ] Add a board source built on the spike winner(s) and insert it ahead of BrightData in the `planSearch` source chain; BrightData and the DuckDuckGo/LinkedIn-guest scrapers are demoted to fallback, keeping the people-search guard and the never-invent-postings rule on every path
