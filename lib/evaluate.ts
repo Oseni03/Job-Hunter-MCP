@@ -71,12 +71,55 @@ function quoteLine(text: string, matchIndex: number): string {
 
 function firstMatch(text: string, patterns: RegExp[]): { quote: string } | null {
 	for (const pattern of patterns) {
+		pattern.lastIndex = 0;
 		const match = pattern.exec(text);
 		if (match && match.index !== undefined) {
 			return { quote: quoteLine(text, match.index) };
 		}
 	}
 	return null;
+}
+
+/**
+ * Negation and vacuous-scope guard (issue 16). A line matching a FAIL
+ * pattern is only an explicit stated requirement when it carries neither
+ * a negation ("no", "not", "n't", "without", "waived", ...) nor a vacuous
+ * scope ("of any country", "regardless of citizenship", ...). Negated or
+ * vacuous matches are ambiguous: a human must judge, so they downgrade to
+ * PROCEED_UNVERIFIED with the quoted line instead of stopping the pipeline
+ * dead with a FAIL.
+ */
+const NEGATION_CONTEXT = /\b(no|not|n't|never|without|don't|doesn't|didn't|isn't|aren't|wasn't|weren't|waived|waive|waives|waiving|exempt|exempts|no longer)\b/i;
+const VACUOUS_SCOPE = /\bof any countr|\bany nationalit|\bregardless of (citizenship|nationality)\b/i;
+
+interface GateScan {
+	quote: string;
+	/** True when the match sits in negated or vacuous-scope wording (ambiguous, human judges). */
+	negated: boolean;
+}
+
+/** Line-scoped gate scan: first explicit match wins; otherwise the first ambiguous match. */
+function scanGateLines(text: string, patterns: RegExp[]): GateScan | null {
+	let ambiguous: GateScan | null = null;
+	for (const rawLine of text.split(/\r?\n/)) {
+		const line = rawLine.trim();
+		if (line === "") {
+			continue;
+		}
+		for (const pattern of patterns) {
+			pattern.lastIndex = 0;
+			if (!pattern.test(line)) {
+				continue;
+			}
+			const quote = sanitizeQuote(line);
+			if (NEGATION_CONTEXT.test(line) || VACUOUS_SCOPE.test(line)) {
+				ambiguous ??= { quote, negated: true };
+			} else {
+				return { quote, negated: false };
+			}
+		}
+	}
+	return ambiguous;
 }
 
 /**
@@ -88,16 +131,16 @@ export function checkEligibility(
 	postingText: string,
 	profile: Profile,
 ): GateResult<EligibilityVerdict> {
-	const citizenship = firstMatch(postingText, CITIZENSHIP_PATTERNS);
-	if (citizenship) {
+	const citizenship = scanGateLines(postingText, CITIZENSHIP_PATTERNS);
+	if (citizenship && !citizenship.negated) {
 		return {
 			verdict: "FAIL",
 			quote: citizenship.quote,
 			note: "Posting states a citizenship or residency requirement. Do not score or draft; report the quoted wording to the user.",
 		};
 	}
-	const clearance = firstMatch(postingText, CLEARANCE_PATTERNS);
-	if (clearance) {
+	const clearance = scanGateLines(postingText, CLEARANCE_PATTERNS);
+	if (clearance && !clearance.negated) {
 		return {
 			verdict: "FAIL",
 			quote: clearance.quote,
@@ -122,6 +165,15 @@ export function checkEligibility(
 			verdict: "PASS",
 			quote: welcome.quote,
 			note: "Posting explicitly welcomes international applicants or offers sponsorship.",
+		};
+	}
+
+	const ambiguous = citizenship?.negated ? citizenship : clearance?.negated ? clearance : null;
+	if (ambiguous) {
+		return {
+			verdict: "PROCEED_UNVERIFIED",
+			quote: ambiguous.quote,
+			note: "Posting mentions citizenship or clearance only in negated or vacuous-scope wording — ambiguous, not an explicit requirement. A human must judge the quoted line; check the employer's own careers or international-applicant page for a role-level decision before drafting.",
 		};
 	}
 
@@ -630,6 +682,34 @@ export function recommendationFor(verdict: Verdict): string {
 	}
 }
 
+/**
+ * Unverified-eligibility caveat (issue 16). When eligibility is
+ * PROCEED_UNVERIFIED, the employer's-own-page homework must travel with
+ * the recommendation into drafting — a bare "Definitely apply" would read
+ * as cleared. Applied as a prefix so it cannot be silently dropped.
+ */
+export const UNVERIFIED_ELIGIBILITY_CAVEAT =
+	"Eligibility unverified — confirm work authorization on the employer's own careers or international-applicant page before drafting.";
+
+export function withEligibilityCaveat(recommendation: string, eligibility: EligibilityVerdict): string {
+	if (eligibility !== "PROCEED_UNVERIFIED") {
+		return recommendation;
+	}
+	if (recommendation.startsWith(UNVERIFIED_ELIGIBILITY_CAVEAT)) {
+		return recommendation;
+	}
+	return `${UNVERIFIED_ELIGIBILITY_CAVEAT} ${recommendation}`;
+}
+
+/** Finalizes a recommendation against the final eligibility: adds the caveat when unverified, strips a stale one when cleared. */
+export function finalizeRecommendation(recommendation: string, eligibility: EligibilityVerdict): string {
+	if (eligibility === "PROCEED_UNVERIFIED") {
+		return withEligibilityCaveat(recommendation, eligibility);
+	}
+	const prefix = `${UNVERIFIED_ELIGIBILITY_CAVEAT} `;
+	return recommendation.startsWith(prefix) ? recommendation.slice(prefix.length) : recommendation;
+}
+
 export interface EmployerCall {
 	suggest: boolean;
 	reason: string;
@@ -823,6 +903,6 @@ export function evaluateJob(input: {
 		verdict,
 		strengths: extractStrengths(input.postingText, input.profile),
 		gaps: extractGaps(input.postingText, input.profile),
-		recommendation: recommendationFor(verdict),
+		recommendation: finalizeRecommendation(recommendationFor(verdict), eligibility.verdict),
 	};
 }

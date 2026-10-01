@@ -104,6 +104,7 @@ export function renderTailoredCvMarkdown(output: {
 		reframingWarning?: string;
 		templateNote?: string;
 		contactNote?: string;
+		roleTypeNote?: string;
 	};
 	banViolations: string[];
 	signals: DocumentSignals;
@@ -131,6 +132,7 @@ export function renderTailoredCvMarkdown(output: {
 		...output.warnings.draftDrift,
 		...(output.warnings.templateNote ? [output.warnings.templateNote] : []),
 		...(output.warnings.contactNote ? [output.warnings.contactNote] : []),
+		...(output.warnings.roleTypeNote ? [output.warnings.roleTypeNote] : []),
 		...output.banViolations,
 	]) {
 		lines.push(`- Warning: ${warning}`);

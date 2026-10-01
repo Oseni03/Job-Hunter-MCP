@@ -4,7 +4,9 @@
 
 **Blocked by:** 01-foundation-evaluate-job.
 
-**Status:** ready-for-agent
+**Status:** done (commit: feat issue-16; pre-existing tailor-cover drift failure unchanged, confirmed on clean tree)
+
+Verification: `tsc --noEmit` clean, `eslint` clean on touched files, focused suites green (evaluate-gate-safety 18, llm, gates, gates-review, llm-providers, employer, scoring), full suite 370/371.
 
 - [ ] Negation- and scope-proof the FAIL regexes with fixtures-first tests: "no citizenship required" (matches `citizenship (is )?required` today via the "citizenship required" substring), "citizenship not required" (matches via the bare `citizens` alternative), and "must be a citizen of any country" (vacuous scope, matches today) must not FAIL. Rule: explicit stated requirements FAIL; ambiguous matches become FLAG with the quoted line, so a human judges instead of the pipeline stopping dead. Cover clearance patterns with the same negation fixtures. Same treatment for `detectRoleType` in `lib/tailor.ts` (keyword-regex role sniffing with no negation or scope handling) — it only orders sections, so FLAG-equivalent caution (default + note) suffices there.
 - [ ] Bound the LLM's score movement in `mergeRefinement`: cap each refined dimension change (e.g. ±15 points from the heuristic value, named constant) and drop changes arriving without a reason (the schema already requires `reason` — enforce it at merge, not just at parse). A hostile or flattered posting must not be able to tip a verdict through persuasive-but-unbounded dimension pushes; the weighted math stays deterministic as today.

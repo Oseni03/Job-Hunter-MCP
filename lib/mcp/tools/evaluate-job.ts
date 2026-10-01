@@ -18,7 +18,7 @@ export function registerEvaluateJob(server: McpServer): void {
 		{
 			title: "Evaluate job fit",
 			description:
-				"Eligibility + Language gates, five-dimension weighted score, verdict, strengths, gaps, recommendation, and employer-call advice for one posting. Posting text preferred; URL fallback fetches with escalation.",
+				"Eligibility + Language gates, five-dimension weighted score, verdict, strengths, gaps, recommendation, and employer-call advice for one posting. Posting text preferred; URL fallback fetches with escalation. Refinement privacy: host-model sampling keeps data on-machine; Groq (only when GROQ_API_KEY is set) sends the posting plus full profile JSON to a third party — set llm.mode off to keep the heuristic scaffold with no network.",
 			inputSchema: EvaluateJobInput,
 			outputSchema: EvaluationSchema,
 			annotations: {

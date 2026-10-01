@@ -315,6 +315,8 @@ export interface DraftWarnings {
 	reframingWarning?: string;
 	templateNote?: string;
 	contactNote?: string;
+	/** Role-sniffing caution: technical keywords only in negated context, order defaulted. */
+	roleTypeNote?: string;
 }
 
 export interface TailorCvInput {
@@ -481,15 +483,44 @@ export function archiveDirFor(slug: string): string {
 }
 
 /** Technical roles lead with experience; specialist roles lead with education. */
+const TECHNICAL_ROLE_KEYWORDS =
+	/python|\bjava\b|typescript|framework|machine learning|\bmodels?\b|pipeline|dataset|code\b|software|algorithm/i;
+/** Negated context: a keyword hit here must not force the technical order (issue 16). */
+const ROLE_NEGATION_CONTEXT = /\b(no|not|n't|never|without|don't|doesn't|didn't|isn't|aren't|non-)\b/i;
+
 export function detectRoleType(postingText: string, override?: RoleType): RoleType {
 	if (override) {
 		return override;
 	}
-	return /python|\bjava\b|typescript|framework|machine learning|\bmodels?\b|pipeline|dataset|code\b|software|algorithm/i.test(
-		postingText,
-	)
+	return postingText
+		.split(/\r?\n/)
+		.some((line) => !ROLE_NEGATION_CONTEXT.test(line) && TECHNICAL_ROLE_KEYWORDS.test(line))
 		? "technical"
 		: "specialist";
+}
+
+/**
+ * FLAG-equivalent caution for role sniffing (issue 16). Keyword-regex
+ * ordering is a weak signal: when technical keywords appear only in
+ * negated context ("no coding required", "not a software role"), the
+ * section order defaults to specialist and this note says why, so a human
+ * can override with `roleType`. Null when the signal is unambiguous or
+ * the caller already overrode it.
+ */
+export function roleTypeCaution(postingText: string, override?: RoleType): string | null {
+	if (override) {
+		return null;
+	}
+	if (!TECHNICAL_ROLE_KEYWORDS.test(postingText)) {
+		return null;
+	}
+	const affirmed = postingText
+		.split(/\r?\n/)
+		.some((line) => !ROLE_NEGATION_CONTEXT.test(line) && TECHNICAL_ROLE_KEYWORDS.test(line));
+	if (affirmed) {
+		return null;
+	}
+	return "Role-type keywords appear only in negated context; section order defaults to specialist — override with roleType if the role is technical.";
 }
 
 /** The posting's own surface form of a matched skill (original casing), for bold labels. */
@@ -649,6 +680,10 @@ export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 	const language = input.cvLanguage ?? "en";
 	const headings = sectionHeadings(language);
 	const roleType = detectRoleType(input.postingText, input.roleType);
+	const roleTypeNote = roleTypeCaution(input.postingText, input.roleType);
+	if (roleTypeNote) {
+		warnings.roleTypeNote = roleTypeNote;
+	}
 	const [firstName, ...lastName] = profile.name.split(/\s+/);
 	const contact = input.contact ?? {};
 	const contactLines = [

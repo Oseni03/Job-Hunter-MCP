@@ -45,16 +45,16 @@ describe("mergeRefinement", () => {
 	it("applies refined scores and recomputes overall plus verdict deterministically", () => {
 		const merged = mergeRefinement(baseEvaluation(), POSTING, PROFILE, {
 			dimensions: [
-				{ dimension: "technical", score: 80, reason: "all core skills present" },
-				{ dimension: "experience", score: 80, reason: "direct domain match" },
-				{ dimension: "behavioral", score: 80, reason: "compatible" },
-				{ dimension: "career", score: 80, reason: "aligned" },
+				{ dimension: "technical", score: 90, reason: "all core skills present" },
+				{ dimension: "experience", score: 88, reason: "direct domain match" },
+				{ dimension: "behavioral", score: 60, reason: "compatible" },
+				{ dimension: "career", score: 92, reason: "aligned" },
 			],
 		});
 		const dims = Object.fromEntries(merged.dimensions.map((d) => [d.dimension, d]));
-		assert.equal(dims["technical"].score, 80);
+		assert.equal(dims["technical"].score, 90);
 		assert.equal(dims["location"].score, null);
-		assert.equal(merged.overallScore, 80);
+		assert.equal(merged.overallScore, 86);
 		assert.equal(merged.verdict, "Strong Fit");
 		assert.equal(merged.scored, true);
 	});

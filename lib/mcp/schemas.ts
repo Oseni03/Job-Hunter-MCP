@@ -145,6 +145,7 @@ export const TailorCvOutput = z
 			reframingWarning: z.string().optional(),
 			templateNote: z.string().optional(),
 			contactNote: z.string().optional(),
+			roleTypeNote: z.string().optional(),
 		}),
 		banViolations: z.array(z.string()),
 		signals: DocumentSignalsSchema.describe("Page-budget, LaTeX-safety, and layout signals; the host owns compilation"),
