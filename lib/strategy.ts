@@ -38,12 +38,76 @@ function isPlaceholder(profile: Profile, pool: string[]): boolean {
 	return profile.name.includes("YOUR") || pool.length === 0;
 }
 
-/** A nominated area is assessable only when a profile phrase grounds it. */
-function groundingFor(area: string, pool: string[]): string[] {
-	const norm = area.toLowerCase();
-	return pool.filter(
-		(phrase) => norm.includes(phrase.toLowerCase()) || phrase.toLowerCase().includes(norm),
+/**
+ * Generic role vocabulary that must never ground a direction on its own:
+ * sharing only "engineer" (or "senior", "team", ...) proves nothing about
+ * the nominated area. At least one non-generic content word must overlap.
+ */
+const GENERIC_TERMS = new Set([
+	"engineer",
+	"engineering",
+	"developer",
+	"development",
+	"manager",
+	"management",
+	"specialist",
+	"analyst",
+	"consultant",
+	"architect",
+	"role",
+	"roles",
+	"work",
+	"team",
+	"teams",
+	"job",
+	"jobs",
+	"position",
+	"positions",
+	"senior",
+	"junior",
+	"lead",
+	"principal",
+	"staff",
+	"associate",
+	"assistant",
+	"department",
+	"division",
+]);
+
+function contentTokens(text: string): Set<string> {
+	return new Set(
+		text
+			.toLowerCase()
+			.split(/[^a-z0-9+#]+/)
+			.filter((word) => word.length >= 2 && !GENERIC_TERMS.has(word)),
 	);
+}
+
+/**
+ * A nominated area is assessable only when a profile phrase grounds it
+ * through whole-word overlap on non-generic terms (issue 12). Either-direction
+ * substring containment is gone: "Engineer" no longer grounds "Engineering
+ * Manager", but "credit risk" still grounds "Credit Risk Analytics".
+ */
+function groundingFor(area: string, pool: string[]): string[] {
+	const trimmed = area.trim().toLowerCase();
+	const exact = pool.filter((phrase) => phrase.trim().toLowerCase() === trimmed);
+	if (exact.length > 0) {
+		return exact;
+	}
+	const areaTokens = contentTokens(area);
+	if (areaTokens.size === 0) {
+		return [];
+	}
+	return pool.filter((phrase) => {
+		const phraseTokens = contentTokens(phrase);
+		for (const token of areaTokens) {
+			if (phraseTokens.has(token)) {
+				return true;
+			}
+		}
+		return false;
+	});
 }
 
 function words(text: string): Set<string> {

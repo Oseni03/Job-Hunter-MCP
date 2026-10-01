@@ -530,9 +530,12 @@ export const SearchCandidateSchema = z
 		quickFit: z
 			.object({
 				score: z.number(),
-				band: z.enum(["high", "medium", "low"]),
+				band: z.enum(["high", "medium", "low", "unscored"]),
 				strengths: z.array(z.string()),
 				gaps: z.array(z.string()),
+				lowEvidence: z.boolean(),
+				textLength: z.number(),
+				source: z.enum(["heuristic", "llm-extraction"]),
 			})
 			.strict(),
 		language: z
@@ -716,23 +719,29 @@ export const ResearchEntrySchema = z
 	})
 	.strict();
 
-export const VerifiedClaimSchema = z
+export const SourcedClaimSchema = z
 	.object({
 		text: z.string(),
-		verified: z.literal(true),
+		fetched: z.literal(true),
 		sourceUrl: z.string(),
-		verifiedFrom: z.enum(["company-domain", "independent-reporting"]),
+		sourcedFrom: z.enum(["company-domain", "independent-reporting"]),
 	})
 	.strict();
 
-export const VerificationReportSchema = z
+/** Deprecated alias; use SourcedClaimSchema. */
+export const VerifiedClaimSchema = SourcedClaimSchema;
+
+export const SourcingReportSchema = z
 	.object({
-		verifiedCount: z.number(),
+		sourcedCount: z.number(),
 		droppedCount: z.number(),
 		sources: z.array(z.string()),
 		notes: z.array(z.string()),
 	})
 	.strict();
+
+/** Deprecated alias; use SourcingReportSchema. */
+export const VerificationReportSchema = SourcingReportSchema;
 
 export const ResearchCompanyOutput = z
 	.object({
@@ -741,8 +750,8 @@ export const ResearchCompanyOutput = z
 		cacheFile: z.string(),
 		cacheText: z.string().describe("JSON cache payload; the host writes it verbatim to cacheFile"),
 		entry: ResearchEntrySchema,
-		claims: z.array(VerifiedClaimSchema),
-		verification: VerificationReportSchema,
+		claims: z.array(SourcedClaimSchema),
+		sourcing: SourcingReportSchema,
 		fetchSteps: z.array(z.string()),
 		trustNote: z.string(),
 	})

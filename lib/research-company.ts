@@ -70,20 +70,32 @@ export function readResearchCache(
 	}
 }
 
-export interface VerifiedClaim {
+/**
+ * A sourced (NOT verified-true) claim: a sentence from a page we fetched
+ * (issue 12). `fetched: true` means "this sentence appeared on a fetched
+ * page", never "this statement is true" — marketing copy passes this bar,
+ * so nothing lands in an artifact without a second fetched source.
+ */
+export interface SourcedClaim {
 	text: string;
-	verified: true;
+	fetched: true;
 	sourceUrl: string;
-	verifiedFrom: "company-domain" | "independent-reporting";
+	sourcedFrom: "company-domain" | "independent-reporting";
 }
 
-export interface VerificationReport {
-	verifiedCount: number;
+/** Deprecated alias; use SourcedClaim. */
+export type VerifiedClaim = SourcedClaim;
+
+export interface SourcingReport {
+	sourcedCount: number;
 	droppedCount: number;
-	/** Fetched page URLs that verify the returned claims. */
+	/** Fetched page URLs behind the returned claims. */
 	sources: string[];
 	notes: string[];
 }
+
+/** Deprecated alias; use SourcingReport. */
+export type VerificationReport = SourcingReport;
 
 export interface ResearchResult {
 	cached: boolean;
@@ -92,9 +104,9 @@ export interface ResearchResult {
 	cacheFile: string;
 	/** JSON cache payload; the host writes it verbatim to cacheFile. */
 	cacheText: string;
-	/** Every claim verified against a fetched page; snippets never become claims. */
-	claims: VerifiedClaim[];
-	verification: VerificationReport;
+	/** Every claim sourced from a fetched page; snippets never become claims. */
+	claims: SourcedClaim[];
+	sourcing: SourcingReport;
 	fetchSteps: string[];
 	trustNote: string;
 }
@@ -171,14 +183,14 @@ function extractClaims(
 	sourceUrl: string,
 	officialHost: string,
 	maxClaims = 2,
-): VerifiedClaim[] {
+): SourcedClaim[] {
 	const firstWord = company.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
 	const sentences = text
 		.replace(/\s+/g, " ")
 		.split(/(?<=[.!?])\s+/)
 		.map((sentence) => sentence.trim())
 		.filter((sentence) => sentence.length >= 40 && sentence.length <= 280);
-	const claims: VerifiedClaim[] = [];
+	const claims: SourcedClaim[] = [];
 	for (const sentence of sentences) {
 		if (claims.length >= maxClaims) {
 			break;
@@ -188,9 +200,9 @@ function extractClaims(
 		}
 		claims.push({
 			text: sentence,
-			verified: true,
+			fetched: true,
 			sourceUrl,
-			verifiedFrom: officialHost !== "" && hostOf(sourceUrl) === officialHost ? "company-domain" : "independent-reporting",
+			sourcedFrom: officialHost !== "" && hostOf(sourceUrl) === officialHost ? "company-domain" : "independent-reporting",
 		});
 	}
 	return claims;
@@ -206,8 +218,8 @@ function cachedResult(cacheFile: string, entry: ResearchEntry): ResearchResult {
 		cacheFile,
 		cacheText: JSON.stringify(entry, null, 2),
 		claims: [],
-		verification: {
-			verifiedCount: 0,
+		sourcing: {
+			sourcedCount: 0,
 			droppedCount: 0,
 			sources,
 			notes: [
@@ -275,7 +287,7 @@ export async function researchCompany(input: {
 	}
 
 	const sources: ResearchEntry["sources"] = {};
-	const claims: VerifiedClaim[] = [];
+	const claims: SourcedClaim[] = [];
 	const verifiedSources: string[] = [];
 	let droppedCount = 0;
 
@@ -345,13 +357,13 @@ export async function researchCompany(input: {
 		cacheFile,
 		cacheText: JSON.stringify(entry, null, 2),
 		claims,
-		verification: {
-			verifiedCount: claims.length,
+		sourcing: {
+			sourcedCount: claims.length,
 			droppedCount,
 			sources: [...new Set(verifiedSources)],
 			notes: [
-				`Verified ${claims.length} claim(s) against ${new Set(verifiedSources).size} fetched page(s); dropped ${droppedCount} unverifiable categor(ies). Snippets served as leads only.`,
-				"Company-domain pages verify directly; single-source independent pages stay leads for a second fetched source before landing in artifacts.",
+				`Sourced ${claims.length} claim(s) from ${new Set(verifiedSources).size} fetched page(s); dropped ${droppedCount} unsourceable categor(ies). Snippets served as leads only.`,
+				"Sourced means the sentence appeared on a fetched page, not that it is true. Company-domain pages source directly; single-source independent pages stay leads for a second fetched source before landing in artifacts.",
 			],
 		},
 		fetchSteps,

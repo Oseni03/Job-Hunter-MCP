@@ -4,6 +4,7 @@ import {
 	extractGaps,
 	extractStrengths,
 	overallScore,
+	parsePostingDay,
 	scoreDimensions,
 	verdictFor,
 } from "@/lib/evaluate.ts";
@@ -138,19 +139,6 @@ function appliedKey(company: string, title: string): string {
 	return `${company.trim().toLowerCase()}||${title.trim().toLowerCase()}`;
 }
 
-/** YYYY-MM-DD prefix only; anything else is unknown, never guessed. */
-function parseDay(value: string | null | undefined): string | null {
-	if (!value) {
-		return null;
-	}
-	const match = /^(\d{4}-\d{2}-\d{2})/.exec(value.trim());
-	if (!match) {
-		return null;
-	}
-	const day = match[1];
-	return Number.isNaN(new Date(`${day}T00:00:00Z`).getTime()) ? null : day;
-}
-
 function daysBetween(from: string, to: string): number {
 	return (new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime()) / 86400000;
 }
@@ -163,7 +151,7 @@ function freshDeadlineFromText(text: string): string | null {
 	}
 	const parsed = new Date(raw);
 	if (Number.isNaN(parsed.getTime())) {
-		return parseDay(raw);
+		return parsePostingDay(raw);
 	}
 	return parsed.toISOString().slice(0, 10);
 }
@@ -295,7 +283,7 @@ export async function planRank(input: RankInput): Promise<RankPlan> {
 			continue;
 		}
 
-		const storedDeadline = parseDay(item.deadline);
+		const storedDeadline = parsePostingDay(item.deadline, now);
 		const freshDeadline = freshDeadlineFromText(postingText);
 		const deadline = freshDeadline ?? storedDeadline;
 
@@ -313,7 +301,7 @@ export async function planRank(input: RankInput): Promise<RankPlan> {
 		}
 
 		const urgent = deadline !== null && daysBetween(today, deadline) <= RANK_URGENCY_DAYS;
-		const postedDate = parseDay(item.postedDate);
+		const postedDate = parsePostingDay(item.postedDate, now);
 		let staleNote: string | null = null;
 		if (postedDate) {
 			const age = Math.round(daysBetween(postedDate, today));
@@ -398,7 +386,7 @@ export async function planRank(input: RankInput): Promise<RankPlan> {
 		if (scoredKeys.has(stored.key)) {
 			continue;
 		}
-		const deadline = parseDay(stored.deadline);
+		const deadline = parsePostingDay(stored.deadline, now);
 		if (!deadline) {
 			continue;
 		}
@@ -421,6 +409,7 @@ export async function planRank(input: RankInput): Promise<RankPlan> {
 
 	notes.push(
 		"Triage depth only: scored from posting text with five-dimension weights (30/25/15/30) and verdict bands (75/60/45/30). No company research, salary lookup, or reviewer. Route picks back to evaluate-job, which always re-runs full Step 1.",
+		"Scale note: rank verdict bands (full fetched text) and search quick-fit bands (snippet probe text) are different instruments over different text depths — not comparable until calibrated on a labeled set.",
 	);
 
 	return {

@@ -228,12 +228,22 @@ interface LanguageRequirement {
 	barRank: number | null;
 }
 
+/**
+ * Company-history context that mentions a language-named nationality without
+ * stating a requirement ("founded by Danish engineers", "headquartered in
+ * Berlin"): skipped so history never gates a candidate (issue 12 ride-along).
+ */
+const NEGATIVE_LANGUAGE_CONTEXT = /founded|headquarter(?:ed|s)?/i;
+
 /** Languages required as a job condition: named language on a requirement-context line. */
 function extractLanguageRequirements(postingText: string): LanguageRequirement[] {
 	const found: LanguageRequirement[] = [];
 	for (const rawLine of postingText.split(/\r?\n/)) {
 		const line = rawLine.trim();
 		if (!line || !REQUIREMENT_CONTEXT.test(line)) {
+			continue;
+		}
+		if (NEGATIVE_LANGUAGE_CONTEXT.test(line)) {
 			continue;
 		}
 		for (const language of KNOWN_LANGUAGES) {
@@ -304,11 +314,54 @@ function normalized(text: string): string {
 	return text.toLowerCase();
 }
 
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Small directional alias map for skill matching (issue 12). True synonyms
+ * resolve bidirectionally (K8s/Kubernetes, JS/JavaScript, TS/TypeScript,
+ * Postgres/PostgreSQL). Generic SQL is deliberately NOT an alias of
+ * Postgres: SQL is broader, so a bare "SQL" phrase must not claim a
+ * Postgres-specific posting through substring overlap.
+ */
+export const SKILL_ALIASES: Record<string, string[]> = {
+	k8s: ["kubernetes"],
+	kubernetes: ["k8s"],
+	js: ["javascript"],
+	javascript: ["js"],
+	ts: ["typescript"],
+	typescript: ["ts"],
+	postgres: ["postgresql"],
+	postgresql: ["postgres"],
+};
+
+/**
+ * Word-boundary phrase matching with a short-token guard (issue 12). Edges
+ * treat `[a-z0-9+#]` as word characters, so tokens of length <= 2 (Go, R,
+ * JS, TS, C++) only match exact tokens: "Go" matches "Go developer" but
+ * not "Good", "Django", or "Goals". Multi-word phrases match on flexible
+ * whitespace ("machine   learning").
+ */
+export function phraseMatches(text: string, phrase: string): boolean {
+	const normalizedPhrase = phrase.trim().toLowerCase();
+	if (normalizedPhrase === "") {
+		return false;
+	}
+	const variants = [normalizedPhrase, ...(SKILL_ALIASES[normalizedPhrase] ?? [])];
+	for (const variant of variants) {
+		const escaped = escapeRegExp(variant).replace(/\s+/g, "\\s+");
+		if (new RegExp(`(?<![a-z0-9+#])${escaped}(?![a-z0-9+#])`, "i").test(text)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 /** Fraction of phrases present in the posting, full weight for primary, half for secondary. */
 function coverage(posting: string, primary: string[], secondary: string[]): number | null {
-	const text = normalized(posting);
-	const primaryHits = primary.filter((p) => p !== "" && text.includes(normalized(p)));
-	const secondaryHits = secondary.filter((s) => s !== "" && text.includes(normalized(s)));
+	const primaryHits = primary.filter((p) => p !== "" && phraseMatches(posting, p));
+	const secondaryHits = secondary.filter((s) => s !== "" && phraseMatches(posting, s));
 	const denom = primary.length + 0.5 * secondary.length;
 	if (denom === 0) {
 		return null;
@@ -322,15 +375,13 @@ function coverage(posting: string, primary: string[], secondary: string[]): numb
  * Location is pass/fail and never weighted.
  */
 export function scoreDimensions(postingText: string, profile: Profile): DimensionScore[] {
-	const text = normalized(postingText);
-
 	const technical = coverage(postingText, profile.primarySkills, profile.secondarySkills);
 	const experience = coverage(postingText, profile.strongDomains, profile.adjacentDomains);
 
 	let behavioral: number | null = null;
 	if (profile.energizingTasks.length > 0 || profile.drainingTasks.length > 0) {
-		const energizing = profile.energizingTasks.filter((t) => t !== "" && text.includes(normalized(t)));
-		const draining = profile.drainingTasks.filter((t) => t !== "" && text.includes(normalized(t)));
+		const energizing = profile.energizingTasks.filter((t) => t !== "" && phraseMatches(postingText, t));
+		const draining = profile.drainingTasks.filter((t) => t !== "" && phraseMatches(postingText, t));
 		behavioral = Math.max(0, Math.min(100, 50 + 10 * energizing.length - 15 * draining.length));
 	}
 
@@ -338,7 +389,7 @@ export function scoreDimensions(postingText: string, profile: Profile): Dimensio
 		profile.careerGoals.length > 0
 			? Math.round(
 					(100 *
-						profile.careerGoals.filter((g) => g !== "" && text.includes(normalized(g))).length) /
+						profile.careerGoals.filter((g) => g !== "" && phraseMatches(postingText, g)).length) /
 						profile.careerGoals.length,
 				)
 			: null;
@@ -363,7 +414,7 @@ export function scoreDimensions(postingText: string, profile: Profile): Dimensio
 			notes:
 				technical === null
 					? setupNote
-					: `${profile.primarySkills.filter((p) => text.includes(normalized(p))).length}/${profile.primarySkills.length} primary skills mentioned.`,
+					: `${profile.primarySkills.filter((p) => phraseMatches(postingText, p)).length}/${profile.primarySkills.length} primary skills mentioned.`,
 		},
 		{
 			dimension: "experience",
@@ -385,6 +436,46 @@ export function scoreDimensions(postingText: string, profile: Profile): Dimensio
 			notes: career === null ? setupNote : "Coverage of stated career goals in the posting.",
 		},
 	];
+}
+
+/**
+ * Posting date parsing with YYYY-MM-DD priority and relative-date support
+ * (issue 12). Absolute dates win when present; otherwise day-exact relative
+ * phrases ("today", "yesterday", "N days ago", "last week", "N weeks ago")
+ * resolve against the injected `now`. Month-length-ambiguous phrases ("last
+ * month") and anything unparseable stay unknown (null): never guessed.
+ */
+export function parsePostingDay(value: string | null | undefined, now: Date = new Date()): string | null {
+	if (!value) {
+		return null;
+	}
+	const trimmed = value.trim();
+	const iso = /^(\d{4}-\d{2}-\d{2})/.exec(trimmed);
+	if (iso) {
+		const day = iso[1];
+		return Number.isNaN(new Date(`${day}T00:00:00Z`).getTime()) ? null : day;
+	}
+	const lower = trimmed.toLowerCase();
+	const dayMs = 86400000;
+	const utcDay = (time: number): string => new Date(time).toISOString().slice(0, 10);
+	if (/\btoday\b/.test(lower)) {
+		return utcDay(now.getTime());
+	}
+	if (/\byesterday\b/.test(lower) || /\ba\s+day\s+ago\b/.test(lower)) {
+		return utcDay(now.getTime() - dayMs);
+	}
+	const daysAgo = /(\d+)\s+days?\s+ago/.exec(lower);
+	if (daysAgo) {
+		return utcDay(now.getTime() - Number.parseInt(daysAgo[1], 10) * dayMs);
+	}
+	if (/\blast\s+week\b/.test(lower) || /\ba\s+week\s+ago\b/.test(lower)) {
+		return utcDay(now.getTime() - 7 * dayMs);
+	}
+	const weeksAgo = /(\d+)\s+weeks?\s+ago/.exec(lower);
+	if (weeksAgo) {
+		return utcDay(now.getTime() - Number.parseInt(weeksAgo[1], 10) * 7 * dayMs);
+	}
+	return null;
 }
 
 /** Weighted average of the four scored dimensions; location is never weighted. */
@@ -438,10 +529,9 @@ export function profileVocabulary(profile: Profile): Set<string> {
 
 /** Profile skills and domains mentioned in the posting (max 5). */
 export function extractStrengths(postingText: string, profile: Profile): string[] {
-	const text = normalized(postingText);
 	const strengths: string[] = [];
 	for (const skill of [...profile.primarySkills, ...profile.strongDomains]) {
-		if (skill !== "" && text.includes(normalized(skill))) {
+		if (skill !== "" && phraseMatches(postingText, skill)) {
 			strengths.push(skill);
 		}
 		if (strengths.length >= 5) {

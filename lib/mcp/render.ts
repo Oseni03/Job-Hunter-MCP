@@ -255,8 +255,12 @@ export function renderSearchMarkdown(plan: SearchPlan): string {
 		"",
 	];
 	for (const candidate of plan.candidates) {
+		const fitLabel =
+			candidate.quickFit.band === "unscored"
+				? `unscored — thin evidence, ${candidate.quickFit.score}/100 heuristic`
+				: `${candidate.quickFit.band}, ${candidate.quickFit.score}/100`;
 		lines.push(
-			`### ${candidate.title} at ${candidate.company} (${candidate.quickFit.band}, ${candidate.quickFit.score}/100)`,
+			`### ${candidate.title} at ${candidate.company} (${fitLabel})`,
 			`- Key: \`${candidate.key}\` | [posting](${candidate.url})`,
 			`- Posted: ${candidate.postedDate ?? "unknown"} | deadline: ${candidate.deadline ?? "unknown"}${candidate.dateUnknown ? " (date unknown, flagged)" : ""} | status: ${candidate.status}`,
 			`- Portal: ${candidate.portal} | source: ${candidate.source}`,
@@ -349,14 +353,14 @@ export function renderRankMarkdown(plan: RankPlan): string {
 	return lines.join("\n");
 }
 
-/** Verified company research; the host owns the cache write and final-claim re-fetch. */
+/** Sourced company research; the host owns the cache write and final-claim re-fetch. */
 export function renderResearchMarkdown(plan: {
 	company: string;
 	cached: boolean;
 	cacheFile: string;
 	entry: ResearchResult["entry"];
 	claims: ResearchResult["claims"];
-	verification: ResearchResult["verification"];
+	sourcing: ResearchResult["sourcing"];
 	fetchSteps: string[];
 	trustNote: string;
 }): string {
@@ -374,7 +378,7 @@ export function renderResearchMarkdown(plan: {
 		if (source) {
 			lines.push(`- ${category}: ${source.url}`, `  ${source.notes.slice(0, 300)}`);
 		} else {
-			lines.push(`- ${category}: not verified; dropped after full escalation (never snippet-sourced).`);
+			lines.push(`- ${category}: nothing sourced; dropped after full escalation (never snippet-sourced).`);
 		}
 	}
 	if (plan.entry.network_contacts_note) {
@@ -383,19 +387,19 @@ export function renderResearchMarkdown(plan: {
 	if (plan.entry.interviewer_notes) {
 		lines.push("", "### Interviewer angle (public professional info only)", `- ${plan.entry.interviewer_notes}`);
 	}
-	lines.push("", "### Verified claims (fetched pages only; snippets are leads)");
+	lines.push("", "### Sourced claims (fetched pages only; snippets are leads; sourced is not verified-true)");
 	if (plan.claims.length > 0) {
 		for (const claim of plan.claims) {
-			lines.push(`- "${claim.text}" — verified from ${claim.sourceUrl} (${claim.verifiedFrom})`);
+			lines.push(`- "${claim.text}" — sourced from ${claim.sourceUrl} (${claim.sourcedFrom})`);
 		}
 	} else {
-		lines.push("- None verified; nothing unverified was kept.");
+		lines.push("- None sourced; nothing unsourced was kept.");
 	}
 	lines.push(
 		"",
-		`### Verification: ${plan.verification.verifiedCount} verified, ${plan.verification.droppedCount} dropped`,
-		...plan.verification.notes.map((note) => `- ${note}`),
-		...plan.verification.sources.map((source) => `- Verified from: ${source}`),
+		`### Sourcing: ${plan.sourcing.sourcedCount} sourced, ${plan.sourcing.droppedCount} dropped`,
+		...plan.sourcing.notes.map((note) => `- ${note}`),
+		...plan.sourcing.sources.map((source) => `- Sourced from: ${source}`),
 		"",
 		`Trust boundary: ${plan.trustNote}`,
 		"",

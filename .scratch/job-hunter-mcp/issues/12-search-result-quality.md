@@ -4,7 +4,9 @@
 
 **Blocked by:** 05-search-jobs, 01-foundation-evaluate-job.
 
-**Status:** ready-for-agent
+**Status:** done (commit: feat issue-12; tuning measurement deferred — no weight/band changes without the labeled set)
+
+Verification: `npx tsc --noEmit` clean, `npx eslint` clean on touched files, focused suites green (search-quality 20, search, search-tool, scoring, gates, tailor-coverage, tailor-signals, strategy, research-company, rank, employer).
 
 - [ ] Thin-evidence confidence is deterministic, no LLM needed: emit `lowEvidence: true` plus `textLength` when the probe text is under a threshold, and withhold the band (report "unscored — thin evidence") instead of asserting `low`
 - [ ] Language-FAIL → `low` downgrade is kept (deliberate gate, not an evidence problem); confidence and gating stay separate fields so the host can tell them apart

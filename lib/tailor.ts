@@ -1,4 +1,4 @@
-import { extractDeadline, profileVocabulary } from "@/lib/evaluate.ts";
+import { extractDeadline, phraseMatches, profileVocabulary } from "@/lib/evaluate.ts";
 import {
 	braceItem,
 	checkWritingBans,
@@ -147,8 +147,7 @@ export function matchRequirements(postingText: string, profile: Profile): Requir
 		if (!/^[-*•\d.)\s]/.test(line)) {
 			continue;
 		}
-		const lineLower = line.toLowerCase();
-		if (!phrases.some((phrase) => lineLower.includes(phrase.toLowerCase()))) {
+		if (!phrases.some((phrase) => phraseMatches(line, phrase))) {
 			continue;
 		}
 		for (const item of splitItems(line)) {
@@ -171,18 +170,19 @@ function matchItem(
 	if (item.length < 2) {
 		return null;
 	}
-	const itemNorm = item.toLowerCase();
-	const evidence = phrases.find((phrase) => {
-		const phraseNorm = phrase.toLowerCase();
-		return itemNorm === phraseNorm || phraseNorm.includes(itemNorm);
-	});
+	// Matched only when item and phrase mutually mention each other as whole
+	// words (modulo aliases): the item IS the profile phrase, not merely a
+	// longer string containing it. One-direction containment ("machine
+	// learning operations" naming "Machine Learning") bridges honestly
+	// instead of over-claiming a direct match.
+	const evidence = phrases.find((phrase) => phraseMatches(item, phrase) && phraseMatches(phrase, item));
 	if (evidence) {
 		return { requirement: item, kind, status: "matched", evidence };
 	}
 	// The item names a profile phrase plus extra specialization, or
 	// shares vocabulary with it: bridge honestly, never over-claim.
 	const overlaps =
-		phrases.some((phrase) => itemNorm.includes(phrase.toLowerCase())) ||
+		phrases.some((phrase) => phraseMatches(item, phrase)) ||
 		contentWords(item).some((word) => vocab.has(word));
 	return { requirement: item, kind, status: overlaps ? "bridged" : "gap" };
 }
@@ -225,9 +225,9 @@ export interface ClaimAudit {
  * the drafter can rephrase or drop the claim. Zero drift allowed.
  */
 export function auditClaim(claim: string, sources: string[]): ClaimAudit {
-	const union = sources.join("\n").toLowerCase();
+	const tokens = new Set(sources.join("\n").toLowerCase().split(/[^a-z0-9+#]+/).filter(Boolean));
 	const missing = contentWords(claim).filter(
-		(word) => !union.includes(word) && !(word.endsWith("s") && union.includes(word.slice(0, -1))),
+		(word) => !tokens.has(word) && !(word.endsWith("s") && tokens.has(word.slice(0, -1))),
 	);
 	return { grounded: missing.length === 0, missing };
 }
@@ -494,8 +494,12 @@ export function detectRoleType(postingText: string, override?: RoleType): RoleTy
 
 /** The posting's own surface form of a matched skill (original casing), for bold labels. */
 function postingSurfaceForm(phrase: string, postingText: string): string {
-	const index = postingText.toLowerCase().indexOf(phrase.toLowerCase());
-	return index >= 0 ? postingText.slice(index, index + phrase.length) : phrase;
+	const escaped = phrase.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+	if (escaped === "") {
+		return phrase;
+	}
+	const match = new RegExp(`(?<![a-z0-9+#])${escaped}(?![a-z0-9+#])`, "i").exec(postingText);
+	return match ? match[0] : phrase;
 }
 
 const ROLE_BULLET_CAPS = [5, 3, 2];
@@ -503,8 +507,7 @@ const ROLE_BULLET_CAPS = [5, 3, 2];
 /** Relevance-orders bullets (posting-term hits, then measurable outcomes), stable, then caps. */
 function tailorBullets(bullets: string[], phrases: string[], cap: number): string[] {
 	const scored = bullets.map((bullet, index) => {
-		const bulletLower = bullet.toLowerCase();
-		const hits = phrases.filter((phrase) => bulletLower.includes(phrase.toLowerCase())).length;
+		const hits = phrases.filter((phrase) => phraseMatches(bullet, phrase)).length;
 		return { bullet, index, score: 2 * hits + (/\d/.test(bullet) ? 1 : 0) };
 	});
 	scored.sort((a, b) => b.score - a.score || a.index - b.index);
@@ -531,15 +534,12 @@ export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 	}
 	const profile = input.profile;
 	const coverage = matchRequirements(input.postingText, profile);
-	const postingLower = input.postingText.toLowerCase();
 
 	const coreSkills = [...profile.primarySkills, ...profile.strongDomains];
 	const peripheralSkills = [...profile.secondarySkills, ...profile.adjacentDomains];
-	const coreHit = coreSkills.some(
-		(skill) => skill.trim() !== "" && postingLower.includes(skill.toLowerCase()),
-	);
+	const coreHit = coreSkills.some((skill) => skill.trim() !== "" && phraseMatches(input.postingText, skill));
 	const adjacentHit = input.profile.adjacentDomains.some(
-		(domain) => domain.trim() !== "" && postingLower.includes(domain.toLowerCase()),
+		(domain) => domain.trim() !== "" && phraseMatches(input.postingText, domain),
 	);
 	const transferring = !coreHit && adjacentHit;
 
@@ -584,7 +584,7 @@ export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 		.find((evidence) => profile.strongDomains.includes(evidence));
 	const goal = profile.careerGoals[0];
 	const transferDomain = input.profile.adjacentDomains.find(
-		(domain) => domain.trim() !== "" && postingLower.includes(domain.toLowerCase()),
+		(domain) => domain.trim() !== "" && phraseMatches(input.postingText, domain),
 	);
 	const statement = transferring && transferDomain
 		? `Moving from ${transferDomain} to ${input.role ?? "this role"}, ${profile.name} brings ${skillList} to ${goal ? `${goal} work` : "work"}.`

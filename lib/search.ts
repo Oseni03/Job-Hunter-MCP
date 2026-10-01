@@ -3,6 +3,8 @@ import {
 	extractGaps,
 	extractStrengths,
 	overallScore,
+	parsePostingDay,
+	phraseMatches,
 	scoreDimensions,
 } from "@/lib/evaluate.ts";
 import {
@@ -26,8 +28,23 @@ export const SEARCH_RECENCY_DAYS = 14;
 
 export type RemoteMode = "remote" | "hybrid" | "onsite";
 export type SearchSource = "portal-live" | "brightdata" | "web-fallback";
-export type FitBand = "high" | "medium" | "low";
+export type FitBand = "high" | "medium" | "low" | "unscored";
 export type CandidateStatus = "active" | "expired" | "unknown";
+
+/**
+ * Probe texts shorter than this carry too little signal to assert a fit
+ * band (issue 12). Thin candidates report "unscored — thin evidence" with
+ * their text length instead of a low/medium/high claim.
+ */
+export const THIN_EVIDENCE_THRESHOLD = 80;
+
+/**
+ * Scale comparability (issue 12): quick-fit bands (60/45 over snippet probe
+ * text) and rank verdict bands (75/60/45/30 over full fetched text) are
+ * different instruments over different text depths. Until calibrated on a
+ * labeled set, the two scores are NOT comparable — treat them as separate
+ * signals, never as one scale.
+ */
 
 export interface SearchFilters {
 	keywords?: string;
@@ -217,6 +234,12 @@ export interface QuickFit {
 	band: FitBand;
 	strengths: string[];
 	gaps: string[];
+	/** True when the probe text fell under THIN_EVIDENCE_THRESHOLD. */
+	lowEvidence: boolean;
+	/** Probe text length, so the host can judge the evidence depth. */
+	textLength: number;
+	/** Heuristic scorer, or the LLM extraction seam when it supplied evidence. */
+	source: "heuristic" | "llm-extraction";
 }
 
 export interface SearchCandidate {
@@ -236,6 +259,41 @@ export interface SearchCandidate {
 	referralLinks: string[];
 }
 
+/**
+ * Structured extraction for one probe text (issue 12 LLM seam). JSON only:
+ * mentioned skills with the exact probe-text quote that states them,
+ * language requirements with quotes, and normalized dates. The deterministic
+ * scorer consumes this; anything whose quote is absent from the probe text
+ * is dropped as unverifiable — scores cite matched text, never invented
+ * qualities.
+ */
+export interface ExtractionSkill {
+	skill: string;
+	quote: string;
+}
+
+export interface ExtractionLanguage {
+	language: string;
+	quote: string;
+}
+
+export interface CandidateExtraction {
+	skills: ExtractionSkill[];
+	languages: ExtractionLanguage[];
+	postedDate?: string | null;
+	deadline?: string | null;
+}
+
+/**
+ * One batched call over all candidates' probe texts (issue 12). Keyed by
+ * candidate key; missing keys mean "no extraction for this candidate".
+ * Throwing degrades to the heuristic output with a note — never to invented
+ * postings or scores.
+ */
+export type BatchExtractor = (inputs: { key: string; probeText: string }[]) => Promise<
+	Record<string, CandidateExtraction>
+>;
+
 export interface SearchInput {
 	filters?: SearchFilters;
 	profile: Profile;
@@ -250,6 +308,8 @@ export interface SearchInput {
 	brightDataFetch?: PostingFetcher;
 	webFallbackFetch?: PostingFetcher;
 	sleep?: Sleeper;
+	/** Optional batched LLM extraction over probe texts; heuristic is the automatic fallback. */
+	extractBatch?: BatchExtractor;
 }
 
 export interface SearchPlan {
@@ -293,19 +353,6 @@ export function dedupeCandidates<T extends { key: string; company: string; title
 	return { kept, seenSkipped, appliedSkipped };
 }
 
-/** YYYY-MM-DD or ISO date to a day string; anything else is unknown, never guessed. */
-function parseDay(value: string | undefined): string | null {
-	if (!value) {
-		return null;
-	}
-	const match = /^(\d{4}-\d{2}-\d{2})/.exec(value.trim());
-	if (!match) {
-		return null;
-	}
-	const day = match[1];
-	return Number.isNaN(new Date(`${day}T00:00:00Z`).getTime()) ? null : day;
-}
-
 function daysBetween(from: string, to: string): number {
 	return (new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime()) / 86400000;
 }
@@ -322,6 +369,163 @@ function bandFor(score: number): FitBand {
 
 function referralLinksFor(company: string): string[] {
 	return [`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(company)}`];
+}
+
+/**
+ * Confidence and gating stay separate fields (issue 12): a language-FAIL
+ * override is a deliberate gate, not an evidence problem, so it keeps
+ * asserting "low". Otherwise thin evidence withholds the band ("unscored")
+ * instead of asserting it.
+ */
+function resolveBand(
+	score: number,
+	gate: { verdict: "PASS" | "FLAG" | "FAIL"; note: string },
+	lowEvidence: boolean,
+	textLength: number,
+): { band: FitBand; languageNote: string } {
+	if (gate.verdict === "FAIL") {
+		const note = lowEvidence
+			? `Language-gate override: ${gate.note} (thin evidence: ${textLength} chars)`
+			: `Language-gate override: ${gate.note}`;
+		return { band: "low", languageNote: note };
+	}
+	let languageNote = gate.note;
+	if (gate.verdict === "FLAG") {
+		languageNote = `Language-gate flag: ${gate.note}`;
+	}
+	if (lowEvidence) {
+		return { band: "unscored", languageNote: `Unscored — thin evidence (${textLength} chars); ${languageNote}` };
+	}
+	return { band: bandFor(score), languageNote };
+}
+
+/** A quote counts as evidence only when it appears verbatim in the probe text. */
+function quoteVerified(probeText: string, quote: string): boolean {
+	const trimmed = quote.trim();
+	return trimmed !== "" && probeText.toLowerCase().includes(trimmed.toLowerCase());
+}
+
+/**
+ * Batched LLM extraction pass (issue 12). One call over all probe texts;
+ * the deterministic scorer consumes verified items only, and any failure
+ * keeps the heuristic output with a note. Scores cite matched text: a skill
+ * counts only when its quote sits in the probe text AND it names a profile
+ * phrase; dates fill nulls only and never override parsed values.
+ */
+async function applyExtraction(
+	candidates: SearchCandidate[],
+	probeTexts: Map<string, string>,
+	input: SearchInput,
+	now: Date,
+	today: string,
+	notes: string[],
+): Promise<void> {
+	if (!input.extractBatch || candidates.length === 0) {
+		return;
+	}
+	let extracted: Record<string, CandidateExtraction>;
+	try {
+		extracted = await input.extractBatch(
+			candidates.map((candidate) => ({ key: candidate.key, probeText: probeTexts.get(candidate.key) ?? "" })),
+		);
+	} catch (error) {
+		notes.push(`LLM extraction failed (${String(error)}); heuristic output kept for all candidates.`);
+		return;
+	}
+	const declared = new Map(
+		input.profile.languages.map((entry) => [entry.language.toLowerCase(), entry.level]),
+	);
+	const strengthPool = [...input.profile.primarySkills, ...input.profile.strongDomains];
+	for (const candidate of candidates) {
+		const record = extracted[candidate.key];
+		const probeText = probeTexts.get(candidate.key) ?? "";
+		if (!record) {
+			continue;
+		}
+		let consumed = false;
+		const verifiedSkills = (record.skills ?? []).filter(
+			(entry) =>
+				quoteVerified(probeText, entry.quote) &&
+				strengthPool.some(
+					(phrase) => phrase !== "" && (phraseMatches(phrase, entry.skill) || phraseMatches(entry.skill, phrase)),
+				),
+		);
+		let effectiveText = probeText;
+		if (verifiedSkills.length > 0) {
+			const canonical = strengthPool.filter((phrase) =>
+				verifiedSkills.some((entry) => phraseMatches(phrase, entry.skill) || phraseMatches(entry.skill, phrase)),
+			);
+			if (canonical.length > 0) {
+				effectiveText = `${probeText}\n${canonical.join("\n")}`;
+				consumed = true;
+			}
+		}
+		let gate = candidate.language.verdict;
+		let gateQuote: string | undefined;
+		let gateNote = candidate.language.note;
+		for (const entry of record.languages ?? []) {
+			if (!quoteVerified(probeText, entry.quote)) {
+				continue;
+			}
+			if (!declared.has(entry.language.trim().toLowerCase())) {
+				gate = "FAIL";
+				gateQuote = entry.quote.trim();
+				gateNote = `${entry.language.trim()} is required as a job condition but is not on the candidate's Languages table. Do not score or draft.`;
+				consumed = true;
+				break;
+			}
+		}
+		let postedDate = candidate.postedDate;
+		let deadline = candidate.deadline;
+		const extractedPosted = parsePostingDay(record.postedDate, now);
+		if (postedDate === null && extractedPosted !== null) {
+			postedDate = extractedPosted;
+			consumed = true;
+		}
+		const extractedDeadline = parsePostingDay(record.deadline, now);
+		if (deadline === null && extractedDeadline !== null) {
+			deadline = extractedDeadline;
+			consumed = true;
+		}
+		if (!consumed) {
+			continue;
+		}
+		const dims = scoreDimensions(effectiveText, input.profile);
+		const score = overallScore(dims);
+		const resolved = resolveBand(
+			score,
+			{ verdict: gate, note: gateQuote ?? gateNote },
+			candidate.quickFit.lowEvidence,
+			candidate.quickFit.textLength,
+		);
+		// resolveBand prefixes its own gate wording; for an extraction-found
+		// FAIL pass the raw requirement note so the wording stays accurate.
+		const languageNote =
+			gate === "FAIL" && gateQuote
+				? (candidate.quickFit.lowEvidence
+						? `Language-gate override (LLM extraction): "${gateQuote}" — ${gateNote} (thin evidence: ${candidate.quickFit.textLength} chars)`
+						: `Language-gate override (LLM extraction): "${gateQuote}" — ${gateNote}`)
+				: gate === "FAIL"
+					? resolved.languageNote
+					: resolved.languageNote;
+		const dateUnknown = postedDate === null && deadline === null;
+		candidate.postedDate = postedDate;
+		candidate.deadline = deadline;
+		candidate.dateUnknown = dateUnknown;
+		candidate.status = deadline && deadline < today ? "expired" : dateUnknown ? "unknown" : "active";
+		candidate.quickFit = {
+			score,
+			band: resolved.band,
+			strengths: extractStrengths(effectiveText, input.profile),
+			gaps: extractGaps(effectiveText, input.profile),
+			lowEvidence: candidate.quickFit.lowEvidence,
+			textLength: candidate.quickFit.textLength,
+			source: "llm-extraction",
+		};
+		candidate.language = { verdict: gate, note: languageNote };
+		candidate.referralLinks =
+			resolved.band === "high" || resolved.band === "medium" ? referralLinksFor(candidate.company) : [];
+	}
 }
 
 export async function planSearch(input: SearchInput): Promise<SearchPlan> {
@@ -401,6 +605,7 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 	}
 
 	const candidates: SearchCandidate[] = [];
+	const probeTexts = new Map<string, string>();
 	let staleCount = 0;
 	for (const raw of raws) {
 		const title = raw.title?.trim() || "Untitled role";
@@ -423,8 +628,8 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 			notes.push(`Skipped a people-search page for "${title}" at "${company}"; never scraped.`);
 			continue;
 		}
-		const postedDate = parseDay(raw.postedDate);
-		const deadline = parseDay(raw.deadline);
+		const postedDate = parsePostingDay(raw.postedDate, now);
+		const deadline = parsePostingDay(raw.deadline, now);
 		if (postedDate && daysBetween(postedDate, today) > SEARCH_RECENCY_DAYS) {
 			staleCount += 1;
 			continue;
@@ -438,17 +643,12 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 			continue;
 		}
 		const probeText = `${title}\n${company}\n${raw.description ?? ""}`;
+		const textLength = probeText.length;
+		const lowEvidence = textLength < THIN_EVIDENCE_THRESHOLD;
 		const dims = scoreDimensions(probeText, input.profile);
 		const score = overallScore(dims);
-		let band = bandFor(score);
 		const languageGate = checkLanguage(probeText, input.profile);
-		let languageNote = languageGate.note;
-		if (languageGate.verdict === "FAIL") {
-			band = "low";
-			languageNote = `Language-gate override: ${languageGate.note}`;
-		} else if (languageGate.verdict === "FLAG") {
-			languageNote = `Language-gate flag: ${languageGate.note}`;
-		}
+		const resolved = resolveBand(score, languageGate, lowEvidence, textLength);
 		candidates.push({
 			key,
 			title,
@@ -462,15 +662,21 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 			source: source ?? "web-fallback",
 			quickFit: {
 				score,
-				band,
+				band: resolved.band,
 				strengths: extractStrengths(probeText, input.profile),
 				gaps: extractGaps(probeText, input.profile),
+				lowEvidence,
+				textLength,
+				source: "heuristic",
 			},
-			language: { verdict: languageGate.verdict, note: languageNote },
+			language: { verdict: languageGate.verdict, note: resolved.languageNote },
 			consolidationNote: null,
-			referralLinks: band === "low" ? [] : referralLinksFor(company),
+			referralLinks: resolved.band === "high" || resolved.band === "medium" ? referralLinksFor(company) : [],
 		});
+		probeTexts.set(key, probeText);
 	}
+
+	await applyExtraction(candidates, probeTexts, input, now, today, notes);
 
 	const consolidated: SearchCandidate[] = [];
 	const groups = new Map<string, SearchCandidate[]>();
@@ -493,6 +699,16 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 	}
 
 	const deduped = dedupeCandidates(consolidated, input.seenKeys ?? [], input.appliedPairs ?? []);
+	// Stable sort by score so the limit cap keeps the best matches (issue
+	// 12). Thin-evidence items sort after solid ones at equal scores; the key
+	// tiebreak keeps the order deterministic. Array sort is stable, so prior
+	// portal order survives full ties.
+	deduped.kept.sort(
+		(a, b) =>
+			b.quickFit.score - a.quickFit.score ||
+			Number(a.quickFit.lowEvidence) - Number(b.quickFit.lowEvidence) ||
+			a.key.localeCompare(b.key),
+	);
 	return {
 		filters,
 		queries,

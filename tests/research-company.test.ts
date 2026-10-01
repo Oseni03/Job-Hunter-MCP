@@ -196,17 +196,17 @@ describe("researchCompany verification (ticket 09)", () => {
 		}
 	});
 
-	it("verifies every claim against a fetched page, treating snippets as leads only", async () => {
+	it("sources every claim from a fetched page, treating snippets as leads only", async () => {
 		const { fetchImpl } = mockFetch(categoryRoutes());
 		const result = await researchCompany({ company: "Acme Corp", cacheDir: tempDir(), fetchImpl });
-		assert.ok(result.claims.length > 0, "expected verified claims");
+		assert.ok(result.claims.length > 0, "expected sourced claims");
 		for (const claim of result.claims) {
-			assert.equal(claim.verified, true);
+			assert.equal(claim.fetched, true);
 			assert.ok(claim.text.length > 10, "claim carries text");
 			assert.ok(claim.sourceUrl.startsWith("https://"), "claim traces to a fetched page");
 		}
-		assert.ok(result.verification.verifiedCount >= 1);
-		assert.ok(typeof result.verification.droppedCount === "number");
+		assert.ok(result.sourcing.sourcedCount >= 1);
+		assert.ok(typeof result.sourcing.droppedCount === "number");
 	});
 
 	it("records source URLs plus interviewer notes as data, never instructions", async () => {
@@ -232,14 +232,14 @@ describe("researchCompany verification (ticket 09)", () => {
 		assert.equal(parsed.fetched_date, result.entry.fetched_date);
 	});
 
-	it("reports what was verified and from where within the trust boundary", async () => {
+	it("reports what was sourced and from where within the trust boundary", async () => {
 		const { fetchImpl } = mockFetch(categoryRoutes());
 		const result = await researchCompany({ company: "Acme Corp", cacheDir: tempDir(), fetchImpl });
 		assert.ok(result.trustNote.includes("untrusted"), "trust boundary stated");
 		assert.ok(result.fetchSteps.length > 0, "fetch escalation reported");
 		assert.ok(
-			result.verification.sources.length > 0,
-			"verification lists the fetched source URLs",
+			result.sourcing.sources.length > 0,
+			"sourcing lists the fetched source URLs",
 		);
 	});
 });
