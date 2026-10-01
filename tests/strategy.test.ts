@@ -71,12 +71,21 @@ describe("planCareerStrategy", () => {
 	});
 
 	it("every direction traces to profile phrases with no invented evidence", () => {
-		const plan = planCareerStrategy({ profile: PROFILE, focusAreas: ["ML Engineer", "credit risk"] });
+		const summary = { strengths: ["Python models for fraud detection"], gaps: ["Kubernetes"] };
+		const plan = planCareerStrategy({ profile: PROFILE, focusAreas: ["ML Engineer", "credit risk"], evaluationSummary: summary });
 		const union = JSON.stringify(PROFILE).toLowerCase();
 		assert.ok(plan.directions.length > 0);
 		for (const direction of plan.directions) {
 			assert.ok(direction.evidence.length > 0, "each direction needs evidence");
 			for (const phrase of direction.evidence) {
+				if (phrase.endsWith(" (evaluation strength)")) {
+					const raw = phrase.slice(0, -" (evaluation strength)".length);
+					assert.ok(
+						summary.strengths.includes(raw),
+						`labeled strength '${phrase}' must come from the evaluation summary`,
+					);
+					continue;
+				}
 				assert.ok(union.includes(phrase.toLowerCase()), `evidence '${phrase}' must be a profile phrase`);
 			}
 			for (const dimension of direction.dimensions) {

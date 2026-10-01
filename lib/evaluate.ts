@@ -432,6 +432,23 @@ export function phraseMatches(text: string, phrase: string): boolean {
 	return false;
 }
 
+/**
+ * Shared content-word floor (issues 12/24, owned by the matching work).
+ * Splits on non-word characters (keeping `+#` inside tokens so C++/C#
+ * survive) and keeps tokens of length 3+, so short skill nouns like "SQL"
+ * stay usable. Stopword screening is the caller's job — prep screens the
+ * shared stopword list, strategy screens those plus its generic role
+ * vocabulary — so the floor itself stays single-sourced for both consumers.
+ */
+export function contentWords(text: string): Set<string> {
+	return new Set(
+		text
+			.toLowerCase()
+			.split(/[^a-z0-9+#]+/)
+			.filter((word) => word.length >= 3),
+	);
+}
+
 /** Fraction of phrases present in the posting, full weight for primary, half for secondary. */
 function coverage(posting: string, primary: string[], secondary: string[]): number | null {
 	const primaryHits = primary.filter((p) => p !== "" && phraseMatches(posting, p));

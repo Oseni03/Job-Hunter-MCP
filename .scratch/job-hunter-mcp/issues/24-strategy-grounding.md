@@ -4,7 +4,7 @@
 
 **Blocked by:** 04-prep-strategy-form-fields.
 
-**Status:** ready-for-agent
+**Status:** done (commit: feat issue-24; full suite 483/483 green, golden 28 pass)
 
 - [ ] Ground on meaningful whole-word overlap, not substring containment: `groundingFor` (`lib/strategy.ts:42-47`) grounds when either string contains the other, so generic terms do the work — a nominated area of plain "developer" is grounded by "backend developer" (phrase-contains-norm), and "backend developer relations" is grounded the same way in reverse. (Precision note: whole-phrase matching means "developer relations" alone does *not* match "backend developer" — neither contains the other — so fixtures must target the real cases: bare generic terms and superstring areas.) Fix: whole-word overlap over meaningful words with a generic-term stoplist ("developer", "engineer", …), and require overlap with skills or experience, not goals alone — a goal overlapping only goals is circular (pursue X because you want X), which is exactly what the skip list exists to prevent. Fixtures for each case, including the goal-only circular case landing in `skipped`.
 - [ ] Rank directions and take more evidence: today the plan restates the profile (one direction per goal and domain, insertion order, no ranking) on a single optional `evaluationSummary`. Accept an array of summaries, rank directions by evidence depth and fewest gaps, and surface gaps that recur across evaluations as the priority gaps to close. One summary stays valid input; thin evidence must read as thin (ranked low with few citations), never padded.

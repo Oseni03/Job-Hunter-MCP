@@ -1,7 +1,7 @@
 import { checkSourceConsistency, matchRequirements, archiveDirFor, checkGateSummary, wordOverlap } from "@/lib/tailor.ts";
 import type { EvaluationSummary } from "@/lib/tailor.ts";
 import { CONTENT_STOPWORDS } from "@/lib/tailor.ts";
-import { sanitizeQuote, QUOTE_MAX_LENGTH } from "@/lib/evaluate.ts";
+import { sanitizeQuote, QUOTE_MAX_LENGTH, contentWords } from "@/lib/evaluate.ts";
 import { EMPTY_SLUG_ERROR, makeJobSlug } from "@/lib/job-key.ts";
 import { stripTexToProse } from "@/lib/verify.ts";
 import { resolveProfile, evidencePool } from "@/lib/profile.ts";
@@ -240,17 +240,12 @@ function gapEvidence(
 }
 
 /**
- * Content words for Use-for tag overlap (length 3+ to keep tags like
+ * Content words for Use-for tag overlap (shared floor keeps tags like
  * "SQL" usable, screened by the shared stopword list so filler words
  * such as "and", "the", or "for" inside a tag never count as coverage).
  */
 function tagWords(text: string): Set<string> {
-	return new Set(
-		text
-			.toLowerCase()
-			.split(/[^a-z0-9+#]+/)
-			.filter((word) => word.length >= 3 && !CONTENT_STOPWORDS.has(word)),
-	);
+	return new Set([...contentWords(text)].filter((word) => !CONTENT_STOPWORDS.has(word)));
 }
 
 function coversQuestion(example: StarExample, question: string): boolean {

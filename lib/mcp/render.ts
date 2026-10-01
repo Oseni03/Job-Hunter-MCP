@@ -248,6 +248,13 @@ export function renderStrategyMarkdown(plan: StrategyPlan): string {
 			`- Framework dimensions: ${direction.dimensions.join(", ")}`,
 			"",
 		]),
+		...(plan.priorityGaps.length > 0
+			? [
+					"### Priority gaps (recur across evaluations — close these first)",
+					...plan.priorityGaps.map((gap) => `- ${gap}`),
+					"",
+				]
+			: []),
 		...(plan.skipped.length > 0
 			? ["### Honestly skipped (no grounding, never recommended)", ...plan.skipped.map((entry) => `- ${entry}`), ""]
 			: []),
