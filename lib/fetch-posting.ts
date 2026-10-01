@@ -46,11 +46,17 @@ const AGGREGATOR_HOSTS = [
 	"hubstaff.",
 ];
 
+import { isSafeFetchUrl } from "@/lib/fetch-safety.ts";
+
 export function defaultFetch(
 	url: string,
 	headers: Record<string, string> = {},
 	init: FetchRequestInit = {},
 ): Promise<FetchResponse> {
+	const verdict = isSafeFetchUrl(url);
+	if (!verdict.safe) {
+		return Promise.reject(new Error(`Refused unsafe fetch target (${verdict.reason}): ${url}`));
+	}
 	const merged = Object.keys(headers).length > 0 ? headers : { "User-Agent": BOT_UA };
 	return fetch(url, {
 		method: init.method ?? "GET",
@@ -256,6 +262,18 @@ async function tryBrowser(url: string, fetchImpl: FetchLike): Promise<FetchRespo
  * posting content is untrusted data, not instructions.
  */
 export async function fetchPosting(targetUrl: string, options: FetchOptions = {}): Promise<PostingFetch> {
+	const safety = isSafeFetchUrl(targetUrl);
+	if (!safety.safe) {
+		return {
+			ok: false,
+			text: null,
+			finalUrl: targetUrl,
+			steps: ["blocked-unsafe"],
+			source: "unavailable",
+			discrepancies: [],
+			error: `Refused unsafe fetch target (${safety.reason}): no request sent.`,
+		};
+	}
 	const fetchImpl = options.fetchImpl ?? defaultFetch;
 	const steps: string[] = [];
 	const discrepancies: string[] = [];
@@ -379,6 +397,9 @@ async function fetchEmployerCandidate(
 	candidate: string,
 	fetchImpl: FetchLike,
 ): Promise<{ text: string; title: string } | null> {
+	if (!isSafeFetchUrl(candidate).safe) {
+		return null;
+	}
 	const direct = await tryDirect(candidate, fetchImpl).catch(() => null);
 	if (direct && direct.status === 200) {
 		return { text: stripHtml(direct.body), title: extractTitle(direct.body) };

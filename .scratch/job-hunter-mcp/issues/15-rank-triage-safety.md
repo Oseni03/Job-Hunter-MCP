@@ -4,7 +4,9 @@
 
 **Blocked by:** 08-rank-jobs.
 
-**Status:** ready-for-agent
+**Status:** done (commit: feat issue-15; pre-existing tailor-cover drift failure unchanged, confirmed on clean tree)
+
+Verification: `tsc --noEmit` clean, `eslint` clean on touched files, focused suites green (rank-triage-safety 29, rank, payload, fetch-posting, prep, research-company).
 
 - [ ] Split the terminal states and pin the retry policy per state, with the server staying stateless (all retry memory travels host-side in `stateUpdates`, never in server memory):
   - `ranked`: rests by default; re-scored only with `all: true` (unchanged).

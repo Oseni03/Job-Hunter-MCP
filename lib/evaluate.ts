@@ -34,17 +34,39 @@ const WELCOME_PATTERNS = [
 	/sponsorship (available|offered|considered|provided)/i,
 ];
 
-/** The posting line containing the match, trimmed; whole text when single-line. */
+/**
+ * Quote hygiene cap (issue 15). One constant applied everywhere quotes are
+ * emitted — gate quotes, strength/gap evidence, research notes, prep
+ * feedback — not just the fallback path. Quoted posting data is untrusted
+ * third-party text: truncated, stripped of live markup, and always labeled
+ * as quoted data at the render layer, never as instructions.
+ */
+export const QUOTE_MAX_LENGTH = 280;
+
+/**
+ * Strips live markup from quoted posting text: HTML tags, markdown links
+ * `[text](url)` → `text`, fence characters, and collapses whitespace.
+ * Truncates to QUOTE_MAX_LENGTH. Never throws.
+ */
+export function sanitizeQuote(raw: string): string {
+  const withoutHtml = raw.replace(/<[^>]+>/g, " ");
+  const withoutLinks = withoutHtml.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
+  const withoutFences = withoutLinks.replace(/```/g, "").replace(/[`*_]{1,3}/g, "");
+  const collapsed = withoutFences.replace(/\s+/g, " ").trim();
+  return collapsed.slice(0, QUOTE_MAX_LENGTH);
+}
+
+/** The posting line containing the match, trimmed and sanitized; whole text when single-line. */
 function quoteLine(text: string, matchIndex: number): string {
-	const lines = text.split(/\r?\n/);
-	let offset = 0;
-	for (const line of lines) {
-		if (matchIndex >= offset && matchIndex < offset + line.length + 1) {
-			return line.trim();
-		}
-		offset += line.length + 1;
-	}
-	return text.trim().slice(0, 280);
+  const lines = text.split(/\r?\n/);
+  let offset = 0;
+  for (const line of lines) {
+    if (matchIndex >= offset && matchIndex < offset + line.length + 1) {
+      return sanitizeQuote(line.trim());
+    }
+    offset += line.length + 1;
+  }
+  return sanitizeQuote(text.trim());
 }
 
 function firstMatch(text: string, patterns: RegExp[]): { quote: string } | null {
@@ -532,7 +554,7 @@ export function extractStrengths(postingText: string, profile: Profile): string[
 	const strengths: string[] = [];
 	for (const skill of [...profile.primarySkills, ...profile.strongDomains]) {
 		if (skill !== "" && phraseMatches(postingText, skill)) {
-			strengths.push(skill);
+			strengths.push(sanitizeQuote(skill));
 		}
 		if (strengths.length >= 5) {
 			break;
@@ -590,7 +612,7 @@ export function extractGaps(postingText: string, profile: Profile): string[] {
 	return [...counts.entries()]
 		.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
 		.slice(0, 5)
-		.map(([token]) => token);
+		.map(([token]) => sanitizeQuote(token));
 }
 
 export function recommendationFor(verdict: Verdict): string {
@@ -664,6 +686,76 @@ export function extractDeadline(postingText: string): string | null {
 		return null;
 	}
 	return match[3].replace(/,$/, "").trim();
+}
+
+const MONTH_NAMES: Record<string, string> = {
+  january: "01",
+  february: "02",
+  march: "03",
+  april: "04",
+  may: "05",
+  june: "06",
+  july: "07",
+  august: "08",
+  september: "09",
+  october: "10",
+  november: "11",
+  december: "12",
+};
+
+/**
+ * Conservative fresh-deadline gate (issue 15). Accepts a fresh deadline
+ * over the stored one solely for explicit-year, unambiguous formats:
+ *
+ * - Assumed-year rule: yearless phrases ("Apply by May 5") assume the
+ *   current year via `new Date` — rejected, keep stored + note.
+ * - Month-order rule: numeric `04/05` / `04-05` forms are ambiguous
+ *   (US month order assumed by `new Date`) — rejected unless ISO
+ *   `YYYY-MM-DD`, keep stored + note.
+ * - UTC-day rule: `new Date(raw).toISOString()` can shift the day for
+ *   non-UTC midnight offsets — so month-name forms are parsed manually
+ *   to YYYY-MM-DD without a Date timezone shift; anything with a time
+ *   or zone component is rejected, keep stored + note.
+ *
+ * Accepted: ISO `YYYY-MM-DD` and month-name forms with an explicit
+ * 4-digit year (`May 5, 2026`, `5 May 2026`). Everything else returns
+ * null (keep stored, add a note).
+ */
+export function parseConservativeDeadline(raw: string | null | undefined): string | null {
+  if (!raw) {
+    return null;
+  }
+  const trimmed = raw.trim();
+  if (!/\b(19|20)\d{2}\b/.test(trimmed)) {
+    return null;
+  }
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
+  if (iso) {
+    const day = `${iso[1]}-${iso[2]}-${iso[3]}`;
+    return Number.isNaN(new Date(`${day}T00:00:00Z`).getTime()) ? null : day;
+  }
+  if (/\d{1,2}[:.]\d{2}/.test(trimmed) && /(\+|-)\d{2}:?\d{2}$| UTC| GMT/i.test(trimmed)) {
+    return null;
+  }
+  if (/\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/.test(trimmed)) {
+    return null;
+  }
+  const monthName = new RegExp(`\\b(${Object.keys(MONTH_NAMES).join("|")})\\b`, "i").exec(trimmed);
+  if (!monthName) {
+    return null;
+  }
+  const month = MONTH_NAMES[monthName[1].toLowerCase()];
+  const yearMatch = /\b((?:19|20)\d{2})\b/.exec(trimmed);
+  const dayMatch = /\b(\d{1,2})\b/.exec(trimmed.replace(yearMatch?.[0] ?? "", ""));
+  if (!yearMatch || !dayMatch) {
+    return null;
+  }
+  const dayNum = Number.parseInt(dayMatch[1], 10);
+  if (dayNum < 1 || dayNum > 31) {
+    return null;
+  }
+  const day = `${yearMatch[1]}-${month}-${String(dayNum).padStart(2, "0")}`;
+  return Number.isNaN(new Date(`${day}T00:00:00Z`).getTime()) ? null : day;
 }
 
 export interface Evaluation {

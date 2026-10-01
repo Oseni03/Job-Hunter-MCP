@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/server";
 
 import { evaluateJob } from "@/lib/evaluate.ts";
+import { getFetchCache, setFetchCache } from "@/lib/fetch-cache.ts";
 import { fetchPosting } from "@/lib/fetch-posting.ts";
 import { refineEvaluation } from "@/lib/llm.ts";
 import { resolveProfile } from "@/lib/profile.ts";
@@ -40,24 +41,47 @@ export function registerEvaluateJob(server: McpServer): void {
 			let fetchSteps = ["pasted-text"];
 			let discrepancies: string[] = [];
 			if (!postingText) {
-				const fetched = await fetchPosting(input.postingUrl as string, {
-					company: input.company,
-					role: input.role,
-				});
-				fetchSteps = fetched.steps;
-				discrepancies = fetched.discrepancies;
-				if (!fetched.ok || !fetched.text) {
+				const target = input.postingUrl as string;
+				const cached = getFetchCache(target);
+				if (cached?.ok && cached.text) {
+					postingText = cached.text;
+					fetchSteps = [...cached.steps, "cache-hit"];
+				} else if (cached && !cached.ok) {
 					return {
 						isError: true,
 						content: [
 							{
 								type: "text" as const,
-								text: `Posting genuinely unavailable: ${fetched.steps.join(" > ")}. ${fetched.error ?? ""}`,
+								text: `Posting genuinely unavailable (cached ${cached.steps.join(" > ")}). Transient failure, never invented content.`,
 							},
 						],
 					};
+				} else {
+					const fetched = await fetchPosting(target, {
+						company: input.company,
+						role: input.role,
+					});
+					setFetchCache(target, {
+						ok: fetched.ok,
+						text: fetched.text,
+						finalUrl: fetched.finalUrl,
+						steps: fetched.steps,
+					});
+					fetchSteps = fetched.steps;
+					discrepancies = fetched.discrepancies;
+					if (!fetched.ok || !fetched.text) {
+						return {
+							isError: true,
+							content: [
+								{
+									type: "text" as const,
+									text: `Posting genuinely unavailable: ${fetched.steps.join(" > ")}. ${fetched.error ?? ""}`,
+								},
+							],
+						};
+					}
+					postingText = fetched.text;
 				}
-				postingText = fetched.text;
 			}
 
 			const heuristic = evaluateJob({

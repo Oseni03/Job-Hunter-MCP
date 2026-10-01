@@ -1,4 +1,5 @@
 import { checkSourceConsistency, matchRequirements, archiveDirFor } from "@/lib/tailor.ts";
+import { sanitizeQuote, QUOTE_MAX_LENGTH } from "@/lib/evaluate.ts";
 import { makeJobSlug } from "@/lib/job-key.ts";
 import { resolveProfile, evidencePool } from "@/lib/profile.ts";
 
@@ -148,15 +149,20 @@ function feedbackQuestions(stageHistoryText: string | undefined): LikelyQuestion
 	if (!stageHistoryText) {
 		return [];
 	}
-	// The input is recorded feedback by contract: every non-empty line becomes a question.
+	// The input is recorded caller-attested feedback (never verified): every
+	// non-empty line becomes a capped, markup-stripped question labeled as
+	// recorded data — never instructions, never sibling-role history.
 	return stageHistoryText
 		.split(/\r?\n/)
 		.map((line) => line.trim())
 		.filter((line) => line.length > 0)
-		.map((line) => ({
-			question: `Follow up on recorded feedback: ${line}`,
-			source: "recorded-feedback",
-		}));
+		.map((line) => {
+			const cleaned = sanitizeQuote(line).slice(0, QUOTE_MAX_LENGTH);
+			return {
+				question: `Follow up on recorded feedback (caller-attested, never verified): ${cleaned}`,
+				source: "recorded-feedback" as const,
+			};
+		});
 }
 
 function strongestEvidence(profile: ReturnType<typeof resolveProfile>): string {

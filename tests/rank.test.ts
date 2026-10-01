@@ -119,11 +119,11 @@ describe("planRank scoring", () => {
 		});
 		assert.equal(plan.ranked.length, 0);
 		assert.equal(plan.excluded.length, 1);
-		assert.equal(plan.excluded[0].kind, "expired");
+		assert.equal(plan.excluded[0].kind, "unavailable");
 		assert.ok(plan.errors.length === 0 || plan.notes.length > 0);
 	});
 
-	it("marks unfetchable postings expired without fabricating content", async () => {
+	it("marks unfetchable postings unavailable without fabricating content", async () => {
 		const plan = await planRank({
 			profile: PROFILE,
 			items: [
@@ -136,7 +136,7 @@ describe("planRank scoring", () => {
 			fetchImpl: async () => ({ status: 404, body: "gone" }),
 			now: new Date("2026-09-29T00:00:00Z"),
 		});
-		assert.equal(plan.excluded[0].kind, "expired");
+		assert.equal(plan.excluded[0].kind, "unavailable");
 		assert.match(plan.excluded[0].reason, /expired|unavailable|fetch/i);
 	});
 });
