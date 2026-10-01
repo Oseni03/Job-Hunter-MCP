@@ -12,7 +12,7 @@ export function registerSearchJobs(server: McpServer): void {
 		{
 			title: "Search jobs",
 			description:
-				"Finds fresh postings with explicit filters (keywords, location, remote mode, job type, limit capped at 20) or profile-derived auto-queries, scoped to the last 14 days with unknown dates flagged. Plans caller-supplied portal output, then structured board JSON (Greenhouse/Lever/Ashby refs run ahead of scrapers), then the BrightData key when configured, otherwise degrades to a site:-scoped web-search fallback; never scrapes people-search pages and never invents postings. Runs the query set per source up to a visible cap and reports queriesRun; returns stability-ready keys with caller-passed dedupe; the host owns all writes to the seen store and tracker.",
+				"Finds fresh postings with explicit filters (keywords, location, remote mode, job type, limit capped at 20) or profile-derived auto-queries, scoped to the last 14 days with unknown dates flagged. Plans caller-supplied portal output, then structured board JSON (Greenhouse/Lever/Ashby refs run ahead of scrapers), then the BrightData key when configured, otherwise degrades to a site:-scoped web-search fallback; never scrapes people-search pages and never invents postings. Runs the query set per source up to a visible cap and reports queriesRun; returns stability-ready keys with caller-passed dedupe; the host owns all writes to the seen store and tracker. Token budget: the model decides keywords, location, mode, and limit only — the host harness supplies portal output and the dedupe stores (delta-only seen keys; full state on store loss). Large result sets page via the opaque next cursor; the server holds no state.",
 			inputSchema: SearchJobsInput,
 			outputSchema: SearchJobsOutput,
 			annotations: {
@@ -39,6 +39,7 @@ export function registerSearchJobs(server: McpServer): void {
 				portalResults: input.portalResults,
 				boards: input.boards,
 				boardFetch: defaultFetch,
+				cursor: input.cursor,
 				brightDataKey,
 				brightDataFetch: brightDataKey
 					? createBrightDataFetcher(brightDataKey, process.env.BRIGHTDATA_ZONE ?? "job_hunter", defaultFetch)

@@ -253,6 +253,7 @@ export function renderSearchMarkdown(plan: SearchPlan): string {
 		`- Sources: ${plan.sources.length > 0 ? plan.sources.join(", ") : "none ran"}`,
 		`- Queries run: ${plan.queriesRun.length > 0 ? plan.queriesRun.map((query) => `"${query}"`).join(", ") : "none (caller-supplied output)"}`,
 		`- Candidates: ${plan.candidates.length} | stale excluded: ${plan.staleCount} | seen skipped: ${plan.seenSkipped} | applied skipped: ${plan.appliedSkipped}`,
+		...(plan.nextCursor ? [`- Next cursor: \`${plan.nextCursor}\` (pass as cursor to resume)`] : []),
 		"",
 	];
 	for (const candidate of plan.candidates) {
@@ -296,6 +297,7 @@ export function renderRankMarkdown(plan: RankPlan): string {
 		"## Ranked shortlist (triage only)",
 		"",
 		`- Eligible: ${plan.eligibleCount} | shortlisted: ${plan.shortlist.length} | below threshold: ${plan.belowThreshold.length} | excluded: ${plan.excluded.length} | deferred: ${plan.deferredCount} | tracker-excluded: ${plan.trackerExcludedCount}`,
+		...(plan.nextCursor ? [`- Next cursor: \`${plan.nextCursor}\` (pass as cursor to resume the deferred set)`] : []),
 		`- Limits: scoring limit ${plan.limits.limit}, shortlist top ${plan.limits.top} | swept expired: ${plan.sweptExpired.length} | swept closing-soon: ${plan.sweptClosingSoon.length}`,
 		"",
 		"### Shortlist",

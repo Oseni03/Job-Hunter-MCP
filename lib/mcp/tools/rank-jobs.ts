@@ -11,7 +11,7 @@ export function registerRankJobs(server: McpServer): void {
 		{
 			title: "Rank jobs",
 			description:
-				"Batch triage from fetched posting text only: five-dimension weights (30/25/15/30) and verdict bands (75/60/45/30) with no company research, salary lookup, or reviewer. Applies location and language-gate vetoes (FAIL excluded with quoted reason, FLAG stays flagged), urgency tiebreak for deadlines within 7 days, past-deadline to expired, and staleness flags without veto. Returns additive-only rank fields plus a stored-deadline sweep; the host owns every write. Route picks back to evaluate-job, which always re-runs.",
+				"Batch triage from fetched posting text only: five-dimension weights (30/25/15/30) and verdict bands (75/60/45/30) with no company research, salary lookup, or reviewer. Applies location and language-gate vetoes (FAIL excluded with quoted reason, FLAG stays flagged), urgency tiebreak for deadlines within 7 days, past-deadline to expired, and staleness flags without veto. Returns additive-only rank fields plus a stored-deadline sweep; the host owns every write. Route picks back to evaluate-job, which always re-runs. Token budget: the model decides focus keywords, limit, and top only — the host harness supplies items (keys + URLs, never pasted text dumps: the server fetches), applied pairs, and stored ranks. Caller quick-fit scores pre-order the slice; the opaque next cursor resumes the deferred set without resending everything.",
 			inputSchema: RankJobsInput,
 			outputSchema: RankJobsOutput,
 			annotations: {
@@ -37,6 +37,7 @@ export function registerRankJobs(server: McpServer): void {
 					postingUrl: item.postingUrl,
 					status: item.status,
 					fitNotes: item.fitNotes,
+					callerQuickFit: item.callerQuickFit,
 				})),
 				focus: input.focus,
 				limit: input.limit,
@@ -44,6 +45,7 @@ export function registerRankJobs(server: McpServer): void {
 				all: input.all,
 				appliedPairs: input.appliedPairs,
 				storedRanks: input.storedRanks,
+				cursor: input.cursor,
 			});
 			return {
 				content: [{ type: "text" as const, text: renderRankMarkdown(plan) }],

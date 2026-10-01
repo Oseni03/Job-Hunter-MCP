@@ -1,3 +1,4 @@
+import { decodeCursor, encodeCursor } from "@/lib/cursor.ts";
 import {
 	checkLanguage,
 	extractDeadline,
@@ -38,6 +39,12 @@ export interface RankItem {
 	postingUrl?: string;
 	status?: string;
 	fitNotes?: string;
+	/**
+	 * Caller-held quick-fit score for pre-ordering before the limit slice
+	 * (issue 14): explicit caller evidence, so no rule is weakened. Items
+	 * without one keep portal order behind scored items.
+	 */
+	callerQuickFit?: number;
 }
 
 export interface StoredRank {
@@ -56,6 +63,12 @@ export interface RankInput {
 	storedRanks?: StoredRank[];
 	now?: Date;
 	fetchImpl?: FetchLike;
+	/**
+	 * Opaque resume token from a previous call (issue 14). The server holds
+	 * no state: the deferred set resumes from this offset, not from a
+	 * resend-everything loop.
+	 */
+	cursor?: string;
 }
 
 export interface RankedEntry {
@@ -115,6 +128,8 @@ export interface RankPlan {
 	eligibleCount: number;
 	deferredCount: number;
 	trackerExcludedCount: number;
+	/** Opaque resume token when eligible items remain past this slice (issue 14). */
+	nextCursor: string | null;
 	ranked: RankedEntry[];
 	shortlist: RankedEntry[];
 	belowThreshold: RankedEntry[];
@@ -192,14 +207,43 @@ export async function planRank(input: RankInput): Promise<RankPlan> {
 		candidates.push(item);
 	}
 
-	const eligibleCount = candidates.length;
-	const toScore = candidates.slice(0, limit);
-	const deferredCount = Math.max(0, candidates.length - toScore.length);
+	// Caller-evidence pre-ordering (issue 14): scored items first by score
+	// descending, unscored items keep portal order behind them. Stable sort,
+	// so ties preserve the caller's order.
+	const scoredCount = candidates.filter((item) => typeof item.callerQuickFit === "number").length;
+	const ordered = candidates
+		.map((item, index) => ({ item, index }))
+		.sort(
+			(a, b) =>
+				(typeof b.item.callerQuickFit === "number" ? b.item.callerQuickFit : -1) -
+					(typeof a.item.callerQuickFit === "number" ? a.item.callerQuickFit : -1) || a.index - b.index,
+		)
+		.map((entry) => entry.item);
+	if (scoredCount > 0) {
+		notes.push(
+			`Pre-ordered ${scoredCount} caller-scored item(s) by caller quick-fit before the limit slice; unscored items keep portal order.`,
+		);
+	}
+	// Deferred-set resumption rides the opaque cursor (issue 14): offset into
+	// the ordered eligible list, server stateless, caller holding the items.
+	let offset = 0;
+	if (input.cursor !== undefined) {
+		const decoded = decodeCursor(input.cursor);
+		if (decoded === null) {
+			notes.push("Unparseable rank cursor ignored; restarted at offset zero (correctness first).");
+		} else {
+			offset = decoded;
+		}
+	}
+	const eligibleCount = ordered.length;
+	const toScore = ordered.slice(offset, offset + limit);
+	const deferredCount = Math.max(0, ordered.length - offset - toScore.length);
+	const nextCursor = offset + toScore.length < ordered.length ? encodeCursor(offset + toScore.length) : null;
 	if (focus !== "") {
 		notes.push(`Focus "${input.focus}" matched ${eligibleCount} posting(s) by title/company/notes.`);
 	}
 	notes.push(
-		`Triage limits: scoring ${toScore.length} of ${eligibleCount} eligible (limit ${limit}); shortlist shows top ${top}. Deferred ${deferredCount}; tracker-excluded ${trackerExcludedCount}.`,
+		`Triage limits: scoring ${toScore.length} of ${eligibleCount} eligible (limit ${limit}${offset > 0 ? `, resumed at offset ${offset}` : ""}); shortlist shows top ${top}. Deferred ${deferredCount}; tracker-excluded ${trackerExcludedCount}.`,
 	);
 
 	const ranked: RankedEntry[] = [];
@@ -416,6 +460,7 @@ export async function planRank(input: RankInput): Promise<RankPlan> {
 		eligibleCount,
 		deferredCount,
 		trackerExcludedCount,
+		nextCursor,
 		ranked,
 		shortlist,
 		belowThreshold,

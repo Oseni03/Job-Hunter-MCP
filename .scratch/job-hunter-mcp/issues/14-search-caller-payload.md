@@ -4,7 +4,9 @@
 
 **Blocked by:** 05-search-jobs.
 
-**Status:** ready-for-agent
+**Status:** done (commit: feat issue-14; fetch-concurrency bound for rank URLs-not-blobs rides issue 15)
+
+Verification: `npx tsc --noEmit` clean, `npx eslint` clean on touched files, focused suites green (payload 9, rank, search, search-tool).
 
 - [ ] URLs-not-blobs where re-fetch is cheap: define which inputs may travel as references (posting URLs for rank/evaluate to fetch) versus which must stay inline (seen keys, tracker pairs), and document the tradeoff per tool
 - [ ] Paged/cursor candidates for large result sets instead of full arrays in one response, working within caller-held state (the cursor is opaque to the server, which stays stateless)

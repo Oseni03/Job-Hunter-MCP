@@ -1,5 +1,6 @@
 import { buildHackingQueries, fetchBoardJobs, filterListingsByQuery } from "@/lib/boards.ts";
 import type { BoardRef } from "@/lib/boards.ts";
+import { decodeCursor, encodeCursor } from "@/lib/cursor.ts";
 import {
 	checkLanguage,
 	extractGaps,
@@ -322,6 +323,12 @@ export interface SearchInput {
 	/** Optional batched LLM extraction over probe texts; heuristic is the automatic fallback. */
 	extractBatch?: BatchExtractor;
 	/**
+	 * Opaque resume token from a previous page (issue 14). The server holds
+	 * no state: the cursor is an offset into the relevance-ordered list and
+	 * the caller holds everything else.
+	 */
+	cursor?: string;
+	/**
 	 * Caller-supplied structured board refs (issue 13). Board APIs are
 	 * per-company listings with no directory or keyword search, so the host
 	 * owns the slug mapping. Boards run ahead of BrightData when present.
@@ -341,6 +348,8 @@ export interface SearchPlan {
 	sources: SearchSource[];
 	/** Query texts actually run this call, so the caller sees what coverage was bought (issue 13). */
 	queriesRun: string[];
+	/** Opaque resume token when candidates remain past this page; null when exhausted (issue 14). */
+	nextCursor: string | null;
 	notes: string[];
 	errors: string[];
 }
@@ -808,8 +817,20 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 			Number(a.quickFit.lowEvidence) - Number(b.quickFit.lowEvidence) ||
 			a.key.localeCompare(b.key),
 	);
-	const kept = deduped.kept.slice(0, filters.limit);
-	const unverified = kept.filter((candidate) => candidate.needsVerification).length;
+	// Paged response over the relevance-ordered list (issue 14): the limit
+	// doubles as the page size and the opaque cursor is the resume offset.
+	let offset = 0;
+	if (input.cursor !== undefined) {
+		const decoded = decodeCursor(input.cursor);
+		if (decoded === null) {
+			notes.push("Unparseable page cursor ignored; restarted at offset zero (correctness first).");
+		} else {
+			offset = decoded;
+		}
+	}
+	const page = deduped.kept.slice(offset, offset + filters.limit);
+	const nextCursor = offset + filters.limit < deduped.kept.length ? encodeCursor(offset + filters.limit) : null;
+	const unverified = page.filter((candidate) => candidate.needsVerification).length;
 	if (unverified > 0) {
 		notes.push(
 			`${unverified} candidate(s) carry an unknown employer; verify the company on the posting before evaluating.`,
@@ -818,12 +839,13 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 	return {
 		filters,
 		queries,
-		candidates: kept,
+		candidates: page,
 		staleCount,
 		seenSkipped: deduped.seenSkipped,
 		appliedSkipped: deduped.appliedSkipped,
 		sources,
 		queriesRun,
+		nextCursor,
 		notes,
 		errors,
 	};
