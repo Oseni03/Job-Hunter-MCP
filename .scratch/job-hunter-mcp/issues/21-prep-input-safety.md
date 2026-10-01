@@ -4,7 +4,7 @@
 
 **Blocked by:** 04-prep-strategy-form-fields.
 
-**Status:** ready-for-agent
+**Status:** done (commit: feat issue-21; full suite 440/440 green, golden 26 pass)
 
 - [ ] Empty-slug hard error: every drafting tool refuses on `EMPTY_SLUG`, but `planInterviewPrep` builds `documents/applications//<stage>-prep.md` from an empty slug without complaint (`lib/prep.ts:207-208`). Add the same hard error when neither company nor role identifies the interview.
 - [ ] TeX-aware probeable claims: `cvText`/`coverText` are usually the generated `.tex`, so the probeable pass (`lib/prep.ts:291-309`) splits `\cventry{…}` markup lines and flags them for digits and skill words alike. Strip TeX commands (reuse the command-stripping shape from `countTexWords` in `lib/verify.ts`) before line-splitting — or accept plain text only and say so. Fixture: run the pass over a real generated CV and assert no emitted claim contains markup.

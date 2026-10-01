@@ -1,7 +1,9 @@
 import { checkSourceConsistency, matchRequirements, archiveDirFor, checkGateSummary, wordOverlap } from "@/lib/tailor.ts";
 import type { EvaluationSummary } from "@/lib/tailor.ts";
+import { CONTENT_STOPWORDS } from "@/lib/tailor.ts";
 import { sanitizeQuote, QUOTE_MAX_LENGTH } from "@/lib/evaluate.ts";
-import { makeJobSlug } from "@/lib/job-key.ts";
+import { EMPTY_SLUG_ERROR, makeJobSlug } from "@/lib/job-key.ts";
+import { stripTexToProse } from "@/lib/verify.ts";
 import { resolveProfile, evidencePool } from "@/lib/profile.ts";
 
 export const PREP_STAGES = [
@@ -39,9 +41,9 @@ export interface PrepInput {
 	stage?: string;
 	/** Exact archived posting text; absent means an explicit fallback, never a guess. */
 	postingText?: string;
-	/** Submitted CV text for probeable-claim extraction. */
+	/** Submitted CV text for probeable-claim extraction (TeX or plain; markup stripped first). */
 	cvText?: string;
-	/** Submitted cover letter text for probeable-claim extraction. */
+	/** Submitted cover letter text for probeable-claim extraction (TeX or plain; markup stripped first). */
 	coverText?: string;
 	/** Recorded feedback from earlier stages (tracker notes); never sibling-role history. */
 	stageHistoryText?: string;
@@ -104,6 +106,9 @@ export interface PrepPlan {
 
 const CLAIM_PATTERN = /\d/;
 
+/** Lines carrying TeX markup take the cleaned-prose emission path. */
+const MARKUP_HINT = /[\\{}]/;
+
 const STAGE_BANKS: Record<string, { likely: string[]; ask: string[] }> = {
 	"recruiter-screen": {
 		likely: ["Walk me through your background in two minutes."],
@@ -136,6 +141,22 @@ const TOUGH_BASE = [
 	"Tell me about a time you failed.",
 ];
 
+/**
+ * Stage-alias table: ordinary stage names resolve onto the five banks.
+ * First match wins; several banks matching means ambiguity and is noted.
+ * | raw wording              | bank             |
+ * | phone screen, HR round   | recruiter-screen |
+ * | system design, live code | technical        |
+ * | hiring manager           | hiring-manager   |
+ * | final round, panel       | panel-onsite     |
+ */
+const STAGE_ALIASES: Array<{ pattern: RegExp; stage: PrepStage }> = [
+	{ pattern: /phone|recruiter|\bhr\b|human resources|screen|initial|intro|informal chat/, stage: "recruiter-screen" },
+	{ pattern: /technical|coding|system design|take.home|live code|pair programming|architect|deep.dive|whiteboard|algorithm|debug/, stage: "technical" },
+	{ pattern: /hiring.manager|\bhm\b|manager/, stage: "hiring-manager" },
+	{ pattern: /panel|onsite|on.site|final|loop|group interview|team interview/, stage: "panel-onsite" },
+];
+
 function normalizeStage(raw: string | undefined, fallbackNotes: string[]): PrepStage {
 	if (!raw) {
 		return "other";
@@ -143,6 +164,18 @@ function normalizeStage(raw: string | undefined, fallbackNotes: string[]): PrepS
 	const stage = raw.toLowerCase();
 	if ((PREP_STAGES as readonly string[]).includes(stage)) {
 		return stage as PrepStage;
+	}
+	const hits = STAGE_ALIASES.filter((alias) => alias.pattern.test(stage)).map((alias) => alias.stage);
+	const resolved = [...new Set(hits)];
+	if (resolved.length === 1) {
+		fallbackNotes.push(`Stage '${raw}' read as '${resolved[0]}'.`);
+		return resolved[0] as PrepStage;
+	}
+	if (resolved.length > 1) {
+		fallbackNotes.push(
+			`Stage '${raw}' matches several banks (${resolved.join(", ")}); read as '${resolved[0]}' — confirm the right one.`,
+		);
+		return resolved[0] as PrepStage;
 	}
 	fallbackNotes.push(`Unknown stage '${raw}' treated as 'other'; stage banks stay generic.`);
 	return "other";
@@ -206,13 +239,17 @@ function gapEvidence(
 	return best;
 }
 
-/** Content words for Use-for tag overlap (length 3+ to keep tags like "SQL" usable). */
+/**
+ * Content words for Use-for tag overlap (length 3+ to keep tags like
+ * "SQL" usable, screened by the shared stopword list so filler words
+ * such as "and", "the", or "for" inside a tag never count as coverage).
+ */
 function tagWords(text: string): Set<string> {
 	return new Set(
 		text
 			.toLowerCase()
 			.split(/[^a-z0-9+#]+/)
-			.filter((word) => word.length >= 3),
+			.filter((word) => word.length >= 3 && !CONTENT_STOPWORDS.has(word)),
 	);
 }
 
@@ -231,6 +268,43 @@ function coversQuestion(example: StarExample, question: string): boolean {
 	return false;
 }
 
+/** Refused pack: no questions, no drafts, no save path — the refusal is the content. */
+function refusedPlan(
+	company: string,
+	role: string,
+	stage: PrepStage,
+	slug: string,
+	packFile: string,
+	fallbackNotes: string[],
+	refusal: string,
+	guidance: string,
+): PrepPlan {
+	const packMarkdown = [
+		`## Interview prep: ${role} at ${company} (${stage})`,
+		"",
+		`- Refused: ${refusal}`,
+		"",
+		guidance,
+	].join("\n");
+	return {
+		company,
+		role,
+		stage,
+		slug,
+		packFile,
+		packMarkdown,
+		missingLogistics: ["dateTime", "format", "interviewers", "location"],
+		fallbackNotes,
+		questions: [],
+		starMapping: [],
+		uncoveredQuestions: [],
+		newStarDrafts: [],
+		probeableClaims: [],
+		toughQuestions: [],
+		questionsToAsk: [],
+		warnings: [refusal],
+	};
+}
 /**
  * Builds one interview-prep pack from caller-held facts only. The server is
  * stateless: the exact archived posting, submitted documents, and stage
@@ -239,45 +313,43 @@ function coversQuestion(example: StarExample, question: string): boolean {
  */
 export function planInterviewPrep(input: PrepInput): PrepPlan {
 	const fallbackNotes: string[] = [];
+	const slug = makeJobSlug(input.company, input.role);
+	if (!slug) {
+		const stage = normalizeStage(input.stage, fallbackNotes);
+		fallbackNotes.push(EMPTY_SLUG_ERROR);
+		return refusedPlan(
+			input.company,
+			input.role,
+			stage,
+			"",
+			"",
+			fallbackNotes,
+			EMPTY_SLUG_ERROR,
+			"No pack was built and no file path was issued.",
+		);
+	}
 	const gate = checkGateSummary(input.evaluation);
 	if (gate.refused) {
 		const stage = normalizeStage(input.stage, fallbackNotes);
-		const slug = makeJobSlug(input.company, input.role);
 		const packFile = `${archiveDirFor(slug)}/${stage}-prep.md`;
 		const refusal = gate.refused;
 		fallbackNotes.push(refusal);
-		const packMarkdown = [
-			`## Interview prep: ${input.role} at ${input.company} (${stage})`,
-			"",
-			`- Refused: ${refusal}`,
-			"",
-			"Pass the evaluate-job verdict plus gate results as `evaluation`; prepping for a gate-failed posting is pure waste.",
-		].join("\n");
-		return {
-			company: input.company,
-			role: input.role,
+		return refusedPlan(
+			input.company,
+			input.role,
 			stage,
 			slug,
 			packFile,
-			packMarkdown,
-			missingLogistics: ["dateTime", "format", "interviewers", "location"],
 			fallbackNotes,
-			questions: [],
-			starMapping: [],
-			uncoveredQuestions: [],
-			newStarDrafts: [],
-			probeableClaims: [],
-			toughQuestions: [],
-			questionsToAsk: [],
-			warnings: [refusal],
-		};
+			refusal,
+			"Pass the evaluate-job verdict plus gate results as `evaluation`; prepping for a gate-failed posting is pure waste.",
+		);
 	}
 	if (gate.note) {
 		fallbackNotes.push(gate.note);
 	}
 	const stage = normalizeStage(input.stage, fallbackNotes);
 	const profile = resolveProfile(input.profile);
-	const slug = makeJobSlug(input.company, input.role);
 	const packFile = `${archiveDirFor(slug)}/${stage}-prep.md`;
 
 	const logistics = input.logistics ?? {};
@@ -373,15 +445,20 @@ export function planInterviewPrep(input: PrepInput): PrepPlan {
 	const probeableClaims: string[] = [];
 	const pool = evidencePool(profile);
 	for (const text of submitted as string[]) {
-		for (const line of text.split(/\r?\n/)) {
-			const trimmed = line.trim();
+		// Submitted documents are usually the generated TeX: run detection
+		// over markup-stripped prose so \cventry lines read as content, but
+		// emit the verbatim line for plain text and cleaned prose only when
+		// markup was actually present.
+		for (const rawLine of text.split(/\r?\n/)) {
+			const trimmed = rawLine.trim();
 			if (trimmed.length === 0) {
 				continue;
 			}
-			const quantified = CLAIM_PATTERN.test(trimmed);
-			const checkable = pool.some((phrase) => trimmed.toLowerCase().includes(phrase.toLowerCase()));
+			const prose = stripTexToProse(trimmed).replace(/\s+/g, " ").trim();
+			const quantified = CLAIM_PATTERN.test(prose);
+			const checkable = pool.some((phrase) => prose.toLowerCase().includes(phrase.toLowerCase()));
 			if (quantified || checkable) {
-				probeableClaims.push(trimmed);
+				probeableClaims.push(MARKUP_HINT.test(trimmed) ? prose : trimmed);
 			}
 		}
 	}

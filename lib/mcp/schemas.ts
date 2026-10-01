@@ -361,10 +361,15 @@ export const PrepInterviewInput = z
 	.object({
 		company: z.string().min(1),
 		role: z.string().min(1),
-		stage: z.string().optional().describe("recruiter-screen, technical, hiring-manager, panel-onsite, or other"),
+		stage: z
+			.string()
+			.optional()
+			.describe(
+				"recruiter-screen, technical, hiring-manager, panel-onsite, or other (aliases resolve: phone screen/HR round to recruiter-screen, system design to technical, final round to panel-onsite)",
+			),
 		postingText: z.string().optional().describe("Exact archived posting text; absent means explicit fallback"),
-		cvText: z.string().optional().describe("Submitted CV text for probeable-claim extraction"),
-		coverText: z.string().optional().describe("Submitted cover letter text for probeable-claim extraction"),
+		cvText: z.string().optional().describe("Submitted CV text for probeable-claim extraction (TeX or plain; markup stripped)"),
+		coverText: z.string().optional().describe("Submitted cover letter text for probeable-claim extraction (TeX or plain; markup stripped)"),
 		stageHistoryText: z.string().optional().describe("Recorded feedback from earlier stages; never sibling-role history"),
 		starExamples: z.array(StarExampleInput).optional(),
 		companyFacts: z.array(z.string()).optional().describe("Caller-verified company facts only; echoed verbatim"),

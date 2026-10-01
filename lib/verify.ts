@@ -31,13 +31,23 @@ const CV_CUTTING_ORDER = [
 	"Shorten the profile statement to three lines.",
 ];
 
-/** Words of text content: commands stripped, braces dropped, whitespace split. */
-export function countTexWords(tex: string): number {
-	const prose = tex
+/**
+ * Prose text of a TeX source: commands stripped, braces dropped, newlines
+ * kept (same shape the word count uses; shared with the prep probeable
+ * pass so generated CVs read as prose, not markup).
+ */
+export function stripTexToProse(tex: string): string {
+	return tex
 		.replace(/\\[a-zA-Z]+\*?/g, " ")
 		.replace(/[{}[\]%]/g, " ")
 		.replace(/[^A-Za-z0-9+#'\s-]/g, " ");
-	return prose.split(/\s+/).filter((word) => word.length > 0).length;
+}
+
+/** Words of text content: commands stripped, braces dropped, whitespace split. */
+export function countTexWords(tex: string): number {
+	return stripTexToProse(tex)
+		.split(/\s+/)
+		.filter((word) => word.length > 0).length;
 }
 
 /**

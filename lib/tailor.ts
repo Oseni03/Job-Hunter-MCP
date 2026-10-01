@@ -28,7 +28,8 @@ const NICE_PATTERN = /nice.to.have|desirable|\bbonus\b|preferred|a plus|advantag
 const REQUIREMENT_LINE =
 	/requir|essential|must have|must be|should have|need (to|you)|looking for|you (have|bring|will)|domain|experience (with|in|of)|familiar|proficient|skilled|background in/i;
 
-const STOPWORDS = new Set([
+/** Shared content-word stopwords (issue 12 family): also screens STAR Use-for tags in prep. */
+export const CONTENT_STOPWORDS = new Set([
 	"with",
 	"from",
 	"that",
@@ -66,6 +67,8 @@ const STOPWORDS = new Set([
 	"your",
 	"our",
 ]);
+
+const STOPWORDS = CONTENT_STOPWORDS;
 
 function profilePhrases(profile: Profile): string[] {
 	return [
