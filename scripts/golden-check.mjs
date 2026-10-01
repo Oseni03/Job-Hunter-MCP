@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { verifyBearerToken } from "@/lib/auth.ts";
+import { oauthConfigFromEnv, oauthResourceMetadata } from "@/lib/oauth.ts";
 import { buildCoverLetter, buildTailoredCv } from "@/lib/tailor.ts";
 import { checkWritingBans, sectionHeadings } from "@/lib/latex.ts";
 import { isCanonical, makeKey } from "@/lib/job-key.ts";
@@ -209,6 +210,15 @@ check(
 
 check("local dev stays open", verifyBearerToken(undefined, undefined).authorized === true);
 check("prod stays closed", verifyBearerToken(undefined, "secret").authorized === false);
+check("oauth stays off without an issuer", oauthConfigFromEnv({}) === null);
+check(
+	"oauth metadata carries the resource, its authorization server, and scopes",
+	oauthResourceMetadata("https://mcp.example.com/mcp", "https://login.example.com").authorization_servers[0] ===
+		"https://login.example.com" &&
+		oauthResourceMetadata("https://mcp.example.com/mcp", "https://login.example.com").scopes_supported.includes(
+			"mcp:tools",
+		),
+);
 
 const mcpConfig = JSON.parse(readFileSync(".mcp.json", "utf-8"));
 check("shipped client config points at /mcp", mcpConfig.mcpServers["job-hunter"].url.endsWith("/mcp"));
@@ -231,6 +241,6 @@ if (!existsSync(coverExample)) {
 }
 
 console.log(`\nDEFERRED (out of scope):`);
-console.log("- full login-based auth (later phase; bearer token only)");
+console.log("- full login-based auth (later phase; OAuth resource-server only, no login flow)");
 console.log(`\ngolden: ${pass} pass, ${fail} fail, ${skip} skip`);
 process.exit(fail > 0 ? 1 : 0);

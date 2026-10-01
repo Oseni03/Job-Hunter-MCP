@@ -4,7 +4,7 @@
 
 **Blocked by:** 07-integrate-harden-ship.
 
-**Status:** ready-for-agent
+**Status:** done (commit: feat issue-23 rework; jose verification, strict aud, HTTPS, required scopes, scoped PRM; full suite 472/472 green, golden 28 pass)
 
 - [ ] Token verification alongside the bearer check: when `OAUTH_ISSUER` (and optional `OAUTH_AUDIENCE`, `OAUTH_JWKS_URI`) is configured, accept a JWT access token verified against the issuer's JWKS (signature, `iss`, `aud`, `exp`, clock-skew leeway as a named constant); when only `MCP_AUTH_TOKEN` is configured, keep the exact-match bearer behavior byte-for-byte; when neither is configured, stay open for local dev. Precedence and fallback order documented in one place.
 - [ ] RFC 9728 discovery: serve `/.well-known/oauth-protected-resource` describing `/mcp` (resource identifier = the public MCP URL, authorization-server pointer = `OAUTH_ISSUER`), and emit the `WWW-Authenticate: Bearer error="invalid_token", resource_metadata="…"` challenge on every 401 so Claude discovers DCR automatically instead of failing registration blind.

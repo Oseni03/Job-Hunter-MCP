@@ -1,7 +1,7 @@
 import { createMcpHandler } from "mcp-handler";
 import type { AuthInfo, McpServer } from "@modelcontextprotocol/server";
 
-import { verifyBearerToken } from "@/lib/auth.ts";
+import { oauthConfigFromEnv, oauthRequiredScopesFromEnv, verifyMcpAuth } from "@/lib/oauth.ts";
 import { registerEvaluateJob } from "@/lib/mcp/tools/evaluate-job.ts";
 import { registerTailorCv } from "@/lib/mcp/tools/tailor-cv.ts";
 import { registerWriteCoverLetter } from "@/lib/mcp/tools/write-cover-letter.ts";
@@ -77,13 +77,54 @@ export function buildMcpHandler(): (req: Request) => Promise<Response> {
 }
 
 export async function verifyMcpToken(_req: Request, bearerToken?: string): Promise<AuthInfo | undefined> {
-	const expected = process.env.MCP_AUTH_TOKEN || undefined;
-	if (!verifyBearerToken(bearerToken, expected).authorized) {
+	// Never log bearerToken: 401s carry only the generic challenge while the
+	// specific error code stays server-side inside the decision. Auth is
+	// deliberately decoupled from `Mcp-Session-Id` — the same token validates
+	// across sessions and rotation is purely JWKS-driven.
+	const decision = await verifyMcpAuth(bearerToken, {
+		expectedToken: process.env.MCP_AUTH_TOKEN || undefined,
+		oauth: oauthConfigFromEnv(),
+		requiredScopes: oauthRequiredScopesFromEnv(),
+		expectedResource: mcpPublicResource(),
+	});
+	if (!decision.authorized) {
 		return undefined;
 	}
-	return { token: bearerToken ?? "local-dev", clientId: "job-hunter-client", scopes: [] };
+	return {
+		token: bearerToken ?? "local-dev",
+		clientId: decision.sub ?? "job-hunter-client",
+		scopes: decision.scopes,
+	};
+}
+
+/** Least-privilege scopes enforced on /mcp (default `mcp:tools`; see `OAUTH_REQUIRED_SCOPES`). */
+export function mcpRequiredScopes(): string[] {
+	return oauthRequiredScopesFromEnv();
+}
+
+/** Full public resource URL (`MCP_PUBLIC_URL`) used as the audience fallback when `OAUTH_AUDIENCE` is unset. */
+export function mcpPublicResource(): string | undefined {
+	const raw = (process.env["MCP_PUBLIC_URL"] ?? "").trim().replace(/\/+$/, "");
+	return raw || undefined;
 }
 
 export function isMcpAuthRequired(): boolean {
-	return Boolean(process.env.MCP_AUTH_TOKEN);
+	return Boolean(process.env.MCP_AUTH_TOKEN || process.env.OAUTH_ISSUER);
+}
+
+/**
+ * Public origin for the RFC 9728 challenge: MCP_PUBLIC_URL's origin when
+ * the deployment sets it (proxies hide the internal origin), otherwise
+ * undefined so the adapter derives it from the request.
+ */
+export function mcpPublicOrigin(): string | undefined {
+	const raw = (process.env["MCP_PUBLIC_URL"] ?? "").trim();
+	if (!raw) {
+		return undefined;
+	}
+	try {
+		return new URL(raw).origin;
+	} catch {
+		return undefined;
+	}
 }
