@@ -4,7 +4,7 @@
 
 **Blocked by:** 03-record-application.
 
-**Status:** ready-for-agent
+**Status:** done (commit: feat issue-20; full suite 430/430 green, golden 26 pass)
 
 - [ ] Formula-injection neutralization with a hostile fixture: company and role come from postings and the CSV is opened in Excel/Sheets, where a leading `= + - @` executes. Neutralize those leading characters on write (leading-`'` convention) and specify the round trip precisely — matching and re-serialization must account for the prefix so a neutralized cell still matches, refreshes, and never double-prefixes. Fixture: company `=CMD|'/C calc'!A0` (plus `+`, `-`, `@` variants) through append → match → update, asserting inert cells and stable matching.
 - [ ] Newline round-trip fix with a fixture: `serializeCsvLine` quotes newline-bearing fields, but the reader splits on EOL first and parses line by line — a multi-line field returns as broken rows on the next run. Either strip newlines from all written fields or parse the input as whole-text CSV; fixture with a newline-bearing role must survive append → re-read → update unchanged.

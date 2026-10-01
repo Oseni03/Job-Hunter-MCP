@@ -40,9 +40,9 @@ Single verification pass (CLAUDE.md checklist: factual, targeting, consistency, 
 
 ### Step 6b: Record the Application
 
-1. Read `job_search_tracker.csv`; create with header `date,company,sector,role,role_type,channel,status,contact_person,fit_rating,notes,cv_file,cover_letter_file,source,deadline` if missing (same as `/outcome`); append `,deadline` to a legacy header only.
-2. Match case-insensitively on company+role: append on no match or all-final, update open (final/open per `/outcome`; legacy `no response`/`offer declined` final; say when appending alongside final).
-3. New row: today, `drafted`, bare 0-100 score, both paths, posting URL or empty, portal/online/empty channel, sector/role_type/contact from posting or empty, deadline YYYY-MM-DD or empty (never guessed/carried).
+1. Read `job_search_tracker.csv`; create with header `date,company,sector,role,role_type,channel,status,contact_person,fit_rating,notes,cv_file,cover_letter_file,source,deadline` if missing (same as `/outcome`); append `,deadline` to a legacy header only. Record the file's hash before planning; write back only if it still matches (re-read on mismatch — never write over a changed file).
+2. Match on posting URL first where held, then normalized company+role (case-insensitive, punctuation ignored, trailing legal suffixes like Ltd/Inc/GmbH dropped; never substrings): append on no match or all-final, update open (final/open per `/outcome`; legacy `no response`/`offer declined` final; say when appending alongside final; name the count when several open rows match).
+3. New row: today (the user's local day, not the server's UTC day), `drafted`, bare 0-100 score, both paths, posting URL or empty, portal/online/empty channel, sector/role_type/contact from posting or empty, deadline YYYY-MM-DD or empty (never guessed/carried). Neutralize spreadsheet-formula cells (leading `= + - @` gets the `'` prefix) and strip newlines from every written field.
 4. Open-row update: refresh files/score/source/deadline (keep stored deadline on absence), append undated `redrafted` to notes, leave status (date → today only if still `drafted`).
 5. Never restructure/reorder/touch other rows. 6. Never modify `job_scraper/seen_jobs.json` (dedup via tracker; `/rank` excludes from tracker). 7. Archive held verbatim posting to `documents/applications/<company>_<role>/job_posting.md` (same slug rule as `/outcome`; leave existing; write nothing + report if unheld). Name the tracker row and archive outcome in the report.
 

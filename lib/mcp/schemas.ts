@@ -272,7 +272,10 @@ export const RecordApplicationInput = z
 			.string()
 			.optional()
 			.describe("Current job_search_tracker.csv content; empty when the tracker is missing"),
-		today: z.string().optional().describe("YYYY-MM-DD override for the row date"),
+		today: z
+			.string()
+			.optional()
+			.describe("Row date as YYYY-MM-DD; the host passes the user's local day (server default is UTC, a day off near midnight elsewhere)"),
 	})
 	.strict();
 
@@ -284,6 +287,11 @@ export const RecordApplicationOutput = z
 		rowIndex: z.number().nullable().describe("Zero-based data-row index for updates; null for appends"),
 		appendedAlongsideFinal: z.boolean(),
 		headerUpgraded: z.boolean(),
+		openMatchCount: z.number().describe("Open matching rows; above 1 means the ledger needs deduplication"),
+		duplicateNote: z.string().nullable().describe("Names the duplicate count when several open rows match"),
+		trackerHash: z
+			.string()
+			.describe("SHA-1 of the input tracker text; host writes only if the file still matches, else re-reads"),
 		archiveFile: z.string().nullable(),
 		archiveText: z.string().nullable().describe("Verbatim posting text; null when no longer held"),
 		archiveNote: z.string().nullable(),

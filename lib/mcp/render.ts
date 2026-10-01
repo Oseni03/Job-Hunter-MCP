@@ -216,6 +216,9 @@ export function renderRecordMarkdown(plan: RecordPlan): string {
 		...(plan.rowIndex === null ? [] : [`- Updated data row ${plan.rowIndex} (other rows untouched)`]),
 		...(plan.appendedAlongsideFinal ? ["- Appended alongside final rows for the same company and role"] : []),
 		...(plan.headerUpgraded ? ["- Legacy header upgraded with the deadline column"] : []),
+		...(plan.duplicateNote ? [`- ${plan.duplicateNote}`] : []),
+		"",
+		`- Tracker hash: \`${plan.trackerHash}\` (host writes only if job_search_tracker.csv still matches; on mismatch re-read and retry — never write over a changed file)`,
 		"",
 		...(plan.archiveText !== null && plan.archiveFile
 			? [`- Archive: \`${plan.archiveFile}\` (host writes unless it exists)`]

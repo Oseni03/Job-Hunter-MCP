@@ -6,6 +6,8 @@
  * `archiveFile` unless that file already exists.
  */
 
+import { createHash } from "node:crypto";
+
 import { makeJobSlug } from "@/lib/job-key.ts";
 import { archiveDirFor } from "@/lib/tailor.ts";
 
@@ -29,7 +31,7 @@ export interface RecordInput {
 	postingText?: string;
 	/** Caller-passed tracker content; empty when the tracker is missing. */
 	trackerText?: string;
-	/** YYYY-MM-DD override for today (tests); defaults to the current UTC date. */
+	/** YYYY-MM-DD override for today; the host passes the user's local day as the norm (the server default is the UTC day, a day off near midnight elsewhere). */
 	today?: string;
 }
 
@@ -45,6 +47,12 @@ export interface RecordPlan {
 	/** True when appending while final rows exist for the same company+role. */
 	appendedAlongsideFinal: boolean;
 	headerUpgraded: boolean;
+	/** Open matches in the selected match set; >1 means the ledger needs dedup. */
+	openMatchCount: number;
+	/** Names the duplicate count when several open rows match; null otherwise. */
+	duplicateNote: string | null;
+	/** SHA-1 of the input trackerText; host writes only if the file still matches. */
+	trackerHash: string;
 	archiveFile: string | null;
 	/** Verbatim posting text; null when the text is no longer held. */
 	archiveText: string | null;
@@ -111,11 +119,109 @@ function isFinalStatus(status: string | undefined): boolean {
 	return FINAL_STATUSES.has((status ?? "").trim().toLowerCase());
 }
 
+/** Leading characters that execute as formulas when the CSV is opened in Excel/Sheets. */
+const FORMULA_LEAD = new Set(["=", "+", "-", "@"]);
+
+/**
+ * Makes one tracker cell inert for spreadsheet apps: newlines become spaces
+ * (the reader splits on EOL first, so multi-line cells would return as
+ * broken rows on the next run) and a leading `= + - @` gains the
+ * spreadsheet `'` text-prefix. Idempotent: an already-prefixed cell passes
+ * through unchanged, so re-serialization never double-prefixes.
+ */
+export function sanitizeTrackerField(value: string): string {
+	const flat = value.replace(/\r\n|\r|\n/g, " ");
+	if (flat.length > 1 && flat.startsWith("'") && FORMULA_LEAD.has(flat[1] ?? "")) {
+		return flat;
+	}
+	if (flat && FORMULA_LEAD.has(flat[0] ?? "")) {
+		return `'${flat}`;
+	}
+	return flat;
+}
+
+/** Strips the neutralization prefix for matching; the stored cell keeps it. */
+export function deneutralizeTrackerField(value: string): string {
+	if (value.length > 1 && value.startsWith("'") && FORMULA_LEAD.has(value[1] ?? "")) {
+		return value.slice(1);
+	}
+	return value;
+}
+
+/** Trailing legal-entity suffixes stripped during company matching (whole tokens only). */
+const COMPANY_SUFFIXES = new Set([
+	"limited",
+	"incorporated",
+	"corporation",
+	"ltd",
+	"inc",
+	"corp",
+	"llc",
+	"llp",
+	"plc",
+	"pty",
+	"gmbh",
+	"sarl",
+	"sas",
+	"srl",
+	"spa",
+	"bv",
+	"nv",
+	"ug",
+	"ab",
+	"aps",
+	"sa",
+	"ag",
+	"sl",
+	"co",
+]);
+
+/**
+ * Normalized company key: deneutralized, lowercased, dotted abbreviations
+ * collapsed ("L.L.C." to "llc"), punctuation spaced out, trailing legal
+ * suffixes dropped as whole tokens. Exact equality within this form only —
+ * never a substring test — so "Acme" still differs from "Acme Partners"
+ * while matching "Acme Ltd". Single-token names never strip, so "Banco"
+ * and "Visa" survive intact.
+ */
+export function normalizeCompanyName(value: string): string {
+	const words = deneutralizeTrackerField(value)
+		.toLowerCase()
+		.replace(/\./g, "")
+		.replace(/[^a-z0-9\s]/g, " ")
+		.split(/\s+/)
+		.filter(Boolean);
+	while (words.length > 1 && COMPANY_SUFFIXES.has(words[words.length - 1] ?? "")) {
+		words.pop();
+	}
+	return words.join(" ");
+}
+
+/** Normalized role key: deneutralized, lowercased, punctuation spaced out. */
+export function normalizeRoleName(value: string): string {
+	return deneutralizeTrackerField(value)
+		.toLowerCase()
+		.replace(/\r\n|\r|\n/g, " ")
+		.replace(/[^a-z0-9\s]/g, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
+/** Stateless stale-write guard: SHA-1 of the exact input tracker text. */
+export function trackerHashFor(trackerText: string): string {
+	return createHash("sha1").update(trackerText, "utf8").digest("hex");
+}
+
 /** Serializes one CSV row, quoting fields that carry commas, quotes, or newlines. */
 function serializeCsvLine(fields: string[]): string {
 	return fields
 		.map((field) => (/[",\n\r]/.test(field) ? `"${field.replace(/"/g, '""')}"` : field))
 		.join(",");
+}
+
+/** Serializes one tracker row: every cell sanitized (newline-free, formula-inert). */
+function serializeTrackerRow(fields: string[]): string {
+	return serializeCsvLine(fields.map((field) => sanitizeTrackerField(field)));
 }
 
 const DATE_COLUMN = 0;
@@ -146,7 +252,7 @@ function refreshOpenRow(fields: string[], input: RecordInput, today: string): st
 	if (deadline) {
 		refreshed[DEADLINE_COLUMN] = deadline;
 	}
-	return serializeCsvLine(refreshed);
+	return serializeTrackerRow(refreshed);
 }
 
 /** Bare numeric fit score; empty when unscored. */
@@ -222,7 +328,7 @@ export function planRecordApplication(input: RecordInput): RecordOutcome {
 		return { ok: false, error: `Unrecognized tracker header: ${rawLines[0]}` };
 	}
 
-	const row = serializeCsvLine([
+	const row = serializeTrackerRow([
 		today,
 		input.company,
 		input.sector ?? "",
@@ -241,17 +347,25 @@ export function planRecordApplication(input: RecordInput): RecordOutcome {
 
 	const joinAll = (lines: string[]): string => `${TRACKER_HEADER}${eol}${lines.join(eol)}${eol}`;
 
-	const company = input.company.trim().toLowerCase();
-	const role = input.role.trim().toLowerCase();
-	const matches = dataLines
-		.map((line, index) => ({ line, index, fields: parseCsvLine(line) }))
-		.filter(
-			(entry) =>
-				(entry.fields[COMPANY_COLUMN] ?? "").trim().toLowerCase() === company &&
-				(entry.fields[ROLE_COLUMN] ?? "").trim().toLowerCase() === role,
-		);
-	const openMatch = matches.find((entry) => !isFinalStatus(entry.fields[STATUS_COLUMN]));
-	if (!openMatch) {
+	// Match on the posting URL first where the caller holds one (exact source
+	// comparison), then fall back to normalized company+role. Normalization
+	// deneutralizes the `'` prefix and flattens newlines first, so a
+	// neutralized cell still matches and matching stays exact within the
+	// normalized form — never a substring test.
+	const entries = dataLines.map((line, index) => ({ line, index, fields: parseCsvLine(line) }));
+	const inputUrl = (input.postingUrl ?? "").trim();
+	const urlEntries = inputUrl ? entries.filter((entry) => (entry.fields[SOURCE_COLUMN] ?? "").trim() === inputUrl) : [];
+	const normalizedCompany = normalizeCompanyName(input.company);
+	const normalizedRole = normalizeRoleName(input.role);
+	const keyEntries = entries.filter(
+		(entry) =>
+			normalizeCompanyName(entry.fields[COMPANY_COLUMN] ?? "") === normalizedCompany &&
+			normalizeRoleName(entry.fields[ROLE_COLUMN] ?? "") === normalizedRole,
+	);
+	const candidates = urlEntries.length > 0 ? urlEntries : keyEntries;
+	const openMatches = candidates.filter((entry) => !isFinalStatus(entry.fields[STATUS_COLUMN]));
+	const trackerHash = trackerHashFor(given);
+	if (openMatches.length === 0) {
 		const trackerText = joinAll([...dataLines, row]);
 		return {
 			ok: true,
@@ -259,16 +373,24 @@ export function planRecordApplication(input: RecordInput): RecordOutcome {
 			trackerText,
 			row,
 			rowIndex: null,
-			appendedAlongsideFinal: matches.length > 0,
+			appendedAlongsideFinal: candidates.length > 0,
 			headerUpgraded,
+			openMatchCount: 0,
+			duplicateNote: null,
+			trackerHash,
 			...archiveFor(input),
 		};
 	}
 
+	const openMatch = openMatches[0]!;
 	const updated = [...dataLines];
 	const refreshedRow = refreshOpenRow(openMatch.fields, input, today);
 	updated[openMatch.index] = refreshedRow;
 	const trackerText = joinAll(updated);
+	const duplicateNote =
+		openMatches.length > 1
+			? `${openMatches.length} open rows match this application; updated data row ${openMatch.index} — the ledger needs deduplication.`
+			: null;
 	return {
 		ok: true,
 		action: "update",
@@ -277,6 +399,9 @@ export function planRecordApplication(input: RecordInput): RecordOutcome {
 		rowIndex: openMatch.index,
 		appendedAlongsideFinal: false,
 		headerUpgraded,
+		openMatchCount: openMatches.length,
+		duplicateNote,
+		trackerHash,
 		...archiveFor(input),
 	};
 }
