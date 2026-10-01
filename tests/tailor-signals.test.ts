@@ -76,7 +76,9 @@ describe("write-cover-letter signals", () => {
 				company: "Acme",
 				role: "Senior ML Engineer",
 				profile: PROFILE,
-				companySpecifics: ["Acme processes payments across Europe."],
+				companySpecifics: [
+					{ text: "Acme processes payments across Europe.", sourceUrl: "https://acme.example/about" },
+				],
 			},
 			{},
 		);

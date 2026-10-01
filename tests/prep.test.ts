@@ -66,12 +66,29 @@ describe("planInterviewPrep", () => {
 		assert.ok(firstPosting < firstStage, "posting before stage");
 	});
 
-	it("bridges fit gaps honestly against profile evidence", () => {
+	it("says no direct evidence when the gap shares no words with the profile", () => {
 		const plan = planInterviewPrep(BASE);
 		const gap = plan.questions.find((question) => question.source === "fit-gap");
 		assert.ok(gap, "expected a fit-gap question for Kubernetes");
 		assert.ok(gap.question.includes("Kubernetes"));
-		assert.ok(gap.bridge && gap.bridge.includes("Python"), "bridge pivots to profile evidence");
+		assert.ok(
+			gap.bridge && gap.bridge.includes("no direct evidence"),
+			"bridge refuses to borrow an unrelated skill",
+		);
+		assert.equal(gap.evidence, "no direct evidence");
+	});
+
+	it("bridges fit gaps against overlapping profile evidence when it exists", () => {
+		const plan = planInterviewPrep({
+			...BASE,
+			postingText: ["Senior ML Engineer at Acme.", "Requirements: Python, fraud investigation."].join("\n"),
+		});
+		const gap = plan.questions.find((question) => question.source === "fit-gap");
+		assert.ok(gap, "expected a fit-gap question");
+		assert.ok(
+			gap.bridge && gap.bridge.includes("fraud detection"),
+			"bridge pivots to overlapping profile evidence",
+		);
 	});
 
 	it("falls back explicitly without the posting and never invents requirements", () => {

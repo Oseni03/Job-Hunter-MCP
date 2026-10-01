@@ -1,4 +1,5 @@
-import { auditClaim, checkSourceConsistency, englishOnlyNote } from "@/lib/tailor.ts";
+import { auditClaim, checkSourceConsistency, englishOnlyNote, normalizeCompanySpecifics } from "@/lib/tailor.ts";
+import type { VerifiedSpecific } from "@/lib/tailor.ts";
 import { resolveProfile, evidencePool } from "@/lib/profile.ts";
 
 export const PORTAL_FIELDS_FILE = "documents/portal-fields.md";
@@ -27,8 +28,8 @@ export interface FieldsInput {
 	profile?: unknown;
 	/** Employer name for the self-introduction tie; omitted when absent. */
 	company?: string;
-	/** Caller-verified employer facts for the tie; never invented. */
-	employerPoints?: string[];
+	/** Caller-verified employer facts with fetched source URLs; URL-less entries are refused. */
+	employerPoints?: Array<string | VerifiedSpecific>;
 	experience?: FieldExperience[];
 	projects?: FieldProject[];
 	roleTypes?: string[];
@@ -95,6 +96,7 @@ export function countChars(text: string): number {
 /** Every caller-held fact joins the audit union; generated claims must trace to it. */
 function unionSources(input: FieldsInput): string[] {
 	const profile = resolveProfile(input.profile);
+	const { kept: verifiedPoints } = normalizeCompanySpecifics(input.employerPoints);
 	const sources: string[] = [
 		profile.name,
 		...evidencePool(profile),
@@ -103,7 +105,8 @@ function unionSources(input: FieldsInput): string[] {
 		input.cvText ?? "",
 		input.coverText ?? "",
 		input.company ?? "",
-		...(input.employerPoints ?? []),
+		...verifiedPoints.map((point) => point.text),
+		...verifiedPoints.map((point) => point.sourceUrl),
 	];
 	for (const experience of input.experience ?? []) {
 		sources.push(experience.title, experience.company, experience.period, ...experience.bullets);
@@ -148,6 +151,13 @@ export function planPortalFields(input: FieldsInput): FieldsPlan {
 	const warnings = checkSourceConsistency(profile, input.masterCvText, input.workspaceProfileText);
 	if ((input.postingLanguage ?? "en").toLowerCase() !== "en") {
 		warnings.push(englishOnlyNote(input.postingLanguage ?? "en"));
+	}
+	const { kept: verifiedPoints, dropped: droppedPoints } = normalizeCompanySpecifics(input.employerPoints);
+	if (droppedPoints > 0) {
+		warnings.push(
+			`Refused ${droppedPoints} employer point${droppedPoints === 1 ? "" : "s"} without a fetched source URL; ` +
+			"only { text, sourceUrl } facts tie the intro — pass research-company claims through directly.",
+		);
 	}
 	if (!profile.name.includes("YOUR")) {
 		const submitted: Array<[string, string | undefined]> = [
@@ -199,8 +209,8 @@ export function planPortalFields(input: FieldsInput): FieldsPlan {
 			if (second.length > 0) {
 				parts.push(`${second.join("; ")}.`);
 			}
-			if (input.company && input.employerPoints?.[0]) {
-				parts.push(`${input.company}: ${input.employerPoints[0]}`);
+			if (input.company && verifiedPoints[0]) {
+				parts.push(`${input.company}: ${verifiedPoints[0].text} (${verifiedPoints[0].sourceUrl})`);
 			} else if (input.company) {
 				parts.push(`For ${input.company}.`);
 			}

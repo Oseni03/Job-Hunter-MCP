@@ -38,9 +38,9 @@ const RICH = {
 	profile: PROFILE,
 	hiringManager: "Jane Smith",
 	companySpecifics: [
-		"Acme processes payments across Europe.",
-		"Acme launched a real-time risk platform in 2025.",
-		"Acme runs a Copenhagen research hub.",
+		{ text: "Acme processes payments across Europe.", sourceUrl: "https://acme.example/about" },
+		{ text: "Acme launched a real-time risk platform in 2025.", sourceUrl: "https://media.example/acme-launch" },
+		{ text: "Acme runs a Copenhagen research hub.", sourceUrl: "https://acme.example/hub" },
 	],
 	highlights: [
 		"Shipped a model that cut review time by 30%.",
@@ -103,9 +103,13 @@ describe("buildCoverLetter", () => {
 			return;
 		}
 		assert.ok(result.tex.includes("payments across Europe"));
-		assert.ok(result.tex.includes("ACME-123"));
-		assert.ok(result.tex.includes("15 March 2026"));
+		assert.ok(result.tex.includes("https://acme.example/about"), "quote-and-link carries the source URL");
+		assert.ok(result.tex.includes("ACME-123"), "reference ID kept");
 		assert.ok(result.tex.includes("Remote"));
+		assert.ok(
+			!result.tex.includes("15 March 2026"),
+			"the deadline never prints in employer-facing text",
+		);
 	});
 
 	it("engages the nice-to-have by name and bridges the gap honestly", () => {

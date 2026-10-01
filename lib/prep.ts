@@ -1,4 +1,4 @@
-import { checkSourceConsistency, matchRequirements, archiveDirFor, checkGateSummary } from "@/lib/tailor.ts";
+import { checkSourceConsistency, matchRequirements, archiveDirFor, checkGateSummary, wordOverlap } from "@/lib/tailor.ts";
 import type { EvaluationSummary } from "@/lib/tailor.ts";
 import { sanitizeQuote, QUOTE_MAX_LENGTH } from "@/lib/evaluate.ts";
 import { makeJobSlug } from "@/lib/job-key.ts";
@@ -178,6 +178,34 @@ function strongestEvidence(profile: ReturnType<typeof resolveProfile>): string {
 	);
 }
 
+/**
+ * Fit-gap evidence by word overlap (issue 19, same rule as the letter
+ * bridge): the profile phrase sharing the most content words with the
+ * gap wins; with no overlap the bridge says "no direct evidence"
+ * instead of borrowing an unrelated skill.
+ */
+function gapEvidence(
+	requirement: string,
+	profile: ReturnType<typeof resolveProfile>,
+): string | null {
+	const candidates = [
+		...profile.primarySkills,
+		...profile.secondarySkills,
+		...profile.strongDomains,
+		...profile.adjacentDomains,
+	];
+	let best: string | null = null;
+	let bestScore = 0;
+	for (const candidate of candidates.map((entry) => (entry ?? "").trim()).filter(Boolean)) {
+		const score = wordOverlap(requirement, candidate);
+		if (score > bestScore) {
+			bestScore = score;
+			best = candidate;
+		}
+	}
+	return best;
+}
+
 /** Content words for Use-for tag overlap (length 3+ to keep tags like "SQL" usable). */
 function tagWords(text: string): Set<string> {
 	return new Set(
@@ -272,12 +300,14 @@ export function planInterviewPrep(input: PrepInput): PrepPlan {
 			if (match.status !== "gap" && match.status !== "bridged") {
 				continue;
 			}
-			const evidence = strongestEvidence(profile);
+			const evidence = gapEvidence(match.requirement, profile);
 			questions.push({
 				question: `How would you handle ${match.requirement} given limited background?`,
 				source: "fit-gap",
-				bridge: `Name the limited ${match.requirement} exposure plainly, then bridge to ${evidence} and how you would close the gap in the first 90 days.`,
-				evidence,
+				bridge: evidence
+					? `Name the limited ${match.requirement} exposure plainly, then bridge to ${evidence} and how you would close the gap in the first 90 days.`
+					: `Name the limited ${match.requirement} exposure plainly; you have no direct evidence, so outline what you would do in the first 90 days without claiming background you lack.`,
+				evidence: evidence ?? "no direct evidence",
 			});
 		}
 		for (const match of coverage) {
@@ -321,7 +351,10 @@ export function planInterviewPrep(input: PrepInput): PrepPlan {
 		if (covered.has(question.question)) {
 			continue;
 		}
-		const evidence = question.evidence ?? strongestEvidence(profile);
+		const evidence =
+			question.evidence && question.evidence !== "no direct evidence"
+				? question.evidence
+				: strongestEvidence(profile);
 		newStarDrafts.push({
 			title: `STAR draft for: ${question.question}`,
 			situation: `Draw from ${evidence} where applied`,

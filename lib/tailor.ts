@@ -98,6 +98,41 @@ function contentWords(text: string): string[] {
 		.filter((word) => word.length >= 4 && !STOPWORDS.has(word));
 }
 
+/**
+ * Shared word-overlap machinery (issue 12 family): counts content words
+ * shared between two texts, with the same singular tolerance as the
+ * audit. Both bridge pickers (letter gap anchors, prep fit-gap
+ * evidence) score candidates through here.
+ */
+export function wordOverlap(a: string, b: string): number {
+	const aWords = new Set(contentWords(a));
+	let score = 0;
+	for (const word of contentWords(b)) {
+		if (
+			aWords.has(word) ||
+			(word.endsWith("s") && aWords.has(word.slice(0, -1))) ||
+			(aWords.has(`${word}s`) && word.length >= 4)
+		) {
+			score += 1;
+		}
+	}
+	return score;
+}
+
+/** Picks the candidate sharing the most content words with the gap; null names no anchor rather than an unrelated one. */
+export function pickBridgeAnchor(gapText: string, candidates: string[]): string | null {
+	let best: string | null = null;
+	let bestScore = 0;
+	for (const candidate of candidates.map((entry) => entry.trim()).filter(Boolean)) {
+		const score = wordOverlap(gapText, candidate);
+		if (score > bestScore) {
+			bestScore = score;
+			best = candidate;
+		}
+	}
+	return best;
+}
+
 /** Splits a requirement line into items: strips labels and list markers, then splits lists. */
 function splitItems(line: string): string[] {
 	const unlabeled = line
@@ -198,19 +233,44 @@ const REFERENCE_PATTERN =
 
 /** Work mode, deadline, and reference id the cover letter must address. */
 export function extractLogistics(postingText: string): Logistics {
-	const workMode = /remote/i.test(postingText)
-		? "Remote"
-		: /hybrid/i.test(postingText)
-			? "Hybrid"
-			: /onsite|on-site|on site/i.test(postingText)
-				? "Onsite"
-				: null;
+	const workMode = extractWorkMode(postingText);
 	const referenceMatch = REFERENCE_PATTERN.exec(postingText);
 	return {
 		workMode,
 		deadline: extractDeadline(postingText),
 		referenceId: referenceMatch ? referenceMatch[1] : null,
 	};
+}
+
+/**
+ * Work-mode with onsite-evidence priority (issue 19). A bare culture
+ * mention ("remote-first culture") is not an arrangement: explicit
+ * onsite commitment ("onsite twice a week") wins over it, hybrid keeps
+ * its own signal, and lone culture praise without an arrangement
+ * reports null instead of a false Remote.
+ */
+export function extractWorkMode(postingText: string): string | null {
+	const onsiteCommitment =
+		/(onsite|on-site|on site|in[ -]office|office-based)[^.]*?(twice|days|a week|per week|required|expected|must)|days in (the )?office/i.test(
+			postingText,
+		);
+	if (onsiteCommitment) {
+		return "Onsite";
+	}
+	if (/hybrid/i.test(postingText)) {
+		return "Hybrid";
+	}
+	const withoutCulture = postingText.replace(
+		/remote-first culture|remote culture|remote[ -]friendly|remote friendly/gi,
+		"",
+	);
+	if (/\bremote\b/i.test(withoutCulture)) {
+		return "Remote";
+	}
+	if (/(onsite|on-site|on site|in[ -]office|office-based)/i.test(postingText)) {
+		return "Onsite";
+	}
+	return null;
 }
 
 export interface ClaimAudit {
@@ -905,8 +965,8 @@ export interface CoverInput {
 	hiringManager?: string;
 	team?: string;
 	postingLanguage?: string;
-	/** Verified company facts (from research); only these may motivate the letter. */
-	companySpecifics?: string[];
+	/** Verified company facts with fetched source URLs; URL-less entries are refused. */
+	companySpecifics?: Array<string | VerifiedSpecific>;
 	/** Caller-provided achievements; rendered as brief past examples. */
 	highlights?: string[];
 	experience?: ExperienceEntry[];
@@ -916,6 +976,52 @@ export interface CoverInput {
 	/** Optional evaluate-job summary; refused on FAIL, warned when missing. */
 	evaluation?: EvaluationSummary;
 	template?: TemplateOverride;
+}
+
+/** A caller-verified company fact with its fetched source URL. */
+export interface VerifiedSpecific {
+	text: string;
+	sourceUrl: string;
+}
+
+function isVerifiedSpecific(entry: unknown): entry is VerifiedSpecific {
+	if (typeof entry !== "object" || entry === null) {
+		return false;
+	}
+	const candidate = entry as { text?: unknown; sourceUrl?: unknown };
+	return (
+		typeof candidate.text === "string" &&
+		candidate.text.trim().length > 0 &&
+		typeof candidate.sourceUrl === "string" &&
+		/^https?:\/\//i.test(candidate.sourceUrl.trim())
+	);
+}
+
+/**
+ * Provenance for companySpecifics (issue 19): research-company claims
+ * already carry { text, sourceUrl } and plug in directly. Plain strings
+ * and URL-less entries are refused (dropped with a count) — "verified
+ * only" by construction, never by documentation alone.
+ */
+export function normalizeCompanySpecifics(
+	entries: Array<string | VerifiedSpecific> | undefined,
+): { kept: VerifiedSpecific[]; dropped: number } {
+	const kept: VerifiedSpecific[] = [];
+	let dropped = 0;
+	for (const entry of (entries ?? []).slice(0, 10)) {
+		if (isVerifiedSpecific(entry)) {
+			kept.push({
+				text: (entry as VerifiedSpecific).text.trim().replace(/[.]+$/, ""),
+				sourceUrl: (entry as VerifiedSpecific).sourceUrl.trim(),
+			});
+			if (kept.length >= 3) {
+				break;
+			}
+		} else {
+			dropped += 1;
+		}
+	}
+	return { kept, dropped };
 }
 
 export interface CoverWarnings {
@@ -930,6 +1036,8 @@ export interface CoverWarnings {
 	evaluationNote?: string;
 	/** Non-English posting notice: audit/stopwords/bridging are English-only. */
 	languageNote?: string;
+	/** URL-less company specifics refused for lack of provenance. */
+	provenanceNote?: string;
 }
 
 export type CoverResult =
@@ -1057,18 +1165,20 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 		? `A recent example: ${examples[0]}.${examples[1] ? ` Another: ${examples[1]}.` : ""}${examples[2] ? ` Another: ${examples[2]}.` : ""}`
 		: null;
 
-	const anchor = profile.secondarySkills[0] ?? profile.adjacentDomains[0] ?? "related work";
+	const anchor =
+		pickBridgeAnchor(
+			gaps.map((gap) => gap.requirement).join(" "),
+			[...profile.secondarySkills, ...profile.adjacentDomains],
+		) ?? "related work";
 	const bridge = gaps.length > 0
 		? `For ${joinAnd(gaps.map((gap) => gap.requirement))}, which ${gaps.length > 1 ? "are" : "is"} new to me, I bring ${anchor} experience and a plan to close the gap in the first month.`
 		: null;
 
-	const specifics = (input.companySpecifics ?? [])
-		.slice(0, 3)
-		.map((specific) => specific.trim().replace(/[.]+$/, ""));
-	const companyPara = specifics.length > 0
+	const specifics = normalizeCompanySpecifics(input.companySpecifics);
+	const companyPara = specifics.kept.length > 0
 		? [
-			`What draws me to ${company} is that ${specifics[0]}.`,
-			...specifics.slice(1).map((specific) => `${specific}.`),
+			`What draws me to ${company} is that "${specifics.kept[0].text}" (${specifics.kept[0].sourceUrl}).`,
+			...specifics.kept.slice(1).map((specific) => `"${specific.text}" (${specific.sourceUrl}).`),
 			goal
 				? `I want to contribute ${goal} work to that effort.`
 				: `I want to contribute to that effort.`,
@@ -1096,9 +1206,10 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 	if (logistics.workMode) {
 		logisticsParts.push(`the ${logistics.workMode} arrangement`);
 	}
-	if (logistics.deadline) {
-		logisticsParts.push(`the ${logistics.deadline} deadline`);
-	}
+	// The deadline never prints in employer-facing text (issue 19): a
+	// wrong date in a status field is an internal bug, but printed to an
+	// employer it is a false statement about their own process. The
+	// employer knows their deadline; the reference ID is what they need.
 	if (logistics.referenceId) {
 		logisticsParts.push(`reference ${logistics.referenceId}`);
 	}
@@ -1107,7 +1218,7 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 	const bodyParts = [
 		opening,
 		intro,
-		...bullets.map((bullet) => bullet.replace(/\\textbf\{([^}]*)\}: /, "$1: ")),
+		...bullets.map((bullet) => bullet.replace(/^\\textbf\{(.*?)\}: /, "$1: ")),
 		...(results ? [results] : []),
 		...(bridge ? [bridge] : []),
 		companyPara,
@@ -1128,7 +1239,8 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 		JSON.stringify(input.highlights ?? []),
 		input.masterCvText ?? "",
 		input.workspaceProfileText ?? "",
-		...(input.companySpecifics ?? []),
+		...specifics.kept.map((specific) => specific.text),
+		...specifics.kept.map((specific) => specific.sourceUrl),
 		input.company ?? "",
 		input.role ?? "",
 		logistics.workMode ?? "",
@@ -1152,10 +1264,15 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 		draftDrift,
 		stretchChoices: gaps.map((gap) => ({
 			bullet: gap.requirement,
-			reason: `${gap.requirement} is a gap; the letter bridges it as new to me with a one-month closing plan. Keep, soften, or drop?`,
+			reason: `${gap.requirement} is a gap; the letter bridges it as new to me with a one-month closing plan. Keep, soften, or drop? Promise note: the one-month plan is a commitment you must willingly make — the stateless tool cannot confirm it, so keep only if you will do it.`,
 			options: ["keep", "soften", "drop"] as ["keep", "soften", "drop"],
 		})),
 	};
+	if (specifics.dropped > 0) {
+		warnings.provenanceNote =
+			`Refused ${specifics.dropped} company-specific entr${specifics.dropped === 1 ? "y" : "ies"} without a fetched source URL; ` +
+			"only { text, sourceUrl } facts motivate the letter — pass research-company claims through directly.";
+	}
 	if (gate.note) {
 		warnings.evaluationNote = gate.note;
 	}
@@ -1187,7 +1304,7 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 
 	const bulletItems = bullets
 		.map((bullet) => {
-			const match = /^\\textbf\{([^}]*)\}: (.*)$/.exec(bullet);
+			const match = /^\\textbf\{(.*?)\}: (.*)$/.exec(bullet);
 			if (!match) {
 				return `    \\item ${braceItem(escapeLatex(bullet))}`;
 			}

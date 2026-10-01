@@ -169,6 +169,7 @@ export function renderCoverMarkdown(output: {
 		contactNote?: string;
 		evaluationNote?: string;
 		languageNote?: string;
+		provenanceNote?: string;
 	};
 	banViolations: string[];
 	signals: DocumentSignals;
@@ -198,6 +199,7 @@ export function renderCoverMarkdown(output: {
 		...(output.warnings.contactNote ? [output.warnings.contactNote] : []),
 		...(output.warnings.evaluationNote ? [output.warnings.evaluationNote] : []),
 		...(output.warnings.languageNote ? [output.warnings.languageNote] : []),
+		...(output.warnings.provenanceNote ? [output.warnings.provenanceNote] : []),
 		...output.banViolations,
 	]) {
 		lines.push(`- Warning: ${warning}`);

@@ -4,7 +4,7 @@
 
 **Blocked by:** 02-tailor-cv-cover-letter.
 
-**Status:** ready-for-agent
+**Status:** done (commit: feat issue-19; focused suites 93/93 green, golden 26 pass)
 
 - [ ] Deadline leaves the letter text: `logisticsLine` prints the extracted deadline (`buildCoverLetter`, `lib/tailor.ts:951-961`) from the shared yearless-risky `extractDeadline` — a wrong date in a status field is an internal bug; printed to an employer it is a false statement about their own process. Drop the deadline from the letter (the employer knows it), keep the reference ID. Same pass: work-mode is first-regex-wins (`extractLogistics`, `lib/tailor.ts:200-214`), so "remote-first culture, onsite twice a week" reports Remote — require an explicit arrangement statement (or order onsite-evidence over culture mentions) with a fixture for the mixed case.
 - [ ] Bridges stop making promises: the gap bridge asserts "new to me" and "a plan to close the gap in the first month" for the user (`lib/tailor.ts:916-919`), anchored to the first secondary skill regardless of overlap (`:916`). Pick the anchor by word-overlap with the gap (fall back to naming no anchor rather than an unrelated one), keep the bridge behind the existing keep/soften/drop `stretchChoices` question, and extend that question's reason with an explicit promise note — the one-month plan is a commitment the user must willingly make, and the stateless tool cannot confirm it, so the warning must carry what the tool cannot check. Same rule for prep-interview fit-gap bridges (`planInterviewPrep` bridges every gap to the first primary skill with a 90-day close plan): pick evidence by overlap with the gap, say "no direct evidence" otherwise — reusing issue 12's overlap machinery, second consumer alongside the letter.

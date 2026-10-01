@@ -32,7 +32,9 @@ const PROJECT = {
 const BASE = {
 	profile: PROFILE,
 	company: "Acme",
-	employerPoints: ["Acme processes payments across Europe."],
+	employerPoints: [
+		{ text: "Acme processes payments across Europe.", sourceUrl: "https://acme.example/about" },
+	],
 	experience: [
 		{
 			title: "Data Analyst",
@@ -58,7 +60,8 @@ describe("planPortalFields", () => {
 		for (const intro of plan.selfIntros) {
 			assert.ok(intro.text.indexOf("Python") < intro.text.indexOf("Docker"), "strongest evidence first");
 			assert.ok(intro.text.includes("Acme"), "employer tie present");
-			assert.ok(intro.text.includes("Acme processes payments across Europe."), "verified employer point used");
+			assert.ok(intro.text.includes("Acme processes payments across Europe"), "verified employer point used");
+			assert.ok(intro.text.includes("https://acme.example/about"), "employer point carries its source URL");
 			assert.equal(intro.wordCount, countWords(intro.text), "word count measured, not guessed");
 		}
 	});
