@@ -517,6 +517,7 @@ export const PortalFieldsOutput = z
 				lengthNote: z.string().nullable(),
 				short: z.string(),
 				shortWordCount: z.number(),
+				shortNote: z.string().nullable().describe("Overshoot warning when the short exceeds the 60-word soft target"),
 				scopeNote: z.string(),
 				inProgressNote: z.string().nullable(),
 			}),

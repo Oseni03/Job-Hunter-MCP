@@ -1,5 +1,6 @@
 import { auditClaim, checkSourceConsistency, englishOnlyNote, normalizeCompanySpecifics } from "@/lib/tailor.ts";
 import type { VerifiedSpecific } from "@/lib/tailor.ts";
+import { toAsciiDateRange } from "@/lib/latex.ts";
 import { resolveProfile, evidencePool } from "@/lib/profile.ts";
 
 export const PORTAL_FIELDS_FILE = "documents/portal-fields.md";
@@ -61,6 +62,8 @@ export interface ProjectEntry {
 	lengthNote: string | null;
 	short: string;
 	shortWordCount: number;
+	/** Overshoot warning when the first sentence alone exceeds the 60-word soft target; null otherwise. */
+	shortNote: string | null;
 	scopeNote: string;
 	inProgressNote: string | null;
 }
@@ -124,18 +127,47 @@ function splitSentences(text: string): string[] {
 		.filter((sentence) => sentence.length > 0);
 }
 
-function buildShort(description: string): string {
+/** Receiving-field budget for project shorts: a soft target — overshoot warns, never truncates mid-claim. */
+const SHORT_BUDGET = 60;
+
+function buildShort(description: string): { short: string; overshootNote: string | null } {
 	const sentences: string[] = [];
 	let total = 0;
 	for (const sentence of splitSentences(description)) {
 		const words = countWords(sentence);
-		if (sentences.length > 0 && total + words > 60) {
+		if (sentences.length > 0 && total + words > SHORT_BUDGET) {
 			break;
 		}
 		sentences.push(sentence);
 		total += words;
 	}
-	return sentences.join(" ");
+	const short = sentences.join(" ");
+	const shortWords = countWords(short);
+	return {
+		short,
+		overshootNote:
+			shortWords > SHORT_BUDGET
+				? `Short runs ${shortWords} words against the 60-word soft target (the first sentence alone overflows); trim further for tight fields rather than pasting over budget.`
+				: null,
+	};
+}
+
+/** Pitches are combinatorial expansion seeds, not finished copy. */
+const PITCH_SEED_NOTE = "Expansion seeds — expand into full sentences before sending; bare stubs read as keyword stuffing.";
+
+/**
+ * Accepted date vocabularies for the dates reference: YYYY, YYYY-YYYY, or
+ * YYYY-present (ASCII-hyphen discipline, same as the CV dates; unicode
+ * dashes normalize first). Anything else is kept verbatim but warned, so a
+ * typo never becomes the "one consistent vocabulary" silently.
+ */
+const DATE_VOCAB = /^\d{4}(?:\s*-\s*(?:\d{4}|present|current|now))?$/i;
+
+function dateVocabNote(raw: string): string | null {
+	const normalized = toAsciiDateRange(raw).trim();
+	return DATE_VOCAB.test(normalized)
+		? null
+		: `Dates '${raw}' don't match YYYY, YYYY-YYYY, or YYYY-present; kept verbatim in the reference — normalize before submitting.`;
 }
 
 /**
@@ -190,6 +222,15 @@ export function planPortalFields(input: FieldsInput): FieldsPlan {
 		(FIELD_ROLE_TYPES as readonly string[]).includes(role),
 	);
 	const effectiveRoles = roleTypes.length > 0 ? roleTypes : [...FIELD_ROLE_TYPES];
+	const droppedRoleTypes = (input.roleTypes ?? []).filter(
+		(role) => !(FIELD_ROLE_TYPES as readonly string[]).includes(role),
+	);
+	if (droppedRoleTypes.length > 0) {
+		warnings.push(
+			`Ignored unknown role type${droppedRoleTypes.length === 1 ? "" : "s"} '${droppedRoleTypes.join("', '")}'; ` +
+				`drafting '${effectiveRoles.join("', '")}' instead.`,
+		);
+	}
 
 	const skillLine = [...profile.primarySkills, ...profile.secondarySkills].slice(0, 2).join(", ");
 	const domain = profile.strongDomains[0] ?? profile.adjacentDomains[0] ?? "";
@@ -243,14 +284,15 @@ export function planPortalFields(input: FieldsInput): FieldsPlan {
 					? `${wordCount} words, above the 100-150 band; trim detail rather than compressing claims.`
 					: null;
 		const short = buildShort(project.description);
-		audit(`project short (${project.name})`, short);
+		audit(`project short (${project.name})`, short.short);
 		projectEntries.push({
 			name: project.name,
 			text,
 			wordCount,
 			lengthNote,
-			short,
-			shortWordCount: countWords(short),
+			short: short.short,
+			shortWordCount: countWords(short.short),
+			shortNote: short.overshootNote,
 			scopeNote: `Ownership scoped to the stated project role (${project.role}); team outcomes are not claimed as solo.`,
 			inProgressNote: project.inProgress ? `In progress — stated as such; dates read "${project.dates}".` : null,
 		});
@@ -300,15 +342,21 @@ export function planPortalFields(input: FieldsInput): FieldsPlan {
 	}
 
 	const datesReference: string[] = [];
-	for (const experience of input.experience ?? []) {
-		if (!datesReference.includes(experience.period)) {
-			datesReference.push(experience.period);
+	const collectDates = (raw: string) => {
+		if (datesReference.includes(raw)) {
+			return;
 		}
+		datesReference.push(raw);
+		const note = dateVocabNote(raw);
+		if (note) {
+			warnings.push(note);
+		}
+	};
+	for (const experience of input.experience ?? []) {
+		collectDates(experience.period);
 	}
 	for (const project of input.projects ?? []) {
-		if (!datesReference.includes(project.dates)) {
-			datesReference.push(project.dates);
-		}
+		collectDates(project.dates);
 	}
 
 	const scopeNotes = [
@@ -323,7 +371,6 @@ export function planPortalFields(input: FieldsInput): FieldsPlan {
 		projectEntries,
 		pitches,
 		datesReference,
-		scopeNotes,
 	});
 
 	return {
@@ -344,12 +391,12 @@ function renderCopyPaste(plan: {
 	projectEntries: ProjectEntry[];
 	pitches: Pitch[];
 	datesReference: string[];
-	scopeNotes: string[];
 }): string {
 	const lines = [
 		"# Portal fields (copy-paste)",
 		"",
 		`- Host: save this file to \`${PORTAL_FIELDS_FILE}\` verbatim.`,
+		`- Internal notes stay in structured output only; everything below here may be pasted.`,
 		"",
 		"## Self-introductions (strongest evidence first)",
 		...(plan.selfIntros.length > 0
@@ -371,10 +418,12 @@ function renderCopyPaste(plan: {
 					`- ${entry.scopeNote}`,
 					...(entry.inProgressNote ? [`- ${entry.inProgressNote}`] : []),
 					...(entry.lengthNote ? [`- _${entry.lengthNote}_`] : []),
+					...(entry.shortNote ? [`- _${entry.shortNote}_`] : []),
 					"",
 				])
 			: ["- None held.", ""]),
 		"## Character pitches",
+		`_${PITCH_SEED_NOTE}_`,
 		...(plan.pitches.length > 0
 			? plan.pitches.map(
 					(pitch) =>
@@ -384,9 +433,6 @@ function renderCopyPaste(plan: {
 		"",
 		"## Dates reference",
 		...(plan.datesReference.length > 0 ? plan.datesReference.map((dates) => `- ${dates}`) : ["- None held."]),
-		"",
-		"## Scope notes (internal — do not paste)",
-		...plan.scopeNotes.map((note) => `- ${note}`),
 	];
 	return lines.join("\n");
 }

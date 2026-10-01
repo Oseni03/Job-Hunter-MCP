@@ -4,7 +4,7 @@
 
 **Blocked by:** 04-prep-strategy-form-fields.
 
-**Status:** ready-for-agent
+**Status:** done (commit: feat issue-22; full suite 450/450 green, golden 26 pass)
 
 - [ ] Paste boundary by construction: the "internal — do not paste" scope notes ship inside `copyPasteText` under a heading convention (`renderCopyPaste`, `lib/fields.ts:373-374`), so one select-all pastes them into an employer's form. Return internal notes in a separate structured field (already present as `scopeNotes` — stop rendering it into the copy text), or a file section the host never renders as copy text. The safe path must be the default, not a heading the user has to notice.
 - [ ] Pitch honesty: combinatorial candidates (`lib/fields.ts:244-259`: `"Python for fintech."`) pass the word-audit but read as keyword stubs, and the list pads toward six. Mark pitches as expansion seeds in the render (one line: expand before sending), or cap the count at what the facts support instead of the template maximum; the under-4 warning already points this way — extend its logic, don't just warn beside stubs.

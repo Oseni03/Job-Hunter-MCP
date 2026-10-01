@@ -10,7 +10,7 @@ export function registerPortalFields(server: McpServer): void {
 		{
 			title: "Portal fields",
 			description:
-				"Drafts portal form fields from caller-held facts only: per-role-type self-introductions with strongest evidence first and a stated word count plus trim note, project entries in the 100-150 band with a 60-word short and scoped ownership, and 4-6 counted character pitches with a recommended mapping. Returns one copy-paste file with counts, short variants, internal scope notes, and a dates reference; the host owns the save. Every claim traces to the profile union, shortfalls and in-progress work are stated, never padded.",
+				"Drafts portal form fields from caller-held facts only: per-role-type self-introductions with strongest evidence first and a stated word count plus trim note, project entries in the 100-150 band with a 60-word short (soft target — overshoot warns, never truncates) and scoped ownership, and 4-6 counted character pitches marked as expansion seeds with a recommended mapping. Returns one copy-paste file with counts, short variants, and a validated dates reference — internal scope notes stay in structured output, never in the copy text. The copy-paste file is an ephemeral scratch (overwritten per use; never a record — never cite it as application history); the host owns the save. Every claim traces to the profile union, shortfalls and in-progress work are stated, never padded.",
 			inputSchema: PortalFieldsInput,
 			outputSchema: PortalFieldsOutput,
 			annotations: {
