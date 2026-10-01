@@ -4,7 +4,7 @@
 
 **Blocked by:** 01-foundation-evaluate-job.
 
-**Status:** ready-for-agent
+**Status:** done (commit 850719a + b2b49e2 fix; tsc clean, 277/277 node:test green, eslint clean, golden 26 pass)
 
 - [ ] Checks the per-company cache file within its time-to-live first and uses it as the starting point, otherwise researches website, reviews, team signals, and media from the company name and official site only
 - [ ] Verifies every returned claim against a fetched page from the company's own domain or consistent independent reporting, treating snippets as leads only and dropping what cannot be fetched after the full escalation

@@ -4,7 +4,7 @@
 
 **Blocked by:** 01-foundation-evaluate-job.
 
-**Status:** ready-for-agent
+**Status:** done (commit cd4749c + b2b49e2 fix; tsc clean, 277/277 node:test green, eslint clean, golden 26 pass)
 
 - [ ] Accepts focus text, limit bounding expensive work, top bounding shortlist size, and all-flag for re-rank, reporting eligible, deferred, and tracker-excluded counts before scoring
 - [ ] Scores from fetched posting text only against the five-dimension weights and verdict bands, with no company research, salary lookup, or reviewer, and never scores from title alone or fabricates content

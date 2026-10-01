@@ -4,7 +4,7 @@
 
 **Blocked by:** 02-tailor-cv-cover-letter.
 
-**Status:** ready-for-agent
+**Status:** done (commit a968b88; tsc clean, 277/277 node:test green, eslint clean, golden 26 pass)
 
 - [ ] Creates the tracker with the standard header ending in deadline when missing, and appends the deadline column to a legacy header without touching data rows
 - [ ] Matches existing rows case-insensitively on company and role, appending on no match or when every match is final, otherwise updating the open row without moving status backwards and refreshing only files, score, source, and deadline

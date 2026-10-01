@@ -4,7 +4,7 @@
 
 **Blocked by:** 01-foundation-evaluate-job.
 
-**Status:** ready-for-agent
+**Status:** done (commit 1ea8d31; tsc clean, 277/277 node:test green, eslint clean, golden 26 pass)
 
 - [ ] Interview prep loads the exact archived posting plus submitted documents plus stage history (with explicit fallback and no sibling-role globbing), asks only for missing stage logistics, and builds likely questions from recorded feedback first, then fit gaps with honest bridge answers, then posting requirements, then stage type
 - [ ] Prep maps existing STAR examples by Use-for tags, drafts new STAR only from profile facts, lists probeable claims for consistency, customizes tough questions with verified company hooks, picks stage-appropriate questions to ask, and saves a per-stage pack while offering a mock run coached toward the candidate's natural register

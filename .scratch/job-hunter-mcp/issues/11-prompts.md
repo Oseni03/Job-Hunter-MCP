@@ -4,7 +4,7 @@
 
 **Blocked by:** 01-foundation-evaluate-job.
 
-**Status:** ready-for-agent
+**Status:** done (commit 1b3e618 + b2b49e2 fix; tsc clean, 277/277 node:test green, eslint clean, golden 26 pass)
 
 - [ ] Provides apply prompt (fetch with escalation and host verification, gate then score, ask-to-proceed, draft with requirement coverage and grounding audit, reviewer critique in two parts, revise, mandatory compile and inspect, text-layer and keyword verification, single verification pass plus record plus optional form fields)
 - [ ] Provides rank prompt (parse focus and limits, load state via query tool, batch fetch-or-expired with escalation, aggregate with weights vetoes urgency sweep and staleness, update state through tool, present shortlist and route picks to full evaluation)

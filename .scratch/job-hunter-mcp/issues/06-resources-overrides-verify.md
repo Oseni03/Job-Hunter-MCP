@@ -4,7 +4,7 @@
 
 **Blocked by:** 01-foundation-evaluate-job.
 
-**Status:** ready-for-agent
+**Status:** done (commit f8fe94b; tsc clean, 277/277 node:test green, eslint clean, golden 26 pass)
 
 - [ ] Candidate profile, behavioral profile, writing rules, evaluation framework, and CV and letter templates are exposed as versioned resources and prompts with private server defaults and per-call override winning everywhere
 - [ ] Base CV variants are listable and fetchable, with direct passthrough of caller-supplied base content as fallback so tailoring never depends on server disk

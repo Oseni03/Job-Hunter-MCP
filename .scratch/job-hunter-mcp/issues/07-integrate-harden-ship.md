@@ -4,7 +4,7 @@
 
 **Blocked by:** 02-tailor-cv-cover-letter, 03-record-application, 04-prep-strategy-form-fields, 05-search-jobs, 06-resources-overrides-verify, 08-rank-jobs, 09-research-company, 10-resources, 11-prompts.
 
-**Status:** ready-for-agent
+**Status:** done (commit a3726b1; tsc clean, 277/277 node:test green, eslint clean, golden 26 pass)
 
 - [ ] Type check, lint, and client run green across all ten tools plus resources and prompts on fixture postings, including the cover example compiling to exactly one page
 - [ ] Golden checks prove tailored TeX contains posting keywords, honors writing bans, matches the tracker header exactly, respects recency and result caps, keeps canonical keys stable, and preserves ASCII dates and translated headings

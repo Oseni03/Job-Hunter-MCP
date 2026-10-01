@@ -4,7 +4,7 @@
 
 **Blocked by:** 01-foundation-evaluate-job.
 
-**Status:** ready-for-agent
+**Status:** done (commit a9c6661; tsc clean, 277/277 node:test green, eslint clean, golden 26 pass)
 
 - [ ] Accepts explicit filters (keywords, location, remote mode, job type, limit capped at 20) with profile-derived auto-query and per-language function-based categories when args are absent, scoped to the last 14 days with unknown dates flagged rather than dropped
 - [ ] Live path preserves the portal contract (required explicit location, keyword query, recency and workplace filters, paged results, JSON output, full detail fetch, structured stderr errors, low-volume backoff behavior)
