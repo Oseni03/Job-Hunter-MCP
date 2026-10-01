@@ -1,4 +1,5 @@
-import { checkSourceConsistency, matchRequirements, archiveDirFor } from "@/lib/tailor.ts";
+import { checkSourceConsistency, matchRequirements, archiveDirFor, checkGateSummary } from "@/lib/tailor.ts";
+import type { EvaluationSummary } from "@/lib/tailor.ts";
 import { sanitizeQuote, QUOTE_MAX_LENGTH } from "@/lib/evaluate.ts";
 import { makeJobSlug } from "@/lib/job-key.ts";
 import { resolveProfile, evidencePool } from "@/lib/profile.ts";
@@ -51,6 +52,8 @@ export interface PrepInput {
 	profile?: unknown;
 	masterCvText?: string;
 	workspaceProfileText?: string;
+	/** Optional evaluate-job summary; refused on FAIL, warned when missing. */
+	evaluation?: EvaluationSummary;
 }
 
 export type QuestionSource = "recorded-feedback" | "fit-gap" | "posting-requirement" | "stage-type";
@@ -208,6 +211,42 @@ function coversQuestion(example: StarExample, question: string): boolean {
  */
 export function planInterviewPrep(input: PrepInput): PrepPlan {
 	const fallbackNotes: string[] = [];
+	const gate = checkGateSummary(input.evaluation);
+	if (gate.refused) {
+		const stage = normalizeStage(input.stage, fallbackNotes);
+		const slug = makeJobSlug(input.company, input.role);
+		const packFile = `${archiveDirFor(slug)}/${stage}-prep.md`;
+		const refusal = gate.refused;
+		fallbackNotes.push(refusal);
+		const packMarkdown = [
+			`## Interview prep: ${input.role} at ${input.company} (${stage})`,
+			"",
+			`- Refused: ${refusal}`,
+			"",
+			"Pass the evaluate-job verdict plus gate results as `evaluation`; prepping for a gate-failed posting is pure waste.",
+		].join("\n");
+		return {
+			company: input.company,
+			role: input.role,
+			stage,
+			slug,
+			packFile,
+			packMarkdown,
+			missingLogistics: ["dateTime", "format", "interviewers", "location"],
+			fallbackNotes,
+			questions: [],
+			starMapping: [],
+			uncoveredQuestions: [],
+			newStarDrafts: [],
+			probeableClaims: [],
+			toughQuestions: [],
+			questionsToAsk: [],
+			warnings: [refusal],
+		};
+	}
+	if (gate.note) {
+		fallbackNotes.push(gate.note);
+	}
 	const stage = normalizeStage(input.stage, fallbackNotes);
 	const profile = resolveProfile(input.profile);
 	const slug = makeJobSlug(input.company, input.role);

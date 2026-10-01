@@ -4,7 +4,7 @@
 
 **Blocked by:** 02-tailor-cv-cover-letter.
 
-**Status:** ready-for-agent
+**Status:** done (commit: feat issue-18; full suite green including the former tailor-cover drift, fixed via lexicon "here")
 
 - [ ] Recombination-proof the audit: `auditClaim` passes any claim whose content words each appear somewhere in the union, so scattered words reassemble into ungrounded claims ("Led Kubernetes migration" from three separate sources), and short numbers/years skip the audit entirely (the 4+ character rule). Add a numbers-and-dates check (every numeral in generated prose must appear in the union), and scope gap/requirement names to explicitly bridging slots: a gap name may appear only inside an "adjacent to X / new to me" template, and the audit verifies those words against the bridging slot rather than the whole union. (Nuance for the agent: the CV union carries no requirement names — CV labels are profile-sourced by construction — so the recombination risk concentrates in generated combinations and unaudited numerals; the cover union does carry requirement names, where the slot rule bites hardest.)
 - [ ] Gate input on the drafting tools: both builders take only `postingText`, so they draft for postings `evaluate-job` failed. Accept an optional `evaluation` summary (verdict plus gate results, same stateless-contract shape as issue 14: the host passes it, the server holds nothing), refuse on FAIL, and warn loudly when it is missing — drafting blind must be a visible choice, never the default. Third consumer: `planInterviewPrep` (`PrepInput` carries no evaluation) — prepping for a gate-failed posting is pure waste; same optional-summary, refuse-or-warn shape.

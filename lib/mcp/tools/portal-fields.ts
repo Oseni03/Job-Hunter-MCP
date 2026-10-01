@@ -34,6 +34,7 @@ export function registerPortalFields(server: McpServer): void {
 				workspaceProfileText: input.workspaceProfileText,
 				cvText: input.cvText,
 				coverText: input.coverText,
+				postingLanguage: input.postingLanguage,
 			});
 			return {
 				content: [{ type: "text" as const, text: renderFieldsMarkdown(result) }],

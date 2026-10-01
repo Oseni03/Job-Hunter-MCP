@@ -35,6 +35,7 @@ export function registerPrepInterview(server: McpServer): void {
 				profile: input.profile,
 				masterCvText: input.masterCvText,
 				workspaceProfileText: input.workspaceProfileText,
+				evaluation: input.evaluation,
 			});
 			return {
 				content: [{ type: "text" as const, text: renderPrepMarkdown(result) }],

@@ -97,6 +97,7 @@ export function renderTailoredCvMarkdown(output: {
 	pageLimit: number;
 	archiveDir: string;
 	coverage: RequirementMatch[];
+	droppedBullets?: { role: string; bullet: string }[];
 	warnings: {
 		profileConsistency: string[];
 		draftDrift: string[];
@@ -105,6 +106,8 @@ export function renderTailoredCvMarkdown(output: {
 		templateNote?: string;
 		contactNote?: string;
 		roleTypeNote?: string;
+		evaluationNote?: string;
+		languageNote?: string;
 	};
 	banViolations: string[];
 	signals: DocumentSignals;
@@ -118,6 +121,11 @@ export function renderTailoredCvMarkdown(output: {
 		"",
 		"### Requirement coverage",
 		...coverageLines(output.coverage),
+		"",
+		"### Dropped bullets (cut by the relevance caps)",
+		...(output.droppedBullets && output.droppedBullets.length > 0
+			? output.droppedBullets.map((dropped) => `- ${dropped.role}: ${dropped.bullet}`)
+			: ["- none"]),
 		"",
 		"### Stretch choices (keep, soften, or drop?)",
 		...(output.warnings.stretchChoices.length > 0
@@ -133,6 +141,8 @@ export function renderTailoredCvMarkdown(output: {
 		...(output.warnings.templateNote ? [output.warnings.templateNote] : []),
 		...(output.warnings.contactNote ? [output.warnings.contactNote] : []),
 		...(output.warnings.roleTypeNote ? [output.warnings.roleTypeNote] : []),
+		...(output.warnings.evaluationNote ? [output.warnings.evaluationNote] : []),
+		...(output.warnings.languageNote ? [output.warnings.languageNote] : []),
 		...output.banViolations,
 	]) {
 		lines.push(`- Warning: ${warning}`);
@@ -157,6 +167,8 @@ export function renderCoverMarkdown(output: {
 		wordCountNote?: string;
 		templateNote?: string;
 		contactNote?: string;
+		evaluationNote?: string;
+		languageNote?: string;
 	};
 	banViolations: string[];
 	signals: DocumentSignals;
@@ -184,6 +196,8 @@ export function renderCoverMarkdown(output: {
 		...(output.warnings.wordCountNote ? [output.warnings.wordCountNote] : []),
 		...(output.warnings.templateNote ? [output.warnings.templateNote] : []),
 		...(output.warnings.contactNote ? [output.warnings.contactNote] : []),
+		...(output.warnings.evaluationNote ? [output.warnings.evaluationNote] : []),
+		...(output.warnings.languageNote ? [output.warnings.languageNote] : []),
 		...output.banViolations,
 	]) {
 		lines.push(`- Warning: ${warning}`);

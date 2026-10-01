@@ -1,4 +1,4 @@
-import { auditClaim, checkSourceConsistency } from "@/lib/tailor.ts";
+import { auditClaim, checkSourceConsistency, englishOnlyNote } from "@/lib/tailor.ts";
 import { resolveProfile, evidencePool } from "@/lib/profile.ts";
 
 export const PORTAL_FIELDS_FILE = "documents/portal-fields.md";
@@ -41,6 +41,8 @@ export interface FieldsInput {
 	cvText?: string;
 	/** Submitted cover letter text; joins the audit union and consistency check. */
 	coverText?: string;
+	/** Forms/posting language; the audit and stopwords are English-only. */
+	postingLanguage?: string;
 }
 
 export interface SelfIntro {
@@ -144,6 +146,9 @@ export function planPortalFields(input: FieldsInput): FieldsPlan {
 	const pool = evidencePool(profile);
 	const union = unionSources(input);
 	const warnings = checkSourceConsistency(profile, input.masterCvText, input.workspaceProfileText);
+	if ((input.postingLanguage ?? "en").toLowerCase() !== "en") {
+		warnings.push(englishOnlyNote(input.postingLanguage ?? "en"));
+	}
 	if (!profile.name.includes("YOUR")) {
 		const submitted: Array<[string, string | undefined]> = [
 			["submitted CV", input.cvText],

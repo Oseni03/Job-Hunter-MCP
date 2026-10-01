@@ -218,18 +218,70 @@ export interface ClaimAudit {
 	missing: string[];
 }
 
+/** Every numeral (years, counts, percentages, dates) in generated prose. Trailing punctuation stays out. */
+export function extractNumerals(text: string): string[] {
+	return text.match(/\d[\d,]*(?:[.\/-]\d+)*/g) ?? [];
+}
+
 /**
  * Audits one draft claim against the union of fact sources (candidate
  * profile, master CV, workspace profile). Grounded when every content
- * word appears in the union; otherwise reports the missing words so
- * the drafter can rephrase or drop the claim. Zero drift allowed.
+ * word appears in the union AND every numeral appears in the union;
+ * otherwise reports the missing words so the drafter can rephrase or
+ * drop the claim. Zero drift allowed. Short numbers skip the word audit
+ * by length, so the numeral check closes that hole explicitly.
  */
 export function auditClaim(claim: string, sources: string[]): ClaimAudit {
 	const tokens = new Set(sources.join("\n").toLowerCase().split(/[^a-z0-9+#]+/).filter(Boolean));
 	const missing = contentWords(claim).filter(
 		(word) => !tokens.has(word) && !(word.endsWith("s") && tokens.has(word.slice(0, -1))),
 	);
+	const unionText = sources.join("\n").toLowerCase();
+	for (const numeral of extractNumerals(claim)) {
+		if (!unionText.includes(numeral.toLowerCase()) && !missing.includes(numeral)) {
+			missing.push(numeral);
+		}
+	}
 	return { grounded: missing.length === 0, missing };
+}
+
+/**
+ * Optional gate summary passed by the host (stateless: the server holds
+ * nothing; the host passes evaluate-job output back in). Refuses on FAIL,
+ * warns loudly when absent so drafting blind is a visible choice.
+ */
+export interface EvaluationSummary {
+	verdict?: string | null;
+	eligibility?: { verdict: string };
+	languageGate?: { verdict: string };
+}
+
+export const GATE_REFUSED_PREFIX = "GATE_REFUSED";
+export const GATE_MISSING_NOTE =
+	"No evaluation summary supplied; drafting blind without the eligibility/language gates is a visible choice — run evaluate-job first and pass its verdict plus gate results.";
+
+export function checkGateSummary(evaluation?: EvaluationSummary): { refused?: string; note?: string } {
+	if (!evaluation) {
+		return { note: GATE_MISSING_NOTE };
+	}
+	const failed =
+		evaluation.eligibility?.verdict === "FAIL" || evaluation.languageGate?.verdict === "FAIL";
+	if (failed) {
+		const which =
+			evaluation.eligibility?.verdict === "FAIL" ? "eligibility" : "language";
+		return {
+			refused: `${GATE_REFUSED_PREFIX}: the ${which} gate failed — drafting refused. Confirm the posting passes evaluate-job before drafting.`,
+		};
+	}
+	return {};
+}
+
+/** English-only machinery notice for non-English postings. */
+export function englishOnlyNote(postingLanguage: string): string {
+	return (
+		`Posting language '${postingLanguage}': the audit, stopwords, and bridging templates are English-only — ` +
+		"review non-English text manually instead of trusting English machinery on it."
+	);
 }
 
 /**
@@ -317,6 +369,15 @@ export interface DraftWarnings {
 	contactNote?: string;
 	/** Role-sniffing caution: technical keywords only in negated context, order defaulted. */
 	roleTypeNote?: string;
+	/** Loud warning when no evaluation summary was supplied (drafting blind). */
+	evaluationNote?: string;
+	/** Posting-language vs CV-language mismatch and English-only limits. */
+	languageNote?: string;
+}
+
+export interface DroppedBullet {
+	role: string;
+	bullet: string;
 }
 
 export interface TailorCvInput {
@@ -331,6 +392,10 @@ export interface TailorCvInput {
 	workspaceProfileText?: string;
 	contact?: ContactDetails;
 	cvLanguage?: string;
+	/** Posting language for the language-fit warning (body stays profile-language). */
+	postingLanguage?: string;
+	/** Optional evaluate-job summary; refused on FAIL, warned when missing. */
+	evaluation?: EvaluationSummary;
 	roleType?: RoleType;
 	template?: TemplateOverride;
 }
@@ -345,6 +410,8 @@ export type TailorCvResult =
 			pageLimit: number;
 			archiveDir: string;
 			coverage: RequirementMatch[];
+			/** Bullets cut by the relevance caps, with their role, so the host can show what was left out. */
+			droppedBullets: DroppedBullet[];
 			warnings: DraftWarnings;
 			banViolations: string[];
 	  }
@@ -362,7 +429,7 @@ export type TailorCvResult =
  * caller-verified company specifics. Credential nouns (skills, results,
  * titles) must still come from profile-side sources.
  */
-const BUILDER_LEXICON = [
+export const BUILDER_LEXICON = [
 	"moving",
 	"brings",
 	"bring",
@@ -423,6 +490,7 @@ const BUILDER_LEXICON = [
 	"forward",
 	"hearing",
 	"which",
+	"here",
 	"company",
 	"related",
 	"continues",
@@ -462,10 +530,13 @@ export function templateWarning(template: TemplateOverride | undefined): string 
 		template.engine ? `engine ${template.engine}` : null,
 		template.styleRules ? `style rules: ${template.styleRules}` : null,
 	].filter(Boolean);
+	const shellNote = template.compileCommand
+		? " Custom compile commands are caller-owned: verify they pass --no-shell-escape before compiling untrusted content."
+		: "";
 	return (
 		`Active template '${template.name ?? "custom"}' overrides stock guidance` +
 		`${extras.length > 0 ? ` (${extras.join("; ")})` : ""}: ` +
-		`port this content into its skeleton and compile with the template command before submitting.`
+		`port this content into its skeleton and compile with the template command before submitting.${shellNote}`
 	);
 }
 
@@ -535,14 +606,21 @@ function postingSurfaceForm(phrase: string, postingText: string): string {
 
 const ROLE_BULLET_CAPS = [5, 3, 2];
 
-/** Relevance-orders bullets (posting-term hits, then measurable outcomes), stable, then caps. */
-function tailorBullets(bullets: string[], phrases: string[], cap: number): string[] {
+/** Relevance-orders bullets (posting-term hits, then measurable outcomes), stable, then caps. Dropped bullets are returned so the host can show the cuts. */
+function tailorBullets(
+	bullets: string[],
+	phrases: string[],
+	cap: number,
+): { kept: string[]; dropped: string[] } {
 	const scored = bullets.map((bullet, index) => {
 		const hits = phrases.filter((phrase) => phraseMatches(bullet, phrase)).length;
 		return { bullet, index, score: 2 * hits + (/\d/.test(bullet) ? 1 : 0) };
 	});
 	scored.sort((a, b) => b.score - a.score || a.index - b.index);
-	return scored.slice(0, cap).map((entry) => entry.bullet);
+	return {
+		kept: scored.slice(0, cap).map((entry) => entry.bullet),
+		dropped: scored.slice(cap).map((entry) => entry.bullet),
+	};
 }
 
 interface Competency {
@@ -562,6 +640,10 @@ export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 	const slug = makeJobSlug(input.company, input.role, input.postingUrl);
 	if (!slug) {
 		return { ok: false, error: EMPTY_SLUG_ERROR };
+	}
+	const gate = checkGateSummary(input.evaluation);
+	if (gate.refused) {
+		return { ok: false, error: gate.refused };
 	}
 	const profile = input.profile;
 	const coverage = matchRequirements(input.postingText, profile);
@@ -626,14 +708,19 @@ export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 				: `${profile.name} brings ${skillList}.`;
 
 	const phrases = profilePhrases(profile);
-	const tailoredExperience = (input.experience ?? []).map((entry, roleIndex) => ({
-		...entry,
-		bullets: tailorBullets(
+	const droppedBullets: DroppedBullet[] = [];
+	const tailoredExperience = (input.experience ?? []).map((entry, roleIndex) => {
+		const shaped = tailorBullets(
 			entry.bullets,
 			phrases,
 			ROLE_BULLET_CAPS[Math.min(roleIndex, ROLE_BULLET_CAPS.length - 1)],
-		),
-	}));
+		);
+		const roleLabel = `${entry.title} at ${entry.company}`;
+		for (const bullet of shaped.dropped) {
+			droppedBullets.push({ role: roleLabel, bullet });
+		}
+		return { ...entry, bullets: shaped.kept };
+	});
 
 	const union = [
 		JSON.stringify(profile),
@@ -668,6 +755,9 @@ export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 		draftDrift,
 		stretchChoices,
 	};
+	if (gate.note) {
+		warnings.evaluationNote = gate.note;
+	}
 	if (matchedCount === 0 && bridgedCount === 0 && coverage.length > 0) {
 		warnings.reframingWarning =
 			"Posting matches no primary skill or strong domain; extensive reframing would be needed. Confirm before submitting.";
@@ -679,6 +769,14 @@ export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 
 	const language = input.cvLanguage ?? "en";
 	const headings = sectionHeadings(language);
+	if (input.postingLanguage && input.postingLanguage.toLowerCase() !== language.toLowerCase()) {
+		warnings.languageNote =
+			`Posting language '${input.postingLanguage}' differs from CV language '${language}'; ` +
+			"the body stays profile-language under translated headings — confirm this mismatch before submitting. " +
+			englishOnlyNote(input.postingLanguage);
+	} else if (input.postingLanguage && input.postingLanguage.toLowerCase() !== "en") {
+		warnings.languageNote = englishOnlyNote(input.postingLanguage);
+	}
 	const roleType = detectRoleType(input.postingText, input.roleType);
 	const roleTypeNote = roleTypeCaution(input.postingText, input.roleType);
 	if (roleTypeNote) {
@@ -771,7 +869,7 @@ export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 		"cv",
 		"main",
 		input.template,
-		`cd cv && lualatex -interaction=nonstopmode main_${slug}.tex`,
+		`cd cv && lualatex --no-shell-escape -interaction=nonstopmode main_${slug}.tex`,
 		2,
 	);
 	const templateNote = templateWarning(input.template);
@@ -788,6 +886,7 @@ export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 		pageLimit: files.pageLimit,
 		archiveDir: archiveDirFor(slug),
 		coverage,
+		droppedBullets,
 		warnings,
 		banViolations,
 	};
@@ -814,6 +913,8 @@ export interface CoverInput {
 	masterCvText?: string;
 	workspaceProfileText?: string;
 	contact?: ContactDetails;
+	/** Optional evaluate-job summary; refused on FAIL, warned when missing. */
+	evaluation?: EvaluationSummary;
 	template?: TemplateOverride;
 }
 
@@ -825,6 +926,10 @@ export interface CoverWarnings {
 	wordCountNote?: string;
 	templateNote?: string;
 	contactNote?: string;
+	/** Loud warning when no evaluation summary was supplied (drafting blind). */
+	evaluationNote?: string;
+	/** Non-English posting notice: audit/stopwords/bridging are English-only. */
+	languageNote?: string;
 }
 
 export type CoverResult =
@@ -877,6 +982,10 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 	const slug = makeJobSlug(input.company, input.role, input.postingUrl);
 	if (!slug) {
 		return { ok: false, error: EMPTY_SLUG_ERROR };
+	}
+	const gate = checkGateSummary(input.evaluation);
+	if (gate.refused) {
+		return { ok: false, error: gate.refused };
 	}
 	const profile = input.profile;
 	const company = input.company ?? "your company";
@@ -1008,6 +1117,11 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 	];
 	const wordCount = countWords(bodyParts);
 
+	// Bridging-slot rule: gap names live only inside the "new to me"
+	// bridge sentence. The general union carries matched/bridged names
+	// only; the bridge slot alone additionally carries gap names, so a
+	// gap named anywhere else fails the audit instead of recombining.
+	const gapNames = gaps.map((gap) => gap.requirement);
 	const union = [
 		JSON.stringify(profile),
 		JSON.stringify(input.experience ?? []),
@@ -1020,12 +1134,14 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 		logistics.workMode ?? "",
 		logistics.deadline ?? "",
 		logistics.referenceId ?? "",
-		...coverage.map((item) => item.requirement),
+		...coverage.filter((item) => item.status !== "gap").map((item) => item.requirement),
 		BUILDER_LEXICON.join(" "),
 	];
+	const bridgeUnion = [...union, ...gapNames];
 	const draftDrift: string[] = [];
 	for (const prose of bodyParts) {
-		const audit = auditClaim(prose, union);
+		const slotUnion = bridge && prose === bridge ? bridgeUnion : union;
+		const audit = auditClaim(prose, slotUnion);
 		if (!audit.grounded) {
 			draftDrift.push(`${prose} (missing: ${audit.missing.join(", ")})`);
 		}
@@ -1040,6 +1156,12 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 			options: ["keep", "soften", "drop"] as ["keep", "soften", "drop"],
 		})),
 	};
+	if (gate.note) {
+		warnings.evaluationNote = gate.note;
+	}
+	if ((input.postingLanguage ?? "en").toLowerCase() !== "en") {
+		warnings.languageNote = englishOnlyNote(input.postingLanguage ?? "en");
+	}
 	if (wordCount < 250) {
 		warnings.wordCountNote =
 			`Letter is below the 250-300 word band (${wordCount} words); add verified company specifics or highlights before submitting.`;
@@ -1125,7 +1247,7 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 		"cover_letters",
 		"cover",
 		input.template,
-		`cd cover_letters && xelatex -interaction=nonstopmode cover_${slug}.tex`,
+		`cd cover_letters && xelatex --no-shell-escape -interaction=nonstopmode cover_${slug}.tex`,
 		1,
 	);
 	const templateNote = templateWarning(input.template);
