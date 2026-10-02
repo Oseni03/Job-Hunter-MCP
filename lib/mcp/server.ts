@@ -112,6 +112,12 @@ export function mcpPublicResource(): string | undefined {
 	return raw || undefined;
 }
 
+/**
+ * Legacy path only: whether the static/external-issuer branch enforces auth.
+ * Better Auth mode (Postgres DATABASE_URL) always requires auth regardless
+ * of this helper — but that branch never reaches `legacyProtected`, so this
+ * stays scoped to the legacy fallback by design.
+ */
 export function isMcpAuthRequired(): boolean {
 	return Boolean(process.env.MCP_AUTH_TOKEN || process.env.OAUTH_ISSUER);
 }

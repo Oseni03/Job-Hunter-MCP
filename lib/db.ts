@@ -1,10 +1,10 @@
 /**
  * Prisma 7 integration (mirror-first).
  *
- * The schema in prisma/schema.prisma is the contract. Full persistence
- * activates once `prisma generate` has run (postinstall) and `DATABASE_URL`
- * is set (`file:./prisma/job-hunter.db` locally for SQLite, Postgres URL on
- * deploy). Until then every helper below degrades gracefully: pure functions
+ * The schema in prisma/schema.prisma is the contract (Postgres-only since
+ * the Better Auth merge: String[] scalar lists). Full persistence
+ * activates once `prisma generate` has run (postinstall) and a Postgres
+ * `DATABASE_URL` is set (local instance or hosted). Until then every helper below degrades gracefully: pure functions
  * keep working, client creation reports null, and no tool ever fails for
  * lack of a database.
  *
@@ -12,9 +12,9 @@
  * - The generator uses `provider = "prisma-client"` with a required
  *   `output` (here `../generated/prisma`, i.e. `<root>/generated/prisma`).
  * - The connection string lives in prisma.config.ts, not schema.prisma.
- * - Every database needs a driver adapter: better-sqlite3 locally,
- *   pg (Postgres) on deploy. The adapter is picked from the DATABASE_URL
- *   scheme, so one schema and one code path cover both.
+ * - Every database needs a driver adapter: pg (Postgres). The adapter is
+ *   picked from the DATABASE_URL scheme; `databaseKind()` still recognizes
+ *   `file:` URLs so legacy/unset configs degrade to null instead of throwing.
  */
 
 import { createHash } from "node:crypto";

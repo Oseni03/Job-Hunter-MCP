@@ -414,7 +414,8 @@ describe("oauth discovery metadata", () => {
 		try {
 			process.env["OAUTH_ISSUER"] = "https://login.example.com";
 			process.env["MCP_PUBLIC_URL"] = "https://mcp.test/mcp";
-			const response = metadataGet(new Request("https://mcp.test/.well-known/oauth-protected-resource"));
+			delete process.env["DATABASE_URL"];
+			const response = await metadataGet(new Request("https://mcp.test/.well-known/oauth-protected-resource"));
 			assert.equal(response.status, 200);
 			const body = (await response.json()) as {
 				resource: string;
@@ -435,7 +436,8 @@ describe("oauth discovery metadata", () => {
 		const saved = { ...process.env };
 		try {
 			delete process.env["OAUTH_ISSUER"];
-			const response = metadataGet(new Request("https://mcp.test/.well-known/oauth-protected-resource"));
+			delete process.env["DATABASE_URL"];
+			const response = await metadataGet(new Request("https://mcp.test/.well-known/oauth-protected-resource"));
 			assert.equal(response.status, 404);
 		} finally {
 			process.env = saved;
