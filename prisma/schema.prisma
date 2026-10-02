@@ -1,0 +1,119 @@
+// Prisma schema: SQLite locally now, Postgres on deploy.
+// Local:  DATABASE_URL="file:./prisma/job-hunter.db" (default; gitignored)
+// Deploy: set DATABASE_URL to Postgres and change the datasource provider to
+// "postgresql". One schema, two providers; no code changes beyond `prisma db push`.
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Authenticated caller. Stable id = issuer + sub (OAuth) or the static
+// token label (MCP_AUTH_TOKEN) or "local-user". Auto-provisioned on first
+// authenticated call; email/displayName optional (OAuth may not grant them).
+model User {
+  id          String   @id
+  issuer      String
+  sub         String
+  displayName String?
+  email       String?
+  createdAt   DateTime @default(now())
+
+  profile        Profile?
+  applications   Application[]
+  resumeVersions ResumeVersion[]
+  eventLogs      EventLog[]
+
+  @@unique([issuer, sub])
+}
+
+// Per-user profile upserted by setup-profile from the uploaded resume.
+// Mirrors ProfileSchema (lib/profile.ts) field for field; arrays are Json so
+// the one schema runs on both SQLite and Postgres (scalar lists are
+// Postgres-only). userId/resumeHash/updatedAt are storage columns, the rest
+// is the profile itself.
+model Profile {
+  userId          String   @id
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  location        String
+  constraints     String
+  workCountry     String
+  citizenships    Json
+  permitClasses   Json
+  languages       Json
+  primarySkills   Json
+  secondarySkills Json
+  weakSkills      Json
+  strongDomains   Json
+  adjacentDomains Json
+  careerGoals     Json
+  energizingTasks Json
+  drainingTasks   Json
+  resumeHash      String?
+  updatedAt       DateTime @updatedAt
+}
+
+// Shared cache: the same JD serves every user. Never per-user.
+model JobPosting {
+  key       String   @id
+  title     String
+  company   String
+  url       String
+  rawText   String?
+  fetchedAt DateTime @default(now())
+}
+
+// Shared cache: 30-day TTL, same payload for every user.
+model CompanyResearch {
+  slug     String   @id
+  payload  String
+  cachedAt DateTime @default(now())
+}
+
+// One user's lifecycle for one posting. Tracker CSV is the portable export
+// of these rows, not a second truth.
+model Application {
+  id          Int      @id @default(autoincrement())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobKey      String
+  status      String
+  trackerHash String?
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, jobKey])
+}
+
+// What this user actually sent for this job. Immutable; new tailoring appends.
+model ResumeVersion {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobKey    String
+  tex       String
+  createdAt DateTime @default(now())
+
+  @@index([userId, jobKey])
+}
+
+// Tool-call log. Bearers never logged. PII redacted in note only.
+// Kept forever (no vacuum job by decision); revisit if the file grows.
+model EventLog {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tool      String
+  ms        Int?
+  ok        Boolean
+  note      String?
+  inputHash String?
+  outputRef String?
+  ts        DateTime @default(now())
+
+  @@index([userId, ts])
+}

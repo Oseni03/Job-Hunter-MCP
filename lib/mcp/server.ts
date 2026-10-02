@@ -12,6 +12,9 @@ import { registerPortalFields } from "@/lib/mcp/tools/portal-fields.ts";
 import { registerRankJobs } from "@/lib/mcp/tools/rank-jobs.ts";
 import { registerResearchCompany } from "@/lib/mcp/tools/research-company.ts";
 import { registerSearchJobs } from "@/lib/mcp/tools/search-jobs.ts";
+import { registerSetupProfile } from "@/lib/mcp/tools/setup-profile.ts";
+import { registerDueFollowups } from "@/lib/mcp/tools/due-followups.ts";
+import { registerCanonicalAliases } from "@/lib/mcp/aliases.ts";
 import { getPrompt, getResource, listPrompts, listResources } from "@/lib/resources.ts";
 
 export function registerAllTools(server: McpServer): void {
@@ -25,6 +28,10 @@ export function registerAllTools(server: McpServer): void {
 	registerRankJobs(server);
 	registerResearchCompany(server);
 	registerSearchJobs(server);
+	registerSetupProfile(server);
+	registerDueFollowups(server);
+	// Thin canonical aliases, same handlers (legacy names stay first for compat).
+	registerCanonicalAliases(server);
 }
 
 /**

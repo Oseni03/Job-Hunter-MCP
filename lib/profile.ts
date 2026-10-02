@@ -61,6 +61,67 @@ export function resolveProfile(override: unknown): Profile {
 	return ProfileSchema.parse({ ...DEFAULT_PROFILE, ...(override as Record<string, unknown>) });
 }
 
+/**
+ * Prisma Profile row shape: the 15 ProfileSchema fields verbatim (arrays as
+ * JSON, which runs on both SQLite and Postgres) plus storage columns. Keeping
+ * this interface next to ProfileSchema means a schema drift breaks the
+ * round-trip test instead of silently forking the stored profile from the
+ * profile every tool passes around.
+ */
+export interface ProfileRow {
+	userId: string;
+	name: string;
+	location: string;
+	constraints: string;
+	workCountry: string;
+	citizenships: unknown;
+	permitClasses: unknown;
+	languages: unknown;
+	primarySkills: unknown;
+	secondarySkills: unknown;
+	weakSkills: unknown;
+	strongDomains: unknown;
+	adjacentDomains: unknown;
+	careerGoals: unknown;
+	energizingTasks: unknown;
+	drainingTasks: unknown;
+	resumeHash: string | null;
+}
+
+/** Splits a validated profile into its Prisma row; the profile fields map 1:1. */
+export function profileToRow(userId: string, profile: Profile, resumeHash: string | null): ProfileRow {
+	return {
+		userId,
+		name: profile.name,
+		location: profile.location,
+		constraints: profile.constraints,
+		workCountry: profile.workCountry,
+		citizenships: profile.citizenships,
+		permitClasses: profile.permitClasses,
+		languages: profile.languages,
+		primarySkills: profile.primarySkills,
+		secondarySkills: profile.secondarySkills,
+		weakSkills: profile.weakSkills,
+		strongDomains: profile.strongDomains,
+		adjacentDomains: profile.adjacentDomains,
+		careerGoals: profile.careerGoals,
+		energizingTasks: profile.energizingTasks,
+		drainingTasks: profile.drainingTasks,
+		resumeHash,
+	};
+}
+
+/** Rebuilds the passed-around profile from a stored row; rejects drift via ProfileSchema. */
+export function rowToProfile(row: Record<string, unknown>): Profile {
+	const {
+		userId: _userId,
+		resumeHash: _resumeHash,
+		updatedAt: _updatedAt,
+		...profileFields
+	} = row;
+	return ProfileSchema.parse(profileFields);
+}
+
 /** Candidate-stated phrases other tools ground their output in (skills, domains, goals, energizers). */
 export function evidencePool(profile: Profile): string[] {
 	return [

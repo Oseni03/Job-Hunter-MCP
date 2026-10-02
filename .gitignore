@@ -32,6 +32,10 @@ yarn-error.log*
 # env files (can opt-in for commiting if needed)
 .env
 
+# prisma local sqlite (postgres on deploy via DATABASE_URL)
+prisma/*.db
+prisma/*.db-journal
+
 # vercel
 .vercel
 
