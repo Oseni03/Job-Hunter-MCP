@@ -6,7 +6,7 @@
 // prisma.config.ts (Prisma 7), not here.
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 generator client {
