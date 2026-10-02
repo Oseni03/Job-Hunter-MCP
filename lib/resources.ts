@@ -227,7 +227,7 @@ const RESOURCES: ResourceBody[] = [
 		text: [
 			"# Tracker pointer (server default v1)",
 			"",
-			"- The host owns job_search_tracker.csv; record-application returns a portable row plus full tracker text for verbatim write, with a tracker hash the host checks before writing (re-read on mismatch).",
+			"- The host owns job_search_tracker.csv; track-application returns a portable row plus full tracker text for verbatim write, with a tracker hash the host checks before writing (re-read on mismatch).",
 			"- This resource carries identifiers and counts only, never full tracker contents (state-through-tool invariant).",
 			"- Missing tracker degrades to an explicit message; nothing is guessed.",
 		].join("\n"),
@@ -498,7 +498,7 @@ const PROMPTS: PromptBody[] = [
 			"6. Revise: apply Part A via edit (skip fabricating edits), apply Part B with judgment using verified company specifics only.",
 			"7. Mandatory compile and inspect: host compiles the CV with lualatex to exactly 2 pages and the letter with xelatex to exactly 1 page; fix until clean and visually inspect for orphaned headings and font mismatches.",
 			"8. Text-layer and keyword verification: extract the text layer (ASCII dates, literal contacts, reading order) and check posting-keyword coverage; add covered terms honestly, never stuff gaps.",
-			"9. Single verification pass plus record plus optional form fields: run the factual/targeting/consistency/quality/PDF/ATS checklist once, then record-application (pass the user's local day as today, host writes the tracker verbatim only if the file still matches the returned tracker hash, and archives the posting), then offer 08 form fields by name only.",
+			"9. Single verification pass plus record plus optional form fields: run the factual/targeting/consistency/quality/PDF/ATS checklist once, then track-application (pass the user's local day as today, host writes the tracker verbatim only if the file still matches the returned tracker hash, and archives the posting), then offer 08 form fields by name only.",
 		].join("\n"),
 	},
 	{
@@ -514,7 +514,7 @@ const PROMPTS: PromptBody[] = [
 			"3. Batch fetch-or-expired with escalation: fetch each posting URL with direct, browser-header, and employer-site escalation; dead, redirected, or login-walled pages become expired after full escalation; never score from a title alone and never fabricate content.",
 			"4. Aggregate with weights vetoes urgency sweep and staleness: weight 30/25/15/30 with bands 75/60/45/30; location FAIL or language FAIL excluded with quoted reason while FLAGs stay flagged; deadlines within 7 days close soon with urgency tiebreak and past deadlines expire; sweep stored deadlines for newly expired and closing-soon without guessing absent dates; posted dates over 30 days flag stale without veto.",
 			"5. Update state through tool: persist additive-only rank fields (score, verdict, date, location and language verdicts with note, refreshed deadline, verbatim strengths and gaps) via rank-jobs; never touch the tracker.",
-			"6. Present shortlist and route picks to full evaluation: show shortlist plus why-each-ranked, closing-soon, below-threshold, and excluded sections with posting links; state triage limits; on a pick run evaluate-job on that URL with triage as context but always re-run full evaluation.",
+			"6. Present shortlist and route picks to full evaluation: show shortlist plus why-each-ranked, closing-soon, below-threshold, and excluded sections with posting links; state triage limits; on a pick run analyze-job on that URL with triage as context but always re-run full evaluation.",
 		].join("\n"),
 	},
 	{

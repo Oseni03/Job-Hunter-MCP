@@ -310,7 +310,7 @@ export function auditClaim(claim: string, sources: string[]): ClaimAudit {
 
 /**
  * Optional gate summary passed by the host (stateless: the server holds
- * nothing; the host passes evaluate-job output back in). Refuses on FAIL,
+ * nothing; the host passes analyze-job output back in). Refuses on FAIL,
  * warns loudly when absent so drafting blind is a visible choice.
  */
 export interface EvaluationSummary {
@@ -321,7 +321,7 @@ export interface EvaluationSummary {
 
 export const GATE_REFUSED_PREFIX = "GATE_REFUSED";
 export const GATE_MISSING_NOTE =
-	"No evaluation summary supplied; drafting blind without the eligibility/language gates is a visible choice — run evaluate-job first and pass its verdict plus gate results.";
+	"No evaluation summary supplied; drafting blind without the eligibility/language gates is a visible choice — run analyze-job first and pass its verdict plus gate results.";
 
 export function checkGateSummary(evaluation?: EvaluationSummary): { refused?: string; note?: string } {
 	if (!evaluation) {
@@ -333,7 +333,7 @@ export function checkGateSummary(evaluation?: EvaluationSummary): { refused?: st
 		const which =
 			evaluation.eligibility?.verdict === "FAIL" ? "eligibility" : "language";
 		return {
-			refused: `${GATE_REFUSED_PREFIX}: the ${which} gate failed — drafting refused. Confirm the posting passes evaluate-job before drafting.`,
+			refused: `${GATE_REFUSED_PREFIX}: the ${which} gate failed — drafting refused. Confirm the posting passes analyze-job before drafting.`,
 		};
 	}
 	return {};
@@ -457,7 +457,7 @@ export interface TailorCvInput {
 	cvLanguage?: string;
 	/** Posting language for the language-fit warning (body stays profile-language). */
 	postingLanguage?: string;
-	/** Optional evaluate-job summary; refused on FAIL, warned when missing. */
+	/** Optional analyze-job summary; refused on FAIL, warned when missing. */
 	evaluation?: EvaluationSummary;
 	roleType?: RoleType;
 	template?: TemplateOverride;
@@ -611,7 +611,7 @@ export function contactWarning(contact: ContactDetails | undefined): string | un
 	return "No contact details provided; add email and phone before submitting.";
 }
 
-/** The archive directory both tools share with record-application (ticket 03 owns the write). */
+/** The archive directory both tools share with track-application (ticket 03 owns the write). */
 export function archiveDirFor(slug: string): string {
 	return `documents/applications/${slug}`;
 }
@@ -976,7 +976,7 @@ export interface CoverInput {
 	masterCvText?: string;
 	workspaceProfileText?: string;
 	contact?: ContactDetails;
-	/** Optional evaluate-job summary; refused on FAIL, warned when missing. */
+	/** Optional analyze-job summary; refused on FAIL, warned when missing. */
 	evaluation?: EvaluationSummary;
 	template?: TemplateOverride;
 }

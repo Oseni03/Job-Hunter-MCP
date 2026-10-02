@@ -12,11 +12,11 @@ import { EvaluateJobInput, EvaluationSchema } from "@/lib/mcp/schemas.ts";
 import { renderMarkdown } from "@/lib/mcp/render.ts";
 import { makeSamplingSender } from "@/lib/mcp/sampling.ts";
 
-export function registerEvaluateJob(server: McpServer): void {
+export function registerAnalyzeJob(server: McpServer): void {
 	server.registerTool(
-		"evaluate-job",
+		"analyze-job",
 		{
-			title: "Evaluate job fit",
+			title: "Analyze job",
 			description:
 				"Eligibility + Language gates, five-dimension weighted score, verdict, strengths, gaps, recommendation, and employer-call advice for one posting. Posting text preferred; URL fallback fetches with escalation. Refinement privacy: host-model sampling keeps data on-machine; Groq (only when GROQ_API_KEY is set) sends the posting plus full profile JSON to a third party — set llm.mode off to keep the heuristic scaffold with no network.",
 			inputSchema: EvaluateJobInput,

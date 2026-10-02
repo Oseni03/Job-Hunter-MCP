@@ -118,7 +118,7 @@ export function renderTailoredCvMarkdown(output: {
 		`## Tailored CV: \`${output.filePath}\``,
 		"",
 		`- Slug: \`${output.slug}\` (shared with the cover letter and archive path)`,
-		`- Archive: \`${output.archiveDir}/\` (record-application owns the write)`,
+		`- Archive: \`${output.archiveDir}/\` (track-application owns the write)`,
 		`- Compile: \`${output.compileCommand}\` (exactly ${output.pageLimit} pages)`,
 		"",
 		"### Requirement coverage",
@@ -180,7 +180,7 @@ export function renderCoverMarkdown(output: {
 		`## Cover Letter: \`${output.filePath}\``,
 		"",
 		`- Slug: \`${output.slug}\` (shared with the CV and archive path)`,
-		`- Archive: \`${output.archiveDir}/\` (record-application owns the write)`,
+		`- Archive: \`${output.archiveDir}/\` (track-application owns the write)`,
 		`- Words: ${output.wordCount} (band 250-300)`,
 		`- Compile: \`${output.compileCommand}\` (exactly ${output.pageLimit} page)`,
 		`- Logistics: ${output.logistics.workMode ?? "not stated"} | deadline ${output.logistics.deadline ?? "not stated"} | ref ${output.logistics.referenceId ?? "none"}`,
@@ -317,7 +317,7 @@ export function renderSearchMarkdown(plan: SearchPlan): string {
 	for (const error of plan.errors) {
 		lines.push(`- Error: ${error}`);
 	}
-	lines.push("", "Route picks back to evaluate-job for a full evaluation before drafting.");
+	lines.push("", "Route picks back to analyze-job for a full evaluation before drafting.");
 	return lines.join("\n");
 }
 
@@ -385,7 +385,7 @@ export function renderRankMarkdown(plan: RankPlan): string {
 	}
 	lines.push(
 		"",
-		"Triage limits stated above; full evaluation always re-runs. Want to apply to any of these? Give me the number(s) and I will run evaluate-job on that URL with triage as context.",
+		"Triage limits stated above; full evaluation always re-runs. Want to apply to any of these? Give me the number(s) and I will run analyze-job on that URL with triage as context.",
 	);
 	return lines.join("\n");
 }

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { registerPortalFields } from "@/lib/mcp/tools/portal-fields.ts";
+import { registerDraftApplicationAnswers } from "@/lib/mcp/tools/draft-application-answers.ts";
 
 type ToolResult = {
 	content: { type: string; text: string }[];
@@ -20,7 +20,7 @@ function registered(): { name: string; handler: unknown }[] {
 			captured.push({ name, handler });
 		},
 	} as unknown as McpServer;
-	registerPortalFields(server);
+	registerDraftApplicationAnswers(server);
 	return captured;
 }
 
@@ -43,11 +43,11 @@ const ARGS = {
 	targetWords: 200,
 };
 
-describe("portal-fields tool", () => {
-	it("registers under portal-fields", () => {
+describe("draft-application-answers tool", () => {
+	it("registers under draft-application-answers", () => {
 		const tools = registered();
 		assert.equal(tools.length, 1);
-		assert.equal(tools[0].name, "portal-fields");
+		assert.equal(tools[0].name, "draft-application-answers");
 	});
 
 	it("drafts intros, project entries, and pitches with measured counts", async () => {

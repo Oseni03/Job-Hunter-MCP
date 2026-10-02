@@ -7,7 +7,6 @@ import { parseTrackerApplications, planDueFollowups } from "@/lib/followups.ts";
 import { registerDueFollowups } from "@/lib/mcp/tools/due-followups.ts";
 import { registerSetupProfile } from "@/lib/mcp/tools/setup-profile.ts";
 import { registerAllTools } from "@/lib/mcp/server.ts";
-import { CANONICAL_ALIASES } from "@/lib/mcp/aliases.ts";
 import { getPrompt } from "@/lib/resources.ts";
 
 function registered(register: (server: McpServer) => void): { name: string; handler: unknown }[] {
@@ -63,7 +62,7 @@ describe("due-followups core", () => {
 	});
 });
 
-describe("new tools + aliases + prompts", () => {
+describe("new tools + prompts", () => {
 	it("registers setup-profile and due-followups", () => {
 		assert.equal(registered(registerSetupProfile)[0].name, "setup-profile");
 		assert.equal(registered(registerDueFollowups)[0].name, "due-followups");
@@ -84,13 +83,25 @@ describe("new tools + aliases + prompts", () => {
 		assert.equal(result.structuredContent.due.length, 1);
 	});
 
-	it("exposes all six canonical aliases alongside legacy names", () => {
-		const tools = registered(registerAllTools).map((tool) => tool.name);
-		for (const { canonical, legacy } of CANONICAL_ALIASES) {
-			assert.ok(tools.includes(canonical), `missing alias ${canonical}`);
-			assert.ok(tools.includes(legacy), `legacy kept ${legacy}`);
-		}
-		assert.ok(tools.includes("setup-profile") && tools.includes("due-followups"));
+	it("registers the twelve tools under one canonical name each", () => {
+		const names = registered(registerAllTools).map((tool) => tool.name);
+		assert.deepEqual(
+			[...names].sort(),
+			[
+				"analyze-job",
+				"career-strategy",
+				"draft-application-answers",
+				"due-followups",
+				"generate-cover-letter",
+				"prepare-interview",
+				"rank-jobs",
+				"research-company",
+				"search-jobs",
+				"setup-profile",
+				"tailor-resume",
+				"track-application",
+			],
+		);
 	});
 
 	it("adds apply-to-job and interview-prep orchestration prompts", () => {

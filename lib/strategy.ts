@@ -11,9 +11,9 @@ export interface EvaluationSummary {
 
 export interface StrategyInput {
 	profile?: unknown;
-	/** Caller-passed evaluate-job output; reinforces evidence and gaps, never invents them. */
+	/** Caller-passed analyze-job output; reinforces evidence and gaps, never invents them. */
 	evaluationSummary?: EvaluationSummary;
-	/** More caller-passed evaluate-job outputs; gaps recurring across summaries become priority gaps. */
+	/** More caller-passed analyze-job outputs; gaps recurring across summaries become priority gaps. */
 	evaluationSummaries?: EvaluationSummary[];
 	/** Candidate-nominated directions to assess; ungrounded ones are skipped honestly. */
 	focusAreas?: string[];

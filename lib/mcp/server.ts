@@ -2,36 +2,33 @@ import { createMcpHandler } from "mcp-handler";
 import type { AuthInfo, McpServer } from "@modelcontextprotocol/server";
 
 import { oauthConfigFromEnv, oauthRequiredScopesFromEnv, verifyMcpAuth } from "@/lib/oauth.ts";
-import { registerEvaluateJob } from "@/lib/mcp/tools/evaluate-job.ts";
-import { registerTailorCv } from "@/lib/mcp/tools/tailor-cv.ts";
-import { registerWriteCoverLetter } from "@/lib/mcp/tools/write-cover-letter.ts";
-import { registerRecordApplication } from "@/lib/mcp/tools/record-application.ts";
-import { registerPrepInterview } from "@/lib/mcp/tools/prep-interview.ts";
+import { registerAnalyzeJob } from "@/lib/mcp/tools/analyze-job.ts";
+import { registerTailorResume } from "@/lib/mcp/tools/tailor-resume.ts";
+import { registerGenerateCoverLetter } from "@/lib/mcp/tools/generate-cover-letter.ts";
+import { registerTrackApplication } from "@/lib/mcp/tools/track-application.ts";
+import { registerPrepareInterview } from "@/lib/mcp/tools/prepare-interview.ts";
 import { registerCareerStrategy } from "@/lib/mcp/tools/career-strategy.ts";
-import { registerPortalFields } from "@/lib/mcp/tools/portal-fields.ts";
+import { registerDraftApplicationAnswers } from "@/lib/mcp/tools/draft-application-answers.ts";
 import { registerRankJobs } from "@/lib/mcp/tools/rank-jobs.ts";
 import { registerResearchCompany } from "@/lib/mcp/tools/research-company.ts";
 import { registerSearchJobs } from "@/lib/mcp/tools/search-jobs.ts";
 import { registerSetupProfile } from "@/lib/mcp/tools/setup-profile.ts";
 import { registerDueFollowups } from "@/lib/mcp/tools/due-followups.ts";
-import { registerCanonicalAliases } from "@/lib/mcp/aliases.ts";
 import { getPrompt, getResource, listPrompts, listResources } from "@/lib/resources.ts";
 
 export function registerAllTools(server: McpServer): void {
-	registerEvaluateJob(server);
-	registerTailorCv(server);
-	registerWriteCoverLetter(server);
-	registerRecordApplication(server);
-	registerPrepInterview(server);
+	registerAnalyzeJob(server);
+	registerTailorResume(server);
+	registerGenerateCoverLetter(server);
+	registerTrackApplication(server);
+	registerPrepareInterview(server);
 	registerCareerStrategy(server);
-	registerPortalFields(server);
+	registerDraftApplicationAnswers(server);
 	registerRankJobs(server);
 	registerResearchCompany(server);
 	registerSearchJobs(server);
 	registerSetupProfile(server);
 	registerDueFollowups(server);
-	// Thin canonical aliases, same handlers (legacy names stay first for compat).
-	registerCanonicalAliases(server);
 }
 
 /**

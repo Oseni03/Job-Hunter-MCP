@@ -6,11 +6,11 @@ Stateless Next.js MCP server (`mcp-handler` 2 + MCP TypeScript SDK v2) implement
 
 | Tool | Purpose |
 |------|---------|
-| `evaluate-job` | Eligibility + Language gates, 5-dimension weighted score, verdict, `shouldCallEmployer`, `needsConfirmation` |
-| `tailor-cv` | Returns `{ tex, filePath: cv/main_<slug>.tex }`, `EMPTY_SLUG` hard error, lualatex / ACTIVE-TEMPLATE |
-| `write-cover-letter` | Returns `{ tex, filePath: cover_letters/cover_<slug>.tex }`, 1-page / 250-300w, xelatex / ACTIVE-TEMPLATE |
-| `record-application` | Portable `{ row(drafted), archiveFile, archiveText }`, host appends to `job_search_tracker.csv`, never touches `seen_jobs.json` |
-| `prep-interview` | Stage pack + STAR map + mock, writes only archive + approved STAR + new facts to profile |
+| `analyze-job` | Eligibility + Language gates, 5-dimension weighted score, verdict, `shouldCallEmployer`, `needsConfirmation` |
+| `tailor-resume` | Returns `{ tex, filePath: cv/main_<slug>.tex }`, `EMPTY_SLUG` hard error, lualatex / ACTIVE-TEMPLATE |
+| `generate-cover-letter` | Returns `{ tex, filePath: cover_letters/cover_<slug>.tex }`, 1-page / 250-300w, xelatex / ACTIVE-TEMPLATE |
+| `track-application` | Portable `{ row(drafted), archiveFile, archiveText }`, host appends to `job_search_tracker.csv`, never touches `seen_jobs.json` |
+| `prepare-interview` | Stage pack + STAR map + mock, writes only archive + approved STAR + new facts to profile |
 | `career-strategy` | Profile-driven direction advice |
 | `draft-application-answers` | Portal free-text fields per `08` (counted, grounded, `.txt` with `NOTE TO SELF`) |
 | `search-jobs` | LinkedIn live + BrightData (`BRIGHTDATA_API_KEY` optional, WebSearch fallback), 14d window, max 20/call, canonical keys, caller-passed dedupe |

@@ -224,7 +224,7 @@ describe("workflow prompts (ticket 11)", () => {
 			"sweep",
 			"staleness",
 			"shortlist",
-			"evaluate-job",
+			"analyze-job",
 		]) {
 			assert.ok(rank.ok && rank.text.toLowerCase().includes(step.toLowerCase()), `rank mentions ${step}`);
 		}

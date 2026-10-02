@@ -8,7 +8,7 @@
  * - Failure TTL: 15 minutes — a transient timeout must never become a
  *   long-lived `unavailable`.
  * - Home: in-memory per process, used by the rank scoring loop and the
- *   evaluate-job fetch path. This preserves the no-server-state contract
+ *   analyze-job fetch path. This preserves the no-server-state contract
  *   (caller-held seen stores, tracker, items stay host-side): the cache is
  *   a fetch perf layer only, with the documented limitation that it does
  *   not survive restarts or scale across instances.

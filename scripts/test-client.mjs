@@ -44,13 +44,13 @@ async function main() {
     };
 
     const result = await client.callTool({
-        name: "evaluate-job",
+        name: "analyze-job",
         arguments: { postingText, company: "Acme", role: "Senior ML Engineer", profile },
     });
     console.log("Result", JSON.stringify(result, null, 2));
 
     const cv = await client.callTool({
-        name: "tailor-cv",
+        name: "tailor-resume",
         arguments: {
             postingText,
             company: "Acme",
@@ -78,7 +78,7 @@ async function main() {
     console.log("CV", JSON.stringify(cv, null, 2));
 
     const letter = await client.callTool({
-        name: "write-cover-letter",
+        name: "generate-cover-letter",
         arguments: {
             postingText,
             company: "Acme",
@@ -92,7 +92,7 @@ async function main() {
     console.log("Letter", JSON.stringify(letter, null, 2));
 
     const emptySlug = await client.callTool({
-        name: "tailor-cv",
+        name: "tailor-resume",
         arguments: { postingText: "Requirements: Python.", profile },
     });
     console.log("EmptySlug", JSON.stringify(emptySlug, null, 2));
@@ -109,18 +109,18 @@ async function main() {
         trackerText: "",
         today: "2026-03-01",
     };
-    const recordAppend = await client.callTool({ name: "record-application", arguments: recordArgs });
+    const recordAppend = await client.callTool({ name: "track-application", arguments: recordArgs });
     console.log("RecordAppend", JSON.stringify(recordAppend, null, 2));
 
     const appendedTracker = recordAppend.structuredContent?.trackerText ?? "";
     const recordUpdate = await client.callTool({
-        name: "record-application",
+        name: "track-application",
         arguments: { ...recordArgs, trackerText: appendedTracker, deadline: undefined },
     });
     console.log("RecordUpdate", JSON.stringify(recordUpdate, null, 2));
 
     const prep = await client.callTool({
-        name: "prep-interview",
+        name: "prepare-interview",
         arguments: {
             company: "Acme",
             role: "Senior ML Engineer",
@@ -144,7 +144,7 @@ async function main() {
     console.log("Strategy", JSON.stringify(strategy, null, 2));
 
     const fields = await client.callTool({
-        name: "portal-fields",
+        name: "draft-application-answers",
         arguments: {
             profile,
             company: "Acme",

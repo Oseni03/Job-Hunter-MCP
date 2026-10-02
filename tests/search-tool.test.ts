@@ -61,7 +61,7 @@ describe("search-jobs tool", () => {
 		const candidates = structured["candidates"] as { key: string; url: string }[];
 		assert.equal(candidates.length, 1);
 		assert.match(candidates[0].key, /^[a-z0-9][a-z0-9-]*_[a-z0-9][a-z0-9-]*$/);
-		assert.ok(result.content[0].text.includes("evaluate-job"));
+		assert.ok(result.content[0].text.includes("analyze-job"));
 	});
 
 	it("dedupes caller-passed seen keys without owning state", async () => {

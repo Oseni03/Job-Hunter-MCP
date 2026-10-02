@@ -210,7 +210,7 @@ describe("companySpecifics provenance", () => {
 		}
 	});
 
-	it("refuses URL-less employer points in portal-fields the same way", () => {
+	it("refuses URL-less employer points in draft-application-answers the same way", () => {
 		const plan = planPortalFields({
 			profile: PROFILE,
 			company: "Acme",
@@ -221,7 +221,7 @@ describe("companySpecifics provenance", () => {
 		});
 		assert.ok(
 			plan.warnings.some((warning) => warning.includes("Refused 1 employer point")),
-			"portal-fields refusal counted",
+			"draft-application-answers refusal counted",
 		);
 		assert.ok(
 			plan.selfIntros.every((intro) => !intro.text.includes("Acme is great")),

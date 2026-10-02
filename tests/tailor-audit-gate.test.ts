@@ -278,7 +278,7 @@ describe("language fit", () => {
 		assert.ok(result.warnings.languageNote?.includes("English-only"));
 	});
 
-	it("warns in portal-fields for non-English forms", () => {
+	it("warns in draft-application-answers for non-English forms", () => {
 		const plan = planPortalFields({ profile: PROFILE, postingLanguage: "de" });
 		assert.ok(plan.warnings.some((warning) => warning.includes("English-only")));
 	});

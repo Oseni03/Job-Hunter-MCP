@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { registerTailorCv } from "@/lib/mcp/tools/tailor-cv.ts";
-import { registerWriteCoverLetter } from "@/lib/mcp/tools/write-cover-letter.ts";
+import { registerTailorResume } from "@/lib/mcp/tools/tailor-resume.ts";
+import { registerGenerateCoverLetter } from "@/lib/mcp/tools/generate-cover-letter.ts";
 import { registerAllResources } from "@/lib/mcp/server.ts";
 
 type ToolResult = {
@@ -40,9 +40,9 @@ const POSTING = [
 	"Domain: fraud detection.",
 ].join("\n");
 
-describe("tailor-cv signals", () => {
+describe("tailor-resume signals", () => {
 	it("carries page-budget, LaTeX-safety, and layout signals with the TeX", async () => {
-		const result = await toolHandler(registerTailorCv)(
+		const result = await toolHandler(registerTailorResume)(
 			{
 				postingText: POSTING,
 				company: "Acme",
@@ -68,9 +68,9 @@ describe("tailor-cv signals", () => {
 	});
 });
 
-describe("write-cover-letter signals", () => {
+describe("generate-cover-letter signals", () => {
 	it("carries the one-page word-budget signal with the TeX", async () => {
-		const result = await toolHandler(registerWriteCoverLetter)(
+		const result = await toolHandler(registerGenerateCoverLetter)(
 			{
 				postingText: POSTING,
 				company: "Acme",

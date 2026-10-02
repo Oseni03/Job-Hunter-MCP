@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import type { McpServer } from "@modelcontextprotocol/server";
 
 import { TRACKER_HEADER } from "@/lib/record.ts";
-import { registerRecordApplication } from "@/lib/mcp/tools/record-application.ts";
+import { registerTrackApplication } from "@/lib/mcp/tools/track-application.ts";
 
 type ToolResult = {
 	content: { type: string; text: string }[];
@@ -21,7 +21,7 @@ function registered(): { name: string; handler: unknown }[] {
 			captured.push({ name, handler });
 		},
 	} as unknown as McpServer;
-	registerRecordApplication(server);
+	registerTrackApplication(server);
 	return captured;
 }
 
@@ -38,11 +38,11 @@ const ARGS = {
 	today: "2026-03-01",
 };
 
-describe("record-application tool", () => {
-	it("registers under record-application", () => {
+describe("track-application tool", () => {
+	it("registers under track-application", () => {
 		const tools = registered();
 		assert.equal(tools.length, 1);
-		assert.equal(tools[0].name, "record-application");
+		assert.equal(tools[0].name, "track-application");
 	});
 
 	it("appends a drafted row and archive payload for a fresh tracker", async () => {

@@ -4,11 +4,11 @@ import { planRecordApplication } from "@/lib/record.ts";
 import { RecordApplicationInput, RecordApplicationOutput } from "@/lib/mcp/schemas.ts";
 import { renderRecordMarkdown } from "@/lib/mcp/render.ts";
 
-export function registerRecordApplication(server: McpServer): void {
+export function registerTrackApplication(server: McpServer): void {
 	server.registerTool(
-		"record-application",
+		"track-application",
 		{
-			title: "Record application",
+			title: "Track application",
 			description:
 				"Records two finished documents to the tracker with match-then-update (posting URL first, then normalized company+role with legal-suffix tolerance): appends a drafted row on no match or all-final matches, otherwise refreshes the open row without moving status backwards. Cells are spreadsheet-injection neutralized and newline-free; returns the full tracker text plus the verbatim posting archive payload and the input tracker hash. The host passes its local day as today and writes only if the file still matches the hash; the host owns file writes and never touches seen_jobs.json.",
 			inputSchema: RecordApplicationInput,

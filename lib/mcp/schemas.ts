@@ -109,7 +109,7 @@ export const DocumentSignalsSchema = z
 
 export const EvaluationGateInput = z
 	.object({
-		verdict: z.string().nullable().optional().describe("evaluate-job verdict; null when a gate failed"),
+		verdict: z.string().nullable().optional().describe("analyze-job verdict; null when a gate failed"),
 		eligibility: z.object({ verdict: z.string() }).optional().describe("Eligibility gate result"),
 		languageGate: z.object({ verdict: z.string() }).optional().describe("Language gate result"),
 	})
@@ -136,7 +136,7 @@ export const TailorCvInput = z
 		cvLanguage: z.string().optional().describe("CV language for section headings (default en)"),
 		postingLanguage: z.string().optional().describe("Posting language for the language-fit warning"),
 		evaluation: EvaluationGateInput.optional().describe(
-			"evaluate-job summary (verdict plus gate results); refused on FAIL, warned when missing",
+			"analyze-job summary (verdict plus gate results); refused on FAIL, warned when missing",
 		),
 		roleType: z.enum(["technical", "specialist"]).optional().describe("Section-order override (default auto)"),
 		template: TemplateOverrideInput.optional().describe("Active custom template; wins over stock guidance"),
@@ -197,7 +197,7 @@ export const CoverInput = z
 		workspaceProfileText: z.string().optional(),
 		contact: ContactInput.optional(),
 		evaluation: EvaluationGateInput.optional().describe(
-			"evaluate-job summary (verdict plus gate results); refused on FAIL, warned when missing",
+			"analyze-job summary (verdict plus gate results); refused on FAIL, warned when missing",
 		),
 		template: TemplateOverrideInput.optional().describe("Active custom template; wins over stock guidance"),
 	})
@@ -380,7 +380,7 @@ export const PrepInterviewInput = z
 		masterCvText: z.string().optional(),
 		workspaceProfileText: z.string().optional(),
 		evaluation: EvaluationGateInput.optional().describe(
-			"evaluate-job summary (verdict plus gate results); refused on FAIL, warned when missing",
+			"analyze-job summary (verdict plus gate results); refused on FAIL, warned when missing",
 		),
 	})
 	.strict();
@@ -439,11 +439,11 @@ export const StrategyInput = z
 		profile: ProfileSchema.partial()
 			.optional()
 			.describe("Per-call profile override; replaces the embedded default field by field"),
-		evaluationSummary: EvaluationSummaryInput.optional().describe("Caller-passed evaluate-job output"),
+		evaluationSummary: EvaluationSummaryInput.optional().describe("Caller-passed analyze-job output"),
 		evaluationSummaries: z
 			.array(EvaluationSummaryInput)
 			.optional()
-			.describe("More caller-passed evaluate-job outputs; gaps recurring across summaries become priority gaps"),
+			.describe("More caller-passed analyze-job outputs; gaps recurring across summaries become priority gaps"),
 		focusAreas: z.array(z.string()).optional().describe("Candidate-nominated directions to assess"),
 		masterCvText: z.string().optional(),
 		workspaceProfileText: z.string().optional(),

@@ -7,11 +7,11 @@ import { documentSignals } from "@/lib/verify.ts";
 import { TailorCvInput, TailorCvOutput } from "@/lib/mcp/schemas.ts";
 import { renderTailoredCvMarkdown } from "@/lib/mcp/render.ts";
 
-export function registerTailorCv(server: McpServer): void {
+export function registerTailorResume(server: McpServer): void {
 	server.registerTool(
-		"tailor-cv",
+		"tailor-resume",
 		{
-			title: "Tailor CV",
+			title: "Tailor resume",
 			description:
 				"Tailors the moderncv banking CV to one posting: profile statement, 5-7 competencies, relevance-ordered bullets, role-type section order. Returns LaTeX source plus file path; the host owns file writes and the lualatex compile (exactly 2 pages). EMPTY_SLUG hard error with no TeX when nothing identifies the posting.",
 			inputSchema: TailorCvInput,

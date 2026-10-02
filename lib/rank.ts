@@ -717,7 +717,7 @@ export async function planRank(input: RankInput): Promise<RankPlan> {
 	}
 
 	notes.push(
-		"Triage depth only: scored from posting text with five-dimension weights (30/25/15/30) and verdict bands (75/60/45/30). No company research, salary lookup, or reviewer. Route picks back to evaluate-job, which always re-runs full Step 1.",
+		"Triage depth only: scored from posting text with five-dimension weights (30/25/15/30) and verdict bands (75/60/45/30). No company research, salary lookup, or reviewer. Route picks back to analyze-job, which always re-runs full Step 1.",
 		"Scale note: rank verdict bands (full fetched text) and search quick-fit bands (snippet probe text) are different instruments over different text depths — not comparable until calibrated on a labeled set.",
 		"Fetch cache: normalized URL (fragment stripped, host lowercased), 6h success TTL / 15min failure TTL, in-memory per process — does not survive restarts or scale across instances. Failures degrade to unavailable, never invented content.",
 	);

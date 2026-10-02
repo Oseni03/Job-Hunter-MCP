@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import type { McpServer } from "@modelcontextprotocol/server";
 
 import { planPortalFields } from "@/lib/fields.ts";
-import { registerPortalFields } from "@/lib/mcp/tools/portal-fields.ts";
+import { registerDraftApplicationAnswers } from "@/lib/mcp/tools/draft-application-answers.ts";
 
 const PROFILE = {
 	name: "Test Candidate",
@@ -39,7 +39,7 @@ const BASE = {
 	],
 };
 
-describe("portal-fields paste boundary", () => {
+describe("draft-application-answers paste boundary", () => {
 	it("keeps internal scope notes out of the copy text by construction", () => {
 		const plan = planPortalFields(BASE);
 		assert.ok(plan.scopeNotes.length > 0, "scope notes still travel structured");
@@ -51,7 +51,7 @@ describe("portal-fields paste boundary", () => {
 	});
 });
 
-describe("portal-fields pitch honesty", () => {
+describe("draft-application-answers pitch honesty", () => {
 	it("marks pitches as expansion seeds in the render", () => {
 		const plan = planPortalFields(BASE);
 		assert.ok(plan.pitches.length >= 4 && plan.pitches.length <= 6);
@@ -62,7 +62,7 @@ describe("portal-fields pitch honesty", () => {
 	});
 });
 
-describe("portal-fields role-type drops", () => {
+describe("draft-application-answers role-type drops", () => {
 	it("names dropped role types instead of filtering silently", () => {
 		const plan = planPortalFields({ ...BASE, roleTypes: ["technical", "wizard"] });
 		assert.deepEqual(plan.selfIntros.map((intro) => intro.roleType), ["technical"]);
@@ -84,7 +84,7 @@ describe("portal-fields role-type drops", () => {
 	});
 });
 
-describe("portal-fields short budget", () => {
+describe("draft-application-answers short budget", () => {
 	const LONG_FIRST = `${"Word ".repeat(69)}end. Second sentence here.`;
 
 	it("warns on first-sentence overshoot without truncating the claim", () => {
@@ -105,7 +105,7 @@ describe("portal-fields short budget", () => {
 	});
 });
 
-describe("portal-fields date validation", () => {
+describe("draft-application-answers date validation", () => {
 	it("warns on unparseable dates instead of enshrining them", () => {
 		const plan = planPortalFields({
 			...BASE,
@@ -130,7 +130,7 @@ describe("portal-fields date validation", () => {
 	});
 });
 
-describe("portal-fields ephemerality", () => {
+describe("draft-application-answers ephemerality", () => {
 	it("declares the copy-paste file ephemeral in the tool description", () => {
 		const captured: { name: string; config: { description?: string } }[] = [];
 		const server = {
@@ -138,7 +138,7 @@ describe("portal-fields ephemerality", () => {
 				captured.push({ name, config });
 			},
 		} as unknown as McpServer;
-		registerPortalFields(server);
+		registerDraftApplicationAnswers(server);
 		const description = captured[0].config.description ?? "";
 		assert.ok(description.includes("ephemeral"), "expected the ephemeral treatment in the description");
 		assert.ok(description.includes("never a record"), "expected the never-a-record rule in the description");

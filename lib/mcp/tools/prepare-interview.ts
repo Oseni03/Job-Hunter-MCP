@@ -4,11 +4,11 @@ import { planInterviewPrep } from "@/lib/prep.ts";
 import { PrepInterviewInput, PrepInterviewOutput } from "@/lib/mcp/schemas.ts";
 import { renderPrepMarkdown } from "@/lib/mcp/render.ts";
 
-export function registerPrepInterview(server: McpServer): void {
+export function registerPrepareInterview(server: McpServer): void {
 	server.registerTool(
-		"prep-interview",
+		"prepare-interview",
 		{
-			title: "Prep interview",
+			title: "Prepare interview",
 			description:
 				"Builds a per-stage interview-prep pack from caller-held facts only: recorded feedback first, then fit gaps with honest bridge answers, then posting requirements, then stage type. Maps STAR examples by Use-for tags, drafts new STAR only from profile facts, lists probeable claims, customizes tough questions only with verified company hooks, and picks stage-appropriate questions to ask. Asks only for missing stage logistics; every absent input degrades to an explicit fallback and nothing is pulled from sibling roles. Returns the pack markdown; the host owns the save.",
 			inputSchema: PrepInterviewInput,

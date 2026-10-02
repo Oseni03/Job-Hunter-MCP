@@ -299,7 +299,7 @@ describe("rank-jobs tool", () => {
 		assert.equal(tools[0].name, "rank-jobs");
 	});
 
-	it("triages caller-held items with counts and routes picks to evaluate-job", async () => {
+		it("triages caller-held items with counts and routes picks to analyze-job", async () => {
 		const tools = registered();
 		const result = await (tools[0].handler as LooseHandler)(ARGS, {});
 		assert.equal(result.isError, undefined);
@@ -307,7 +307,7 @@ describe("rank-jobs tool", () => {
 		assert.equal(structured["eligibleCount"], 1);
 		assert.ok(Array.isArray(structured["shortlist"]));
 		assert.ok(Array.isArray(structured["stateUpdates"]));
-		assert.ok(result.content[0].text.includes("evaluate-job"));
+			assert.ok(result.content[0].text.includes("analyze-job"));
 		assert.ok(result.content[0].text.includes("Shortlist"));
 	});
 });

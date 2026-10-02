@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { registerPrepInterview } from "@/lib/mcp/tools/prep-interview.ts";
+import { registerPrepareInterview } from "@/lib/mcp/tools/prepare-interview.ts";
 
 type ToolResult = {
 	content: { type: string; text: string }[];
@@ -20,7 +20,7 @@ function registered(): { name: string; handler: unknown }[] {
 			captured.push({ name, handler });
 		},
 	} as unknown as McpServer;
-	registerPrepInterview(server);
+	registerPrepareInterview(server);
 	return captured;
 }
 
@@ -39,11 +39,11 @@ const ARGS = {
 	logistics: { format: "video" },
 };
 
-describe("prep-interview tool", () => {
-	it("registers under prep-interview", () => {
+describe("prepare-interview tool", () => {
+	it("registers under prepare-interview", () => {
 		const tools = registered();
 		assert.equal(tools.length, 1);
-		assert.equal(tools[0].name, "prep-interview");
+		assert.equal(tools[0].name, "prepare-interview");
 	});
 
 	it("builds an ordered pack and asks for missing logistics", async () => {

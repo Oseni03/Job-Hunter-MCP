@@ -54,7 +54,7 @@ export interface PrepInput {
 	profile?: unknown;
 	masterCvText?: string;
 	workspaceProfileText?: string;
-	/** Optional evaluate-job summary; refused on FAIL, warned when missing. */
+	/** Optional analyze-job summary; refused on FAIL, warned when missing. */
 	evaluation?: EvaluationSummary;
 }
 
@@ -337,7 +337,7 @@ export function planInterviewPrep(input: PrepInput): PrepPlan {
 			packFile,
 			fallbackNotes,
 			refusal,
-			"Pass the evaluate-job verdict plus gate results as `evaluation`; prepping for a gate-failed posting is pure waste.",
+			"Pass the analyze-job verdict plus gate results as `evaluation`; prepping for a gate-failed posting is pure waste.",
 		);
 	}
 	if (gate.note) {
