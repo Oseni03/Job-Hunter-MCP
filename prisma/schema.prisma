@@ -143,6 +143,15 @@ model EventLog {
 // config mirroring lib/auth.ts; mcp() adds no extra tables), adapted only to
 // this Prisma 7 schema (datasource URL lives in prisma.config.ts). Requires
 // Postgres (String[] scalar lists).
+//
+// Keep the CLI's required `String[]` columns as-is. Prisma has no optional
+// lists, and null is not a safe substitute for "absent" here: the plugin
+// writes null for unconfigured list values (resource seed) which Prisma
+// rejects, while `[]` would wrongly forbid every scope at token issuance
+// (empty allowlist intersection -> invalid_scope). The fix for the seed is
+// in code, not schema: lib/auth.ts passes an explicit `resources` allowlist
+// so the seed always writes a real array. Re-check this if the plugin's
+// seed/registration writes ever introduce new null-list paths.
 // ---------------------------------------------------------------------------
 
 model Session {

@@ -139,6 +139,16 @@ function createAuthPrismaClient(): PrismaClient {
  * isBetterAuthEnabled() before calling getAuth().
  */
 function createAuth() {
+	// Explicit resource row (identifier + scope allowlist) so the plugin's
+	// seed always writes a real array. Without this, mcp() seeds from the
+	// bare resource string and the plugin writes `allowedScopes: null`,
+	// which Prisma rejects on the required `String[]` column
+	// (PrismaClientValidationError at init). An empty array is NOT a safe
+	// fallback either: token issuance intersects requested scopes with the
+	// allowlist and an empty one fails every request with invalid_scope.
+	// The allowlist mirrors MCP_SCOPES exactly (every scope this server
+	// mints), so legitimate requests always intersect.
+	const resource = getMcpResource();
 	return betterAuth({
 		baseURL: getBaseURL(),
 		secret: resolveSecret(),
@@ -159,7 +169,8 @@ function createAuth() {
 		plugins: [
 			jwt(),
 			mcp({
-				resource: getMcpResource(),
+				resource,
+				resources: [{ identifier: resource, allowedScopes: [...MCP_SCOPES] }],
 				loginPage: "/sign-in",
 				consentPage: "/consent",
 				scopes: [...MCP_SCOPES],
