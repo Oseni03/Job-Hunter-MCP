@@ -1,15 +1,17 @@
 // Prisma schema: SQLite locally now, Postgres on deploy.
 // Local:  DATABASE_URL="file:./prisma/job-hunter.db" (default; gitignored)
 // Deploy: set DATABASE_URL to Postgres and change the datasource provider to
-// "postgresql". One schema, two providers; no code changes beyond `prisma db push`.
+// "postgresql". One schema, two providers; no code changes beyond
+// `prisma generate` + `prisma db push`. Connection string lives in
+// prisma.config.ts (Prisma 7), not here.
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../generated/prisma"
 }
 
 // Authenticated caller. Stable id = issuer + sub (OAuth) or the static

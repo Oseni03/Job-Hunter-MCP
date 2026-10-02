@@ -1,19 +1,29 @@
 /**
- * Prisma integration port (mirror-first).
+ * Prisma 7 integration (mirror-first).
  *
  * The schema in prisma/schema.prisma is the contract. Full persistence
- * activates once `@prisma/client` is installed and `prisma generate` has run
- * (`DATABASE_URL="file:./prisma/job-hunter.db"` locally, Postgres URL on
+ * activates once `prisma generate` has run (postinstall) and `DATABASE_URL`
+ * is set (`file:./prisma/job-hunter.db` locally for SQLite, Postgres URL on
  * deploy). Until then every helper below degrades gracefully: pure functions
- * keep working, mirror writes report `persisted: false` with a reason, and no
- * tool ever fails for lack of a database.
+ * keep working, client creation reports null, and no tool ever fails for
+ * lack of a database.
  *
- * Deliberately no static `import "@prisma/client"` here so `tsc` stays green
- * before/after install. The generated client is loaded lazily via dynamic
- * import only when configured AND installed.
+ * Prisma 7 notes:
+ * - The generator uses `provider = "prisma-client"` with a required
+ *   `output` (here `../generated/prisma`, i.e. `<root>/generated/prisma`).
+ * - The connection string lives in prisma.config.ts, not schema.prisma.
+ * - Every database needs a driver adapter: better-sqlite3 locally,
+ *   pg (Postgres) on deploy. The adapter is picked from the DATABASE_URL
+ *   scheme, so one schema and one code path cover both.
  */
 
 import { createHash } from "node:crypto";
+
+import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "@/generated/prisma/client.ts";
+
+export type { PrismaClient };
 
 export interface AuthContext {
 	issuer?: string;
@@ -46,24 +56,58 @@ export interface MirrorResult {
 	reason: string;
 }
 
+export type DatabaseKind = "sqlite" | "postgres";
+
+/** Picks the driver adapter from the DATABASE_URL scheme; null when unset or unsupported. */
+export function databaseKind(url: string = process.env["DATABASE_URL"] ?? ""): DatabaseKind | null {
+	const value = url.trim();
+	if (value.startsWith("file:")) return "sqlite";
+	if (/^postgres(ql)?:\/\//i.test(value)) return "postgres";
+	return null;
+}
+
+/** True when DATABASE_URL names a supported database (sqlite file: or postgres). */
+export function isDbConfigured(): boolean {
+	return databaseKind() !== null;
+}
+
+declare global {
+	var __prisma__: PrismaClient | undefined;
+}
+
+function createClient(url: string, kind: DatabaseKind): PrismaClient {
+	const adapter = kind === "sqlite" ? new PrismaBetterSqlite3({ url }) : new PrismaPg({ connectionString: url });
+	return new PrismaClient({ adapter });
+}
+
 /**
- * Lazily loads the generated Prisma client when available.
- * Returns null when not installed/generated yet (pre-install) so callers degrade.
+ * Returns the shared Prisma 7 client, creating it on first use (cached on
+ * globalThis so Next.js dev HMR never exhausts the pool). Returns null when
+ * no supported DATABASE_URL is set so callers degrade gracefully.
  */
-export async function loadPrismaClient(): Promise<unknown | null> {
-	if (!process.env["DATABASE_URL"]) {
-		return null;
-	}
+export async function loadPrismaClient(): Promise<PrismaClient | null> {
+	const url = (process.env["DATABASE_URL"] ?? "").trim();
+	const kind = databaseKind(url);
+	if (!kind) return null;
+	if (globalThis.__prisma__) return globalThis.__prisma__;
 	try {
-		const mod = await Function("return import('@prisma/client')")();
-		const Client = mod.PrismaClient as new () => unknown;
-		return new Client();
+		const client = createClient(url, kind);
+		await client.$connect();
+		globalThis.__prisma__ = client;
+		return client;
 	} catch {
 		return null;
 	}
 }
 
-/** True when a DATABASE_URL is set; persistence additionally needs the client installed. */
-export function isDbConfigured(): boolean {
-	return Boolean((process.env["DATABASE_URL"] ?? "").trim());
+/** Closes the shared client (scripts/tests); safe to call when never connected. */
+export async function disconnectPrisma(): Promise<void> {
+	if (!globalThis.__prisma__) return;
+	const client = globalThis.__prisma__;
+	globalThis.__prisma__ = undefined;
+	try {
+		await client.$disconnect();
+	} catch {
+		// Already closed or unreachable; nothing to report.
+	}
 }
