@@ -2,20 +2,27 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Briefcase, CircleAlert, LoaderCircle } from "lucide-react";
 
 import { authClient } from "@/lib/auth-client.ts";
-
-function resumePath(oauthQuery: string | null): string {
-	if (oauthQuery) {
-		return `/api/auth/oauth2/authorize?${oauthQuery}`;
-	}
-	return "/";
-}
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 function SignInForm(): React.JSX.Element {
 	const router = useRouter();
 	const params = useSearchParams();
-	const oauthQuery = params.get("oauth_query");
+	// The OAuth plugin redirects unauthenticated authorize requests here as
+	// /sign-in?<signed authorization query> (raw params, NOT nested under an
+	// `oauth_query` key). The full query string must be echoed as
+	// `oauth_query` in the auth request body: the plugin verifies the
+	// signature and resumes the grant in that same response as
+	// { redirect: true, url }. Without it the OAuth context is abandoned and
+	// both sign-in and sign-up dead-end on "/" instead of resuming.
+	const oauthQuery = params.toString();
 	const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
 	const [name, setName] = useState("");
 	const [email, setEmail] = useState("");
@@ -28,22 +35,28 @@ function SignInForm(): React.JSX.Element {
 		setBusy(true);
 		setError(null);
 		try {
-			if (mode === "sign-up") {
-				const res = await authClient.signUp.email({ name: name || email, email, password });
-				if (res.error) {
-					setError(res.error.message ?? "Sign-up failed.");
-					return;
-				}
-			} else {
-				const res = await authClient.signIn.email({ email, password });
-				if (res.error) {
-					setError(res.error.message ?? "Sign-in failed.");
-					return;
-				}
+			// Extra body field for the OAuth plugin's before-hook (not part
+			// of the endpoint schema, hence the spread). Omitted on direct
+			// visits so plain sign-in/sign-up keeps its normal response.
+			const oauthField = oauthQuery ? ({ oauth_query: oauthQuery } as Record<string, string>) : {};
+			const res =
+				mode === "sign-up"
+					? await authClient.signUp.email({ name: name || email, email, password, ...oauthField })
+					: await authClient.signIn.email({ email, password, ...oauthField });
+			if (res.error) {
+				setError(res.error.message ?? (mode === "sign-up" ? "Sign-up failed." : "Sign-in failed."));
+				return;
 			}
-			// Session cookie is now set; the OAuth plugin resumes the
-			// authorization flow from the authorize endpoint.
-			router.push(resumePath(oauthQuery));
+			// With oauth_query attached, the plugin's after-hook replaces
+			// the response with the resumed authorization — follow it (the
+			// consent page or the client's redirect_uri, possibly
+			// cross-origin, hence a full navigation, not router.push).
+			const data = res.data as unknown as { redirect?: boolean; url?: string } | null;
+			if (data?.redirect && data.url) {
+				window.location.href = data.url;
+				return;
+			}
+			router.push("/");
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Unexpected error.");
 		} finally {
@@ -52,57 +65,87 @@ function SignInForm(): React.JSX.Element {
 	}
 
 	return (
-		<main style={{ maxWidth: 420, margin: "4rem auto", padding: "0 1rem" }}>
-			<h1>Sign in to Job Hunter MCP</h1>
-			<p>Sign in to authorize MCP clients access to your job-hunting tools.</p>
-			<div style={{ marginBottom: 12 }}>
-				<button type="button" onClick={() => setMode("sign-in")} disabled={mode === "sign-in"}>
-					Sign in
-				</button>{" "}
-				<button type="button" onClick={() => setMode("sign-up")} disabled={mode === "sign-up"}>
-					Sign up
-				</button>
-			</div>
-			<form onSubmit={submit}>
-				{mode === "sign-up" ? (
-					<div style={{ marginBottom: 8 }}>
-						<label>
-							Name
-							<br />
-							<input value={name} onChange={(e) => setName(e.target.value)} required />
-						</label>
+		<main className="flex min-h-screen items-center justify-center bg-muted/40 px-4 py-10">
+			<Card className="w-full max-w-sm">
+				<CardHeader>
+					<div className="mb-1 flex size-10 items-center justify-center bg-primary text-primary-foreground">
+						<Briefcase className="size-5" aria-hidden="true" />
 					</div>
-				) : null}
-				<div style={{ marginBottom: 8 }}>
-					<label>
-						Email
-						<br />
-						<input
-							type="email"
-							value={email}
-							onChange={(e) => setEmail(e.target.value)}
-							required
-						/>
-					</label>
-				</div>
-				<div style={{ marginBottom: 8 }}>
-					<label>
-						Password
-						<br />
-						<input
-							type="password"
-							value={password}
-							onChange={(e) => setPassword(e.target.value)}
-							required
-							minLength={8}
-						/>
-					</label>
-				</div>
-				{error ? <p style={{ color: "crimson" }}>{error}</p> : null}
-				<button type="submit" disabled={busy}>
-					{busy ? "Working…" : mode === "sign-up" ? "Create account" : "Sign in"}
-				</button>
-			</form>
+					<CardTitle>{mode === "sign-up" ? "Create your account" : "Welcome back"}</CardTitle>
+					<CardDescription>
+						{oauthQuery
+							? "An MCP client is requesting access to your job-hunting tools. Sign in to continue."
+							: "Sign in to manage your job-hunting workspace."}
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<Tabs
+						value={mode}
+						onValueChange={(value) => {
+							setMode(value as "sign-in" | "sign-up");
+							setError(null);
+						}}
+					>
+						<TabsList className="grid w-full grid-cols-2">
+							<TabsTrigger value="sign-in">Sign in</TabsTrigger>
+							<TabsTrigger value="sign-up">Sign up</TabsTrigger>
+						</TabsList>
+					</Tabs>
+					<form onSubmit={submit} className="mt-4 flex flex-col gap-4">
+						{mode === "sign-up" ? (
+							<div className="flex flex-col gap-2">
+								<Label htmlFor="name">Name</Label>
+								<Input
+									id="name"
+									value={name}
+									onChange={(e) => setName(e.target.value)}
+									required
+									autoComplete="name"
+								/>
+							</div>
+						) : null}
+						<div className="flex flex-col gap-2">
+							<Label htmlFor="email">Email</Label>
+							<Input
+								id="email"
+								type="email"
+								value={email}
+								onChange={(e) => setEmail(e.target.value)}
+								required
+								autoComplete="email"
+							/>
+						</div>
+						<div className="flex flex-col gap-2">
+							<Label htmlFor="password">Password</Label>
+							<Input
+								id="password"
+								type="password"
+								value={password}
+								onChange={(e) => setPassword(e.target.value)}
+								required
+								minLength={8}
+								autoComplete={mode === "sign-up" ? "new-password" : "current-password"}
+							/>
+						</div>
+						{error ? (
+							<Alert variant="destructive">
+								<CircleAlert aria-hidden="true" />
+								<AlertTitle>{mode === "sign-up" ? "Sign-up failed" : "Sign-in failed"}</AlertTitle>
+								<AlertDescription>{error}</AlertDescription>
+							</Alert>
+						) : null}
+						<Button type="submit" className="w-full" disabled={busy}>
+							{busy ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : null}
+							{busy ? "Working…" : mode === "sign-up" ? "Create account" : "Sign in"}
+						</Button>
+					</form>
+				</CardContent>
+				<CardFooter>
+					<p className="text-xs/relaxed text-muted-foreground">
+						Protected by OAuth 2.1. Your credentials never leave this server.
+					</p>
+				</CardFooter>
+			</Card>
 		</main>
 	);
 }
