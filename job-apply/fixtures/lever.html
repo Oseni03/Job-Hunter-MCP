@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture: Lever application form</title></head>
+<body>
+<form class="application-form" onsubmit="window.__submitted = true; return false;">
+  <label>Full name<input type="text" name="name"></label>
+  <label>Email<input type="email" name="email"></label>
+  <label>Phone<input type="tel" name="phone"></label>
+  <label>Current company<input type="text" name="org"></label>
+  <div><label for="urls_linkedin">LinkedIn Profile</label><input type="url" name="urls[LinkedIn]" id="urls_linkedin"></div>
+  <div><label for="urls_github">GitHub Profile</label><input type="url" name="urls[GitHub]" id="urls_github"></div>
+  <div class="application-question"><label>What is your strongest ML project?</label><textarea></textarea></div>
+  <label>Additional information<textarea name="comments"></textarea></label>
+  <div id="eeo-form"><h3>Equal Employment Opportunity</h3>
+    <label>Gender<select name="eeo_gender"><option value="">Select...</option><option>Male</option></select></label>
+  </div>
+  <div><label>Resume<input type="file" name="resume"></label></div>
+  <button type="submit">Submit application</button>
+</form>
+</body>
+</html>

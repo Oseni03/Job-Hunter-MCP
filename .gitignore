@@ -48,3 +48,6 @@ next-env.d.ts
 
 # scraper HTTP cache (local-only, rebuilt on demand)
 /.scratch/scrape-cache/
+
+# assisted-apply Chrome session (logins, local-only, rebuilt on demand)
+/.scratch/apply-chrome/

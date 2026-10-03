@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture: Greenhouse application form</title></head>
+<body>
+<form id="application_form" onsubmit="window.__submitted = true; return false;">
+  <div class="field"><label for="first_name">First Name *</label><input type="text" id="first_name"></div>
+  <div class="field"><label for="last_name">Last Name *</label><input type="text" id="last_name"></div>
+  <div class="field"><label for="email">Email *</label><input type="email" id="email"></div>
+  <div class="field"><label for="phone">Phone *</label><input type="tel" id="phone"></div>
+  <div class="field"><label for="location">Location (City)</label>
+    <select id="location"><option value="">Select...</option><option>Lagos, Nigeria</option><option>Berlin, Germany</option></select>
+  </div>
+  <div class="field"><label for="linkedin">LinkedIn Profile</label><input type="url" id="linkedin"></div>
+  <div class="field"><label for="q_why">Why do you want to work here?</label><textarea id="q_why"></textarea></div>
+  <fieldset><legend>Voluntary Self-Identification of Gender</legend>
+    <div class="field"><label for="gender">Gender</label>
+      <select id="gender"><option value="">Select...</option><option>Male</option><option>Female</option></select>
+    </div>
+  </fieldset>
+  <div class="field"><label>Resume *</label><input type="file" id="resume"></div>
+  <div class="field"><label>Cover Letter</label><input type="file" id="cover"></div>
+  <button type="submit" id="submit_btn">Submit Application</button>
+</form>
+</body>
+</html>

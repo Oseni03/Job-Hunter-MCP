@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture: LinkedIn Easy Apply modal</title></head>
+<body>
+<div class="jobs-easy-apply-modal">
+  <form id="easy-form" onsubmit="window.__submitted = true; return false;">
+    <div class="easy-step" id="step1">
+      <div class="fb-dash-form-element"><label for="f_first">First name</label><input type="text" id="f_first"></div>
+      <div class="fb-dash-form-element"><label for="f_last">Last name</label><input type="text" id="f_last"></div>
+      <div class="fb-dash-form-element"><label for="f_email">Email address</label><input type="email" id="f_email"></div>
+      <div class="fb-dash-form-element"><label for="f_phone">Phone number</label><input type="tel" id="f_phone"></div>
+      <div class="fb-dash-form-element"><label for="f_ml">Describe your ML experience</label><textarea id="f_ml"></textarea></div>
+      <div class="fb-dash-form-element"><label>Resume</label><input type="file" id="f_resume"></div>
+      <button type="button" aria-label="Continue to next step" id="next1">Next</button>
+    </div>
+    <div class="easy-step" id="step2" style="display:none">
+      <fieldset><legend>Voluntary Self-Identification of Gender</legend>
+        <label><input type="radio" name="gender" value="m">Male</label>
+        <label><input type="radio" name="gender" value="f">Female</label>
+      </fieldset>
+      <div class="fb-dash-form-element"><label for="f_vet">Veteran status</label>
+        <select id="f_vet"><option value="">Select...</option><option>Veteran</option></select>
+      </div>
+      <button type="button" aria-label="Continue to next step" id="next2">Next</button>
+    </div>
+    <div id="review" style="display:none">
+      <h2>Review your application</h2>
+      <button type="submit" id="final_btn">Submit application</button>
+    </div>
+  </form>
+</div>
+<script>
+document.getElementById("next1").addEventListener("click", () => {
+  document.getElementById("step1").style.display = "none";
+  document.getElementById("step2").style.display = "block";
+});
+document.getElementById("next2").addEventListener("click", () => {
+  document.getElementById("step2").style.display = "none";
+  document.getElementById("review").style.display = "block";
+});
+</script>
+</body>
+</html>
