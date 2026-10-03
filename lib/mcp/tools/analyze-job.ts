@@ -6,7 +6,7 @@ import { evaluateJob } from "@/lib/evaluate.ts";
 import { getFetchCache, setFetchCache } from "@/lib/fetch-cache.ts";
 import { fetchPosting } from "@/lib/fetch-posting.ts";
 import { refineEvaluation } from "@/lib/llm.ts";
-import { resolveProfile } from "@/lib/profile.ts";
+import { loadActiveProfile } from "@/lib/request-profile.ts";
 import { researchCompany } from "@/lib/research-company.ts";
 import { EvaluateJobInput, EvaluationSchema } from "@/lib/mcp/schemas.ts";
 import { renderMarkdown } from "@/lib/mcp/render.ts";
@@ -35,7 +35,7 @@ export function registerAnalyzeJob(server: McpServer): void {
 					content: [{ type: "text" as const, text: "Provide postingText (preferred) or postingUrl." }],
 				};
 			}
-			const profile = resolveProfile(input.profile);
+			const profile = await loadActiveProfile(extra);
 
 			let postingText = input.postingText;
 			let fetchSteps = ["pasted-text"];

@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
 import { sectionHeadings } from "@/lib/latex.ts";
-import { resolveProfile } from "@/lib/profile.ts";
+import { loadActiveProfile } from "@/lib/request-profile.ts";
 import { buildTailoredCv } from "@/lib/tailor.ts";
 import { documentSignals } from "@/lib/verify.ts";
 import { TailorCvInput, TailorCvOutput } from "@/lib/mcp/schemas.ts";
@@ -23,10 +23,11 @@ export function registerTailorResume(server: McpServer): void {
 				openWorldHint: false,
 			},
 		},
-		async (input) => {
+		async (input, extra) => {
+			const profile = await loadActiveProfile(extra);
 			const result = buildTailoredCv({
 				...input,
-				profile: resolveProfile(input.profile),
+				profile,
 			});
 			if (!result.ok) {
 				return {

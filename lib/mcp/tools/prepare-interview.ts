@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
 import { planInterviewPrep } from "@/lib/prep.ts";
+import { loadActiveProfile } from "@/lib/request-profile.ts";
 import { PrepInterviewInput, PrepInterviewOutput } from "@/lib/mcp/schemas.ts";
 import { renderPrepMarkdown } from "@/lib/mcp/render.ts";
 
@@ -20,7 +21,7 @@ export function registerPrepareInterview(server: McpServer): void {
 				openWorldHint: false,
 			},
 		},
-		async (input) => {
+		async (input, extra) => {
 			const result = planInterviewPrep({
 				company: input.company,
 				role: input.role,
@@ -32,7 +33,7 @@ export function registerPrepareInterview(server: McpServer): void {
 				starExamples: input.starExamples,
 				companyFacts: input.companyFacts,
 				logistics: input.logistics,
-				profile: input.profile,
+				profile: await loadActiveProfile(extra),
 				masterCvText: input.masterCvText,
 				workspaceProfileText: input.workspaceProfileText,
 				evaluation: input.evaluation,

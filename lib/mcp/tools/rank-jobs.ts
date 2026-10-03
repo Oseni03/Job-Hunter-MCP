@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { resolveProfile } from "@/lib/profile.ts";
+import { loadActiveProfile } from "@/lib/request-profile.ts";
 import { planRank } from "@/lib/rank.ts";
 import { RankJobsInput, RankJobsOutput } from "@/lib/mcp/schemas.ts";
 import { renderRankMarkdown } from "@/lib/mcp/render.ts";
@@ -21,8 +21,8 @@ export function registerRankJobs(server: McpServer): void {
 				openWorldHint: true,
 			},
 		},
-		async (input) => {
-			const profile = resolveProfile(input.profile);
+		async (input, extra) => {
+			const profile = await loadActiveProfile(extra);
 			const plan = await planRank({
 				profile,
 				items: (input.items ?? []).map((item) => ({

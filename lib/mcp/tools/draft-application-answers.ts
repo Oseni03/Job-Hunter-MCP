@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
 import { planPortalFields } from "@/lib/fields.ts";
+import { loadActiveProfile } from "@/lib/request-profile.ts";
 import { PortalFieldsInput, PortalFieldsOutput } from "@/lib/mcp/schemas.ts";
 import { renderFieldsMarkdown } from "@/lib/mcp/render.ts";
 
@@ -20,9 +21,9 @@ export function registerDraftApplicationAnswers(server: McpServer): void {
 				openWorldHint: false,
 			},
 		},
-		async (input) => {
+		async (input, extra) => {
 			const result = planPortalFields({
-				profile: input.profile,
+				profile: await loadActiveProfile(extra),
 				company: input.company,
 				employerPoints: input.employerPoints,
 				experience: input.experience,

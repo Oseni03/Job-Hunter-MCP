@@ -67,12 +67,12 @@ export function planSetupProfile(input: SetupProfileInput): SetupProfileOutcome 
 	const resumeHash = hashText(resumeText);
 	const notes = [
 		`Resume held (${resumeText.length} chars, sha1 ${resumeHash.slice(0, 8)}); profile validated against ${Object.keys(override).length} override field(s).`,
-		"Per-call profile overrides still win over this stored profile field by field.",
+		"Tools load this stored profile for the authenticated caller; run setup again to update it.",
 	];
 	const missing = placeholderFields(profile);
 	const warnings =
 		missing.length > 0
-			? [`Unset after setup: ${missing.join(", ")}; pass them in profile or per call.`]
+			? [`Unset after setup: ${missing.join(", ")}; pass them in profile.`]
 			: [];
 	return {
 		ok: true,
@@ -81,7 +81,7 @@ export function planSetupProfile(input: SetupProfileInput): SetupProfileOutcome 
 		notes,
 		warnings,
 		dbNote: input.dbWrite
-			? "Mirror write requested; the host upserts the Prisma Profile row (userId plus the 15 ProfileSchema fields plus resumeHash) when the client is installed, else records this note."
+			? "Mirror write requested; the tool upserts the Prisma Profile row for the current user when the database is available, else reports honestly."
 			: "No mirror write requested; the host owns persistence.",
 	};
 }

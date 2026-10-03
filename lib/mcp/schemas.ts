@@ -13,9 +13,6 @@ export const EvaluateJobInput = z
 		company: z.string().min(1).optional().describe("Employer name (drives employer-site search and research)"),
 		role: z.string().min(1).optional().describe("Role title (drives employer-site search)"),
 		companyUrl: z.string().url().optional().describe("Official company site override for research"),
-		profile: ProfileSchema.partial()
-			.optional()
-			.describe("Per-call profile override; replaces the embedded default field by field"),
 		llm: z
 			.object({
 				mode: z.enum(["auto", "off"]).default("auto"),
@@ -125,9 +122,6 @@ export const TailorCvInput = z
 		postingUrl: z.string().url().optional().describe("Posting URL (slug fallback, archive reference)"),
 		company: z.string().min(1).optional(),
 		role: z.string().min(1).optional(),
-		profile: ProfileSchema.partial()
-			.optional()
-			.describe("Per-call profile override; replaces the embedded default field by field"),
 		experience: z.array(ExperienceInput).optional(),
 		education: z.array(EducationInput).optional(),
 		masterCvText: z.string().optional().describe("Master CV text; joins the factual-audit union"),
@@ -181,9 +175,6 @@ export const CoverInput = z
 		postingUrl: z.string().url().optional(),
 		company: z.string().min(1).optional(),
 		role: z.string().min(1).optional(),
-		profile: ProfileSchema.partial()
-			.optional()
-			.describe("Per-call profile override; replaces the embedded default field by field"),
 		hiringManager: z.string().min(1).optional().describe("Named salutation recipient"),
 		team: z.string().min(1).optional().describe("Team salutation fallback"),
 		postingLanguage: z.string().optional().describe("Posting language for structure and closing (default en)"),
@@ -374,9 +365,6 @@ export const PrepInterviewInput = z
 		starExamples: z.array(StarExampleInput).optional(),
 		companyFacts: z.array(z.string()).optional().describe("Caller-verified company facts only; echoed verbatim"),
 		logistics: PrepLogisticsInput.optional(),
-		profile: ProfileSchema.partial()
-			.optional()
-			.describe("Per-call profile override; replaces the embedded default field by field"),
 		masterCvText: z.string().optional(),
 		workspaceProfileText: z.string().optional(),
 		evaluation: EvaluationGateInput.optional().describe(
@@ -436,9 +424,6 @@ export const EvaluationSummaryInput = z
 
 export const StrategyInput = z
 	.object({
-		profile: ProfileSchema.partial()
-			.optional()
-			.describe("Per-call profile override; replaces the embedded default field by field"),
 		evaluationSummary: EvaluationSummaryInput.optional().describe("Caller-passed analyze-job output"),
 		evaluationSummaries: z
 			.array(EvaluationSummaryInput)
@@ -481,9 +466,6 @@ export const ProjectInput = z
 
 export const PortalFieldsInput = z
 	.object({
-		profile: ProfileSchema.partial()
-			.optional()
-			.describe("Per-call profile override; replaces the embedded default field by field"),
 		company: z.string().min(1).optional().describe("Employer name for the self-introduction tie"),
 		employerPoints: z
 			.array(z.union([z.string(), VerifiedSpecificInput]))
@@ -592,9 +574,6 @@ export const SearchJobsInput = z
 			.string()
 			.optional()
 			.describe("Opaque resume token from a previous page; the server holds no state"),
-		profile: ProfileSchema.partial()
-			.optional()
-			.describe("Per-call profile override; replaces the embedded default field by field"),
 	})
 	.strict();
 
@@ -706,9 +685,6 @@ export const RankJobsInput = z
 			.string()
 			.optional()
 			.describe("Opaque resume token for the deferred set; the server holds no state"),
-		profile: ProfileSchema.partial()
-			.optional()
-			.describe("Per-call profile override; replaces the embedded default field by field"),
 	})
 	.strict();
 
@@ -872,7 +848,7 @@ export const SetupProfileInput = z
 			.optional()
 			.describe("Structured corrections; wins over anything derived, validated field by field"),
 		displayName: z.string().min(1).optional().describe("Display name for the User row; never parsed from the resume"),
-		dbWrite: z.boolean().optional().describe("Opt-in Prisma mirror write; degraded to a note when the client is absent"),
+		dbWrite: z.boolean().optional().describe("Opt-in server-side persist to the caller's Profile row; degraded to a note when the database or user is unavailable"),
 	})
 	.strict();
 

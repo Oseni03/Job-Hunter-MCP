@@ -30,12 +30,6 @@ const ARGS = {
 	stage: "technical",
 	postingText: "Senior ML Engineer at Acme.\nRequirements: Python, Kubernetes.",
 	stageHistoryText: "Feedback: concern about Kubernetes depth.",
-	profile: {
-		name: "Test Candidate",
-		primarySkills: ["Python"],
-		strongDomains: ["fraud detection"],
-		careerGoals: ["ML Engineer"],
-	},
 	logistics: { format: "video" },
 };
 

@@ -284,13 +284,6 @@ describe("rank-jobs tool", () => {
 				postingText: "ML Engineer at Acme.\nRequirements: Python, SQL.\nDomain: fraud detection.\nRemote.",
 			},
 		],
-		profile: {
-			name: "Test Candidate",
-			primarySkills: ["Python", "SQL"],
-			strongDomains: ["fraud detection"],
-			careerGoals: ["ML Engineer"],
-			languages: [{ language: "English", level: "C1" }],
-		},
 	};
 
 	it("registers under rank-jobs", () => {

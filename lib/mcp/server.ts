@@ -2,6 +2,7 @@ import { createMcpHandler } from "mcp-handler";
 import type { AuthInfo, McpServer } from "@modelcontextprotocol/server";
 
 import { oauthConfigFromEnv, oauthRequiredScopesFromEnv, verifyMcpAuth } from "@/lib/oauth.ts";
+import { resolveActiveProfile } from "@/lib/request-profile.ts";
 import { registerAnalyzeJob } from "@/lib/mcp/tools/analyze-job.ts";
 import { registerTailorResume } from "@/lib/mcp/tools/tailor-resume.ts";
 import { registerGenerateCoverLetter } from "@/lib/mcp/tools/generate-cover-letter.ts";
@@ -14,7 +15,7 @@ import { registerResearchCompany } from "@/lib/mcp/tools/research-company.ts";
 import { registerSearchJobs } from "@/lib/mcp/tools/search-jobs.ts";
 import { registerSetupProfile } from "@/lib/mcp/tools/setup-profile.ts";
 import { registerDueFollowups } from "@/lib/mcp/tools/due-followups.ts";
-import { getPrompt, getResource, listPrompts, listResources } from "@/lib/resources.ts";
+import { getPrompt, getResource, listPrompts, listResources, renderProfileResource } from "@/lib/resources.ts";
 
 export function registerAllTools(server: McpServer): void {
 	registerAnalyzeJob(server);
@@ -32,9 +33,10 @@ export function registerAllTools(server: McpServer): void {
 }
 
 /**
- * Versioned resources and prompts (ticket 06). Private server defaults;
- * per-call overrides are served by the tools that accept them, while the
- * resources themselves always serve the embedded defaults.
+ * Versioned resources and prompts (ticket 06). Private server defaults
+ * stay embedded and versioned; the candidate-profile resource renders the
+ * caller's stored profile per request (embedded defaults when none is
+ * stored). Tools load the same stored profile instead of accepting one.
  */
 export function registerAllResources(server: McpServer): void {
 	for (const descriptor of listResources()) {
@@ -46,7 +48,19 @@ export function registerAllResources(server: McpServer): void {
 				description: descriptor.description,
 				mimeType: descriptor.mimeType,
 			},
-			async (uri) => {
+			async (uri, ctx) => {
+				if (descriptor.name === "candidate-profile") {
+					const resolved = await resolveActiveProfile(ctx);
+					return {
+						contents: [
+							{
+								uri: uri.href,
+								mimeType: descriptor.mimeType,
+								text: renderProfileResource(resolved.profile, resolved.stored),
+							},
+						],
+					};
+				}
 				const read = getResource(descriptor.uri);
 				const text = read.ok ? read.text : read.error;
 				return {

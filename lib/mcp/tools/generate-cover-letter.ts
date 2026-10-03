@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { resolveProfile } from "@/lib/profile.ts";
+import { loadActiveProfile } from "@/lib/request-profile.ts";
 import { buildCoverLetter } from "@/lib/tailor.ts";
 import { documentSignals } from "@/lib/verify.ts";
 import { CoverInput, CoverOutput } from "@/lib/mcp/schemas.ts";
@@ -22,10 +22,11 @@ export function registerGenerateCoverLetter(server: McpServer): void {
 				openWorldHint: false,
 			},
 		},
-		async (input) => {
+		async (input, extra) => {
+			const profile = await loadActiveProfile(extra);
 			const result = buildCoverLetter({
 				...input,
-				profile: resolveProfile(input.profile),
+				profile,
 			});
 			if (!result.ok) {
 				return {

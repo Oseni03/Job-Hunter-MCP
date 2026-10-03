@@ -32,8 +32,8 @@ export type Profile = z.infer<typeof ProfileSchema>;
 
 /**
  * Embedded default profile (mirrors 01-candidate-profile.md).
- * Placeholder values until the owner runs /setup; every call may
- * override any field, and the per-call override always wins.
+ * Placeholder values until the owner runs setup-profile; tools load the
+ * stored profile for the authenticated caller and fall back here.
  */
 export const DEFAULT_PROFILE: Profile = {
 	name: "[YOUR_NAME]",
@@ -53,7 +53,7 @@ export const DEFAULT_PROFILE: Profile = {
 	drainingTasks: [],
 };
 
-/** Merges a per-call override over the embedded default; override wins per field. */
+/** Merges a planner-level partial over the embedded default; the partial wins per field. */
 export function resolveProfile(override: unknown): Profile {
 	if (override === undefined || override === null) {
 		return { ...DEFAULT_PROFILE };

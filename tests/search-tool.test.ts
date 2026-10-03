@@ -28,13 +28,6 @@ const ARGS = {
 	keywords: "Python ML Engineer",
 	location: "Berlin, Germany",
 	limit: 10,
-	profile: {
-		name: "Test Candidate",
-		primarySkills: ["Python", "SQL"],
-		strongDomains: ["fraud detection"],
-		careerGoals: ["ML Engineer"],
-		languages: [{ language: "English", level: "C1" }],
-	},
 	portalResults: [
 		{
 			title: "ML Engineer",

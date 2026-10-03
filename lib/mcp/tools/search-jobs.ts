@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
 import { defaultFetch } from "@/lib/fetch-posting.ts";
-import { resolveProfile } from "@/lib/profile.ts";
+import { loadActiveProfile } from "@/lib/request-profile.ts";
 import { planSearch } from "@/lib/search.ts";
 import { SearchJobsInput, SearchJobsOutput } from "@/lib/mcp/schemas.ts";
 import { renderSearchMarkdown } from "@/lib/mcp/render.ts";
@@ -22,8 +22,8 @@ export function registerSearchJobs(server: McpServer): void {
 				openWorldHint: true,
 			},
 		},
-		async (input) => {
-			const profile = resolveProfile(input.profile);
+		async (input, extra) => {
+			const profile = await loadActiveProfile(extra);
 			const plan = await planSearch({
 				filters: {
 					keywords: input.keywords,

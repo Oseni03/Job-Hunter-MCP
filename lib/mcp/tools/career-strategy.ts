@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
 import { planCareerStrategy } from "@/lib/strategy.ts";
+import { loadActiveProfile } from "@/lib/request-profile.ts";
 import { StrategyInput, StrategyOutput } from "@/lib/mcp/schemas.ts";
 import { renderStrategyMarkdown } from "@/lib/mcp/render.ts";
 
@@ -20,9 +21,9 @@ export function registerCareerStrategy(server: McpServer): void {
 				openWorldHint: false,
 			},
 		},
-		async (input) => {
+		async (input, extra) => {
 			const result = planCareerStrategy({
-				profile: input.profile,
+				profile: await loadActiveProfile(extra),
 				evaluationSummary: input.evaluationSummary,
 				evaluationSummaries: input.evaluationSummaries,
 				focusAreas: input.focusAreas,

@@ -1,14 +1,15 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { DEFAULT_PROFILE } from "@/lib/profile.ts";
+import { DEFAULT_PROFILE, type Profile } from "@/lib/profile.ts";
 import { RESEARCH_TTL_DAYS, normalizeCompany } from "@/lib/research-company.ts";
 
 /**
  * Versioned resource and prompt catalog (ticket 06). Private server
- * defaults are embedded here; a per-call override always wins. Missing
- * entries degrade to explicit errors, never guesses. The host owns every
- * write and all compilation; the server only serves text plus signals.
+ * defaults are embedded here; tools load the caller's stored profile,
+ * and the candidate-profile resource serves it per request. Missing
+ * entries degrade to explicit errors, never guesses. The host owns
+ * compilation; the server only serves text plus signals.
  */
 
 export interface ResourceDescriptor {
@@ -25,22 +26,33 @@ interface ResourceBody extends ResourceDescriptor {
 }
 
 function profileText(): string {
+	return renderProfileResource(DEFAULT_PROFILE, false);
+}
+
+/**
+ * Candidate-profile resource body in the stable markdown shape. The server
+ * renders the caller's stored profile when one resolves (stored=true) and
+ * the embedded defaults otherwise; the trailing line always states which.
+ */
+export function renderProfileResource(profile: Profile, stored: boolean): string {
 	const lines = [
-		"# Candidate profile (server default v1)",
+		stored ? "# Candidate profile (stored for this caller)" : "# Candidate profile (server default v1)",
 		"",
-		`Name: ${DEFAULT_PROFILE.name}`,
-		`Location: ${DEFAULT_PROFILE.location} (${DEFAULT_PROFILE.constraints})`,
-		`Work country: ${DEFAULT_PROFILE.workCountry}`,
-		`Citizenships: ${DEFAULT_PROFILE.citizenships.join(", ") || "undeclared"}`,
-		`Permit classes: ${DEFAULT_PROFILE.permitClasses.join(", ") || "undeclared"}`,
-		`Languages: ${DEFAULT_PROFILE.languages.map((entry) => `${entry.language} (${entry.level})`).join(", ") || "undeclared"}`,
-		`Primary skills: ${DEFAULT_PROFILE.primarySkills.join(", ") || "unset; run /setup"}`,
-		`Secondary skills: ${DEFAULT_PROFILE.secondarySkills.join(", ") || "unset"}`,
-		`Strong domains: ${DEFAULT_PROFILE.strongDomains.join(", ") || "unset"}`,
-		`Adjacent domains: ${DEFAULT_PROFILE.adjacentDomains.join(", ") || "unset"}`,
-		`Career goals: ${DEFAULT_PROFILE.careerGoals.join(", ") || "unset"}`,
+		`Name: ${profile.name}`,
+		`Location: ${profile.location} (${profile.constraints})`,
+		`Work country: ${profile.workCountry}`,
+		`Citizenships: ${profile.citizenships.join(", ") || "undeclared"}`,
+		`Permit classes: ${profile.permitClasses.join(", ") || "undeclared"}`,
+		`Languages: ${profile.languages.map((entry) => `${entry.language} (${entry.level})`).join(", ") || "undeclared"}`,
+		`Primary skills: ${profile.primarySkills.join(", ") || "unset; run setup-profile"}`,
+		`Secondary skills: ${profile.secondarySkills.join(", ") || "unset"}`,
+		`Strong domains: ${profile.strongDomains.join(", ") || "unset"}`,
+		`Adjacent domains: ${profile.adjacentDomains.join(", ") || "unset"}`,
+		`Career goals: ${profile.careerGoals.join(", ") || "unset"}`,
 		"",
-		"Per-call profile overrides replace these defaults field by field.",
+		stored
+			? "Stored profile for the authenticated caller; run setup-profile again to update it."
+			: "Embedded defaults; run setup-profile with dbWrite to store the caller's profile.",
 	];
 	return lines.join("\n");
 }
@@ -50,8 +62,9 @@ const RESOURCES: ResourceBody[] = [
 		uri: "job-hunter://profile/candidate",
 		name: "candidate-profile",
 		title: "Candidate profile",
-		description: "Identity, skills, domains, goals, and constraints every tool grounds its output in.",
-		version: 1,
+		description:
+			"Identity, skills, domains, goals, and constraints every tool grounds its output in. Serves the caller's stored profile; embedded defaults when none is stored.",
+		version: 2,
 		mimeType: "text/markdown",
 		text: profileText(),
 	},

@@ -25,12 +25,6 @@ function registered(): { name: string; handler: unknown }[] {
 }
 
 const ARGS = {
-	profile: {
-		name: "Test Candidate",
-		primarySkills: ["Python", "SQL"],
-		strongDomains: ["fraud detection"],
-		careerGoals: ["ML Engineer"],
-	},
 	company: "Acme",
 	projects: [
 		{
@@ -50,15 +44,14 @@ describe("draft-application-answers tool", () => {
 		assert.equal(tools[0].name, "draft-application-answers");
 	});
 
-	it("drafts intros, project entries, and pitches with measured counts", async () => {
+	it("drafts nothing without a stored profile instead of inventing", async () => {
 		const tools = registered();
 		const result = await (tools[0].handler as LooseHandler)(ARGS, {});
 		assert.equal(result.isError, undefined);
 		const structured = result.structuredContent as Record<string, unknown>;
 		assert.equal(structured["filePath"], "documents/portal-fields.md");
-		assert.equal((structured["selfIntros"] as unknown[]).length, 2);
-		const pitches = structured["pitches"] as { charCount: number; text: string }[];
-		assert.ok(pitches.length >= 4 && pitches.length <= 6);
+		assert.deepEqual(structured["selfIntros"], []);
+		assert.deepEqual(structured["pitches"], []);
 		assert.deepEqual(structured["ungrounded"], []);
 		assert.ok(result.content[0].text.includes("# Portal fields (copy-paste)"));
 	});
