@@ -45,3 +45,6 @@ prisma/*.db-journal
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# scraper HTTP cache (local-only, rebuilt on demand)
+/.scratch/scrape-cache/

@@ -8,7 +8,7 @@ Batch-scores `/scrape`-collected jobs so the user can spend `/apply` effort wise
 
 ## Step 1: Load State
 
-Never read `job_scraper/seen_jobs.json` into context. Query: `python3 tools/rank_state.py candidates --limit 10 [--all] [--focus "<text>"]` (status filter, tracker company+role exclusion regardless of flags, focus, limit) → compact `{key,title,company,url,portal,deadline,posted_date}` + `eligible/deferred/excluded_by_tracker` counts. None → "Nothing new to rank - run /scrape"; "not found" → run `/scrape` first. Then read `04` + `01` once; state ranked vs deferred counts.
+Never read `job-scraper/seen_jobs.json` into context. Query: `python3 tools/rank_state.py candidates --limit 10 [--all] [--focus "<text>"]` (status filter, tracker company+role exclusion regardless of flags, focus, limit) → compact `{key,title,company,url,portal,deadline,posted_date}` + `eligible/deferred/excluded_by_tracker` counts. None → "Nothing new to rank - run /scrape"; "not found" → run `/scrape` first. Then read `04` + `01` once; state ranked vs deferred counts.
 
 ## Step 2: Batch-Fetch and Score
 

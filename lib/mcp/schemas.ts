@@ -565,6 +565,12 @@ export const SearchJobsInput = z
 			.array(BoardRefSchema)
 			.optional()
 			.describe("Structured board refs; run ahead of scrapers, filtered by the query set"),
+		scraperAdapters: z
+			.array(z.string())
+			.optional()
+			.describe(
+				"Local scraper adapters to run (registry names, or all); run after boards. Undefined or empty disables live scraping.",
+			),
 		remoteMode: z
 			.enum(["remote", "hybrid", "onsite"])
 			.optional()
@@ -603,17 +609,16 @@ export const SearchCandidateSchema = z
 		dateUnknown: z.boolean(),
 		status: z.enum(["active", "expired", "unknown"]),
 		portal: z.string(),
-		source: z.enum(["portal-live", "board", "brightdata", "web-fallback"]),
+		source: z.enum(["portal-live", "board", "scraper"]),
 		quickFit: z
 			.object({
 				score: z.number(),
 				band: z.enum(["high", "medium", "low", "unscored"]),
 				strengths: z.array(z.string()),
 				gaps: z.array(z.string()),
-				lowEvidence: z.boolean(),
-				textLength: z.number(),
-				source: z.enum(["heuristic", "llm-extraction"]),
-			})
+			lowEvidence: z.boolean(),
+			textLength: z.number(),
+		})
 			.strict(),
 		language: z
 			.object({
@@ -645,7 +650,7 @@ export const SearchJobsOutput = z
 		staleCount: z.number(),
 		seenSkipped: z.number(),
 		appliedSkipped: z.number(),
-		sources: z.array(z.enum(["portal-live", "board", "brightdata", "web-fallback"])),
+		sources: z.array(z.enum(["portal-live", "board", "scraper"])),
 		queriesRun: z.array(z.string()),
 		nextCursor: z.string().nullable(),
 		notes: z.array(z.string()),

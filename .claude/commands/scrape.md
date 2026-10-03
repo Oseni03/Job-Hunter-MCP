@@ -16,7 +16,7 @@ Triggers: "Find new jobs", "Scrape for jobs", "Any new positions?", "/scrape". A
 
 ## Step 0: Load State
 
-1. Read `job_scraper/seen_jobs.json` (create as `{"seen": {}}` if missing)
+1. Read `job-scraper/seen_jobs.json` (create as `{"seen": {}}` if missing)
 2. Read `job_search_tracker.csv` for applied company+roles
 3. Read `search-queries.md` for strategy
 

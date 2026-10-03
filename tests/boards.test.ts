@@ -2,7 +2,6 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-	buildHackingQueries,
 	fetchBoardJobs,
 	filterListingsByQuery,
 	mapAshbyJob,
@@ -173,9 +172,8 @@ describe("planSearch board source (issue 13)", () => {
 		return async () => ({ status, body: JSON.stringify(body) });
 	}
 
-	it("runs boards ahead of BrightData and never calls the scraper", async () => {
+	it("runs boards and reports coverage with zero invented postings", async () => {
 		const { planSearch } = await import("@/lib/search.ts");
-		let scraperCalls = 0;
 		const plan = await planSearch({
 			profile: PROFILE,
 			boards: [{ provider: "lever", slug: "acme", company: "Acme" }],
@@ -187,14 +185,8 @@ describe("planSearch board source (issue 13)", () => {
 					createdAt: Date.parse("2026-09-20T00:00:00Z"),
 				},
 			]),
-			brightDataKey: "key",
-			brightDataFetch: async () => {
-				scraperCalls += 1;
-				return [];
-			},
 		});
 		assert.deepEqual(plan.sources, ["board"]);
-		assert.equal(scraperCalls, 0);
 		assert.equal(plan.candidates[0].company, "Acme");
 		assert.equal(plan.candidates[0].needsVerification, false);
 		assert.ok(plan.queriesRun.length > 0, "coverage is reported");
@@ -256,50 +248,5 @@ describe("planSearch board source (issue 13)", () => {
 		assert.ok(distinct.length <= 3, "per-run cap respected");
 		assert.deepEqual(plan.queriesRun, distinct);
 		assert.equal(plan.candidates.length, 1, "merged across queries with dedupe");
-	});
-
-	it("sends site:-scoped hacking queries to the web fallback", async () => {
-		const { planSearch } = await import("@/lib/search.ts");
-		const seenQueries: string[] = [];
-		await planSearch({
-			profile: PROFILE,
-			filters: { keywords: "Python ML Engineer" },
-			webFallbackFetch: async (query) => {
-				seenQueries.push(query);
-				return [];
-			},
-		});
-		assert.ok(seenQueries.length > 0 && seenQueries.length <= 3);
-		assert.ok(
-			seenQueries.some((query) => query.includes("site:")),
-			`hacking operators sent: ${seenQueries}`,
-		);
-	});
-});
-
-// Issue 13 slice D: Google-hacking query construction for the web fallback.
-describe("buildHackingQueries (issue 13)", () => {
-	it("scopes multi-token keywords with site:, quotes, and OR", () => {
-		const queries = buildHackingQueries("Python ML Engineer");
-		assert.ok(
-			queries.some((query) => query.includes("site:boards.greenhouse.io") && query.includes('"Python"')),
-			`greenhouse site: query with quoted terms: ${queries}`,
-		);
-		assert.ok(
-			queries.some((query) => query.includes("site:jobs.lever.co") && query.includes("OR")),
-			`lever site: query with OR: ${queries}`,
-		);
-		assert.ok(
-			queries.some((query) => query.includes("site:linkedin.com/jobs")),
-			`linkedin-jobs site: query: ${queries}`,
-		);
-	});
-
-	it("emits an exact-phrase fallback for the whole keyword string", () => {
-		const queries = buildHackingQueries("fraud detection");
-		assert.ok(
-			queries.some((query) => query.includes('"fraud detection"')),
-			`exact-phrase fallback: ${queries}`,
-		);
 	});
 });

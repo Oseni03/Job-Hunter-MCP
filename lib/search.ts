@@ -1,4 +1,9 @@
-import { buildHackingQueries, fetchBoardJobs, filterListingsByQuery } from "@/lib/boards.ts";
+import {
+	adapters as scraperRegistry,
+	searchAll as searchScrapers,
+} from "@/job-scraper/index.ts";
+import type { Job as ScrapedJob, SearchQuery as ScraperQuery } from "@/job-scraper/index.ts";
+import { fetchBoardJobs, filterListingsByQuery } from "@/lib/boards.ts";
 import type { BoardRef } from "@/lib/boards.ts";
 import { decodeCursor, encodeCursor } from "@/lib/cursor.ts";
 import {
@@ -7,14 +12,9 @@ import {
 	extractStrengths,
 	overallScore,
 	parsePostingDay,
-	phraseMatches,
 	scoreDimensions,
 } from "@/lib/evaluate.ts";
-import {
-	defaultFetch,
-	extractTitle,
-	stripHtml,
-} from "@/lib/fetch-posting.ts";
+import { defaultFetch } from "@/lib/fetch-posting.ts";
 import type { FetchLike } from "@/lib/fetch-posting.ts";
 import { isCanonical, makeKey } from "@/lib/job-key.ts";
 import type { Profile } from "@/lib/profile.ts";
@@ -30,7 +30,7 @@ export const SEARCH_LIMIT_DEFAULT = 10;
 export const SEARCH_RECENCY_DAYS = 14;
 
 export type RemoteMode = "remote" | "hybrid" | "onsite";
-export type SearchSource = "portal-live" | "board" | "brightdata" | "web-fallback";
+export type SearchSource = "portal-live" | "board" | "scraper";
 export type FitBand = "high" | "medium" | "low" | "unscored";
 export type CandidateStatus = "active" | "expired" | "unknown";
 
@@ -100,7 +100,7 @@ export interface AutoQuery {
 	category: string;
 	/** Profile language this rendering targets. */
 	language: string;
-	/** Keyword query text for the portal or fallback search. */
+	/** Keyword query text for the portal or scraper search. */
 	query: string;
 }
 
@@ -248,8 +248,6 @@ export interface QuickFit {
 	lowEvidence: boolean;
 	/** Probe text length, so the host can judge the evidence depth. */
 	textLength: number;
-	/** Heuristic scorer, or the LLM extraction seam when it supplied evidence. */
-	source: "heuristic" | "llm-extraction";
 }
 
 export interface SearchCandidate {
@@ -271,41 +269,6 @@ export interface SearchCandidate {
 	needsVerification: boolean;
 }
 
-/**
- * Structured extraction for one probe text (issue 12 LLM seam). JSON only:
- * mentioned skills with the exact probe-text quote that states them,
- * language requirements with quotes, and normalized dates. The deterministic
- * scorer consumes this; anything whose quote is absent from the probe text
- * is dropped as unverifiable — scores cite matched text, never invented
- * qualities.
- */
-export interface ExtractionSkill {
-	skill: string;
-	quote: string;
-}
-
-export interface ExtractionLanguage {
-	language: string;
-	quote: string;
-}
-
-export interface CandidateExtraction {
-	skills: ExtractionSkill[];
-	languages: ExtractionLanguage[];
-	postedDate?: string | null;
-	deadline?: string | null;
-}
-
-/**
- * One batched call over all candidates' probe texts (issue 12). Keyed by
- * candidate key; missing keys mean "no extraction for this candidate".
- * Throwing degrades to the heuristic output with a note — never to invented
- * postings or scores.
- */
-export type BatchExtractor = (inputs: { key: string; probeText: string }[]) => Promise<
-	Record<string, CandidateExtraction>
->;
-
 export interface SearchInput {
 	filters?: SearchFilters;
 	profile: Profile;
@@ -316,12 +279,15 @@ export interface SearchInput {
 	portal?: PortalRunner;
 	/** Caller-supplied portal output (host ran the CLI); skips every fetch. */
 	portalResults?: RawPosting[];
-	brightDataKey?: string;
-	brightDataFetch?: PostingFetcher;
-	webFallbackFetch?: PostingFetcher;
+	/**
+	 * Local scraper adapters to run (registry names from the sources
+	 * command, or "all"). Runs after boards. Undefined
+	 * or empty means the scraper stage is off (no live fetch).
+	 */
+	scraperAdapters?: string[];
+	/** Injected scraper fetcher; defaults to the live job-scraper library. */
+	scraperFetch?: PostingFetcher;
 	sleep?: Sleeper;
-	/** Optional batched LLM extraction over probe texts; heuristic is the automatic fallback. */
-	extractBatch?: BatchExtractor;
 	/**
 	 * Opaque resume token from a previous page (issue 14). The server holds
 	 * no state: the cursor is an offset into the relevance-ordered list and
@@ -331,7 +297,7 @@ export interface SearchInput {
 	/**
 	 * Caller-supplied structured board refs (issue 13). Board APIs are
 	 * per-company listings with no directory or keyword search, so the host
-	 * owns the slug mapping. Boards run ahead of BrightData when present.
+	 * owns the slug mapping. Boards run ahead of scrapers when present.
 	 */
 	boards?: BoardRef[];
 	/** Injected board fetcher; defaults to the default fetch. */
@@ -427,135 +393,6 @@ function resolveBand(
 		return { band: "unscored", languageNote: `Unscored — thin evidence (${textLength} chars); ${languageNote}` };
 	}
 	return { band: bandFor(score), languageNote };
-}
-
-/** A quote counts as evidence only when it appears verbatim in the probe text. */
-function quoteVerified(probeText: string, quote: string): boolean {
-	const trimmed = quote.trim();
-	return trimmed !== "" && probeText.toLowerCase().includes(trimmed.toLowerCase());
-}
-
-/**
- * Batched LLM extraction pass (issue 12). One call over all probe texts;
- * the deterministic scorer consumes verified items only, and any failure
- * keeps the heuristic output with a note. Scores cite matched text: a skill
- * counts only when its quote sits in the probe text AND it names a profile
- * phrase; dates fill nulls only and never override parsed values.
- */
-async function applyExtraction(
-	candidates: SearchCandidate[],
-	probeTexts: Map<string, string>,
-	input: SearchInput,
-	now: Date,
-	today: string,
-	notes: string[],
-): Promise<void> {
-	if (!input.extractBatch || candidates.length === 0) {
-		return;
-	}
-	let extracted: Record<string, CandidateExtraction>;
-	try {
-		extracted = await input.extractBatch(
-			candidates.map((candidate) => ({ key: candidate.key, probeText: probeTexts.get(candidate.key) ?? "" })),
-		);
-	} catch (error) {
-		notes.push(`LLM extraction failed (${String(error)}); heuristic output kept for all candidates.`);
-		return;
-	}
-	const declared = new Map(
-		input.profile.languages.map((entry) => [entry.language.toLowerCase(), entry.level]),
-	);
-	const strengthPool = [...input.profile.primarySkills, ...input.profile.strongDomains];
-	for (const candidate of candidates) {
-		const record = extracted[candidate.key];
-		const probeText = probeTexts.get(candidate.key) ?? "";
-		if (!record) {
-			continue;
-		}
-		let consumed = false;
-		const verifiedSkills = (record.skills ?? []).filter(
-			(entry) =>
-				quoteVerified(probeText, entry.quote) &&
-				strengthPool.some(
-					(phrase) => phrase !== "" && (phraseMatches(phrase, entry.skill) || phraseMatches(entry.skill, phrase)),
-				),
-		);
-		let effectiveText = probeText;
-		if (verifiedSkills.length > 0) {
-			const canonical = strengthPool.filter((phrase) =>
-				verifiedSkills.some((entry) => phraseMatches(phrase, entry.skill) || phraseMatches(entry.skill, phrase)),
-			);
-			if (canonical.length > 0) {
-				effectiveText = `${probeText}\n${canonical.join("\n")}`;
-				consumed = true;
-			}
-		}
-		let gate = candidate.language.verdict;
-		let gateQuote: string | undefined;
-		let gateNote = candidate.language.note;
-		for (const entry of record.languages ?? []) {
-			if (!quoteVerified(probeText, entry.quote)) {
-				continue;
-			}
-			if (!declared.has(entry.language.trim().toLowerCase())) {
-				gate = "FAIL";
-				gateQuote = entry.quote.trim();
-				gateNote = `${entry.language.trim()} is required as a job condition but is not on the candidate's Languages table. Do not score or draft.`;
-				consumed = true;
-				break;
-			}
-		}
-		let postedDate = candidate.postedDate;
-		let deadline = candidate.deadline;
-		const extractedPosted = parsePostingDay(record.postedDate, now);
-		if (postedDate === null && extractedPosted !== null) {
-			postedDate = extractedPosted;
-			consumed = true;
-		}
-		const extractedDeadline = parsePostingDay(record.deadline, now);
-		if (deadline === null && extractedDeadline !== null) {
-			deadline = extractedDeadline;
-			consumed = true;
-		}
-		if (!consumed) {
-			continue;
-		}
-		const dims = scoreDimensions(effectiveText, input.profile);
-		const score = overallScore(dims);
-		const resolved = resolveBand(
-			score,
-			{ verdict: gate, note: gateQuote ?? gateNote },
-			candidate.quickFit.lowEvidence,
-			candidate.quickFit.textLength,
-		);
-		// resolveBand prefixes its own gate wording; for an extraction-found
-		// FAIL pass the raw requirement note so the wording stays accurate.
-		const languageNote =
-			gate === "FAIL" && gateQuote
-				? (candidate.quickFit.lowEvidence
-						? `Language-gate override (LLM extraction): "${gateQuote}" — ${gateNote} (thin evidence: ${candidate.quickFit.textLength} chars)`
-						: `Language-gate override (LLM extraction): "${gateQuote}" — ${gateNote}`)
-				: gate === "FAIL"
-					? resolved.languageNote
-					: resolved.languageNote;
-		const dateUnknown = postedDate === null && deadline === null;
-		candidate.postedDate = postedDate;
-		candidate.deadline = deadline;
-		candidate.dateUnknown = dateUnknown;
-		candidate.status = deadline && deadline < today ? "expired" : dateUnknown ? "unknown" : "active";
-		candidate.quickFit = {
-			score,
-			band: resolved.band,
-			strengths: extractStrengths(effectiveText, input.profile),
-			gaps: extractGaps(effectiveText, input.profile),
-			lowEvidence: candidate.quickFit.lowEvidence,
-			textLength: candidate.quickFit.textLength,
-			source: "llm-extraction",
-		};
-		candidate.language = { verdict: gate, note: languageNote };
-		candidate.referralLinks =
-			resolved.band === "high" || resolved.band === "medium" ? referralLinksFor(candidate.company) : [];
-	}
 }
 
 export async function planSearch(input: SearchInput): Promise<SearchPlan> {
@@ -666,51 +503,38 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 		notes.push(
 			`Board run over ${input.boards.length} board(s) with ${listings.length} listing(s); filtered by ${queriesRun.length} querie(s).`,
 		);
-	} else if (input.brightDataKey) {
-		if (!input.brightDataFetch) {
-			errors.push("BrightData key is configured but no fetcher was injected; no fetch ran.");
-		} else {
-			const collected: RawPosting[][] = [];
-			for (const query of querySet) {
-				try {
-					collected.push(await input.brightDataFetch(query));
-					queriesRun.push(query);
-				} catch (error) {
-					errors.push(`BrightData fetch failed for "${query}" (${String(error)}); no postings invented.`);
-				}
-			}
-			raws = mergeRaws(collected);
-			source = "brightdata";
-			sources.push(source);
-		}
-	} else if (input.webFallbackFetch) {
-		// Google-hacking expansion (issue 13): site:-scoped board/jobs pages,
-		// quoted terms, OR groups, and an exact-phrase fallback over the
-		// primary query — the cap keeps the run polite and visible.
-		const base = filters.keywords || queries[0]?.query || "";
-		const hacking = buildHackingQueries(base).slice(0, SEARCH_QUERY_CAP);
-		const fallbackQueries = hacking.length > 0 ? hacking : [base];
+	} else if (input.scraperAdapters && input.scraperAdapters.length > 0) {
+		// Local scrapers (no key, host network): every query in the set runs
+		// with the plan's location, workplace filter, recency window, and
+		// limit, merged across queries with dedupe by URL.
+		const scraperFetch =
+			input.scraperFetch ??
+			createScraperFetcher({
+				location: filters.location,
+				remoteMode: filters.remoteMode,
+				limit: filters.limit,
+				adapters: input.scraperAdapters,
+			});
 		const collected: RawPosting[][] = [];
-		for (const query of fallbackQueries) {
+		for (const query of querySet) {
 			try {
-				collected.push(await input.webFallbackFetch(query));
+				collected.push(await scraperFetch(query));
 				queriesRun.push(query);
 			} catch (error) {
-				errors.push(`Web fallback failed for "${query}" (${String(error)}); no postings invented.`);
+				errors.push(`Scraper fetch failed for "${query}" (${String(error)}); no postings invented.`);
 			}
 		}
 		raws = mergeRaws(collected);
-		source = "web-fallback";
+		source = "scraper";
 		sources.push(source);
-		notes.push("Web-search fallback results; verify each posting before evaluating.");
+		notes.push(`Scraper run over ${input.scraperAdapters.join(", ")}; merged across ${queriesRun.length} querie(s).`);
 	} else {
 		errors.push(
-			"No search source available (no portal runner, board refs, BrightData key, or fallback); no postings invented.",
+			"No search source available (no portal runner, board refs, or scraper adapters); no postings invented.",
 		);
 	}
 
 	const candidates: SearchCandidate[] = [];
-	const probeTexts = new Map<string, string>();
 	let staleCount = 0;
 	for (const raw of raws) {
 		const title = raw.title?.trim() || "Untitled role";
@@ -764,7 +588,9 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 			dateUnknown,
 			status,
 			portal: raw.portal ?? "linkedin",
-			source: source ?? "web-fallback",
+			// Raws is empty unless a stage ran and recorded its source, so
+			// this default is unreachable; it exists only for the type.
+			source: source ?? "portal-live",
 			quickFit: {
 				score,
 				band: resolved.band,
@@ -772,7 +598,6 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 				gaps: extractGaps(probeText, input.profile),
 				lowEvidence,
 				textLength,
-				source: "heuristic",
 			},
 			language: { verdict: languageGate.verdict, note: resolved.languageNote },
 			consolidationNote: null,
@@ -781,10 +606,7 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 			// paths keep the placeholder and flag it for host verification.
 			needsVerification: company === "Unknown company",
 		});
-		probeTexts.set(key, probeText);
 	}
-
-	await applyExtraction(candidates, probeTexts, input, now, today, notes);
 
 	const consolidated: SearchCandidate[] = [];
 	const groups = new Map<string, SearchCandidate[]>();
@@ -852,129 +674,62 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 }
 
 /**
- * Server fetch paths. Both degrade honestly: any failure throws and the
- * planner records an error with zero candidates, never invented postings.
- * People-search URLs are filtered before any fetch, never scraped.
+ * Local scraper runner over the job-scraper library (no key, host network).
+ * "all" fans out to every registered adapter; otherwise the named adapters
+ * run (unknown names throw, recorded per query). Kept injectable so unit
+ * tests never touch the network.
  */
+export type ScraperRunner = (query: ScraperQuery) => Promise<ScrapedJob[]>;
 
-const BRIGHTDATA_ENDPOINT = "https://api.brightdata.com/request";
-
-/** Tolerant field lookup across BrightData result shapes. */
-function pickField(item: Record<string, unknown>, names: string[]): string | undefined {
-	for (const name of names) {
-		const value = item[name];
-		if (typeof value === "string" && value.trim() !== "") {
-			return value.trim();
+function defaultScraperRunner(adapterNames: string[]): ScraperRunner {
+	return (query) => {
+		if (adapterNames.includes("all")) {
+			return searchScrapers(query);
 		}
-	}
-	return undefined;
-}
-
-/** BrightData scraper-API fetcher for LinkedIn job listings. Zone from env. */
-export function createBrightDataFetcher(
-	apiKey: string,
-	zone: string,
-	fetchImpl: FetchLike = defaultFetch,
-): PostingFetcher {
-	return async (query: string) => {
-		const searchUrl =
-			`https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search` +
-			`?keywords=${encodeURIComponent(query)}`;
-		const res = await fetchImpl(
-			BRIGHTDATA_ENDPOINT,
-			{
-				Authorization: `Bearer ${apiKey}`,
-				"Content-Type": "application/json",
-			},
-			{ method: "POST", body: JSON.stringify({ zone, url: searchUrl, format: "json" }) },
-		);
-		if (res.status === 429 || res.status >= 500) {
-			throw new Error(`BrightData rate-limited or unavailable (HTTP ${res.status})`);
-		}
-		if (res.status !== 200) {
-			throw new Error(`BrightData request failed (HTTP ${res.status})`);
-		}
-		let items: unknown;
-		try {
-			items = JSON.parse(res.body);
-		} catch {
-			throw new Error("BrightData returned a non-JSON payload");
-		}
-		const list = Array.isArray(items) ? items : [items];
-		const postings: RawPosting[] = [];
-		for (const entry of list) {
-			if (typeof entry !== "object" || entry === null) {
-				continue;
+		const resolved = adapterNames.map((name) => {
+			const found = scraperRegistry.find((candidate) => candidate.name === name);
+			if (!found) {
+				const known = scraperRegistry.map((candidate) => candidate.name).join(", ");
+				throw new Error(`Unknown scraper adapter '${name}'. Registered: ${known}`);
 			}
-			const record = entry as Record<string, unknown>;
-			const url = pickField(record, ["url", "link", "job_url", "apply_url"]);
-			if (!url || isPeopleSearchUrl(url)) {
-				continue;
-			}
-			postings.push({
-				title: pickField(record, ["title", "job_title", "name"]) ?? "Untitled role",
-				company: pickField(record, ["company", "company_name", "employer"]) ?? "Unknown company",
-				url,
-				description: pickField(record, ["description", "snippet", "job_description"]),
-				postedDate: pickField(record, ["posted_date", "created_at", "date", "posted"]),
-				deadline: pickField(record, ["deadline", "expiry", "expires_at"]),
-				portal: "linkedin",
-			});
-		}
-		return postings;
+			return found;
+		});
+		return searchScrapers(query, { adapters: resolved });
 	};
 }
 
-/** Job-link extraction for the web-search fallback: drops people-search pages. */
-export async function searchJobLinks(query: string, fetchImpl: FetchLike): Promise<string[]> {
-	const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(`site:linkedin.com/jobs ${query}`)}`;
-	const res = await fetchImpl(searchUrl, { "User-Agent": "job-hunter-bot/1.0" });
-	if (res.status !== 200) {
-		throw new Error(`Web search failed (HTTP ${res.status})`);
-	}
-	const found: string[] = [];
-	const pattern = /uddg=([^&"']+)/g;
-	let match: RegExpExecArray | null;
-	while ((match = pattern.exec(res.body)) !== null && found.length < 10) {
-		try {
-			const decoded = decodeURIComponent(match[1]);
-			if (decoded.startsWith("http") && !isPeopleSearchUrl(decoded) && !found.includes(decoded)) {
-				found.push(decoded);
-			}
-		} catch {
-			continue;
-		}
-	}
-	return found;
+export interface ScraperFetchOptions {
+	location: string;
+	remoteMode?: RemoteMode;
+	limit: number;
+	adapters: string[];
 }
 
 /**
- * Web-search fallback: links from a site-scoped search, one light fetch
- * each for title and description. Company stays "Unknown company" unless
- * the page states it, flagged for host verification before evaluating.
+ * PostingFetcher over local scrapers: each query runs with the plan's
+ * location, workplace filter, 14-day recency window, and limit. Scraped jobs
+ * map to raw postings with the adapter name as portal and ISO dates cut to
+ * YYYY-MM-DD for parsePostingDay downstream.
  */
-export function createWebFallbackFetch(fetchImpl: FetchLike = defaultFetch): PostingFetcher {
+export function createScraperFetcher(
+	options: ScraperFetchOptions,
+	run: ScraperRunner = defaultScraperRunner(options.adapters),
+): PostingFetcher {
 	return async (query: string) => {
-		const links = await searchJobLinks(query, fetchImpl);
-		const postings: RawPosting[] = [];
-		for (const link of links) {
-			let res: { status: number; body: string };
-			try {
-				res = await fetchImpl(link, { "User-Agent": "job-hunter-bot/1.0" });
-			} catch {
-				continue;
-			}
-			if (res.status !== 200) {
-				continue;
-			}
-			postings.push({
-				title: extractTitle(res.body) || "Untitled role",
-				company: "Unknown company",
-				url: link,
-				description: stripHtml(res.body).slice(0, 2000),
-				portal: "linkedin",
-			});
-		}
-		return postings;
+		const jobs = await run({
+			keywords: query,
+			location: options.location,
+			remoteFilter: options.remoteMode,
+			postedWithinDays: SEARCH_RECENCY_DAYS,
+			limit: options.limit,
+		});
+		return jobs.map((job) => ({
+			title: job.title,
+			company: job.company,
+			url: job.url,
+			description: job.description,
+			postedDate: job.postedAt ? job.postedAt.toISOString().slice(0, 10) : undefined,
+			portal: job.source,
+		}));
 	};
 }

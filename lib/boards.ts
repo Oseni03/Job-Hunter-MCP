@@ -165,23 +165,3 @@ export function filterListingsByQuery(listings: RawPosting[], query: string): Ra
 		return tokens.every((token) => phraseMatches(haystack, token.replace(/^"|"$/g, "")));
 	});
 }
-
-/**
- * Google-hacking query construction for the web-search fallback (issue 13,
- * per user direction): site:-scoped board and jobs pages, quoted terms, and
- * OR groups, plus an exact-phrase fallback. Operators the scraper host can
- * paste into any search engine when the structured boards miss.
- */
-export function buildHackingQueries(keywords: string): string[] {
-	const tokens = keywords.split(/\s+/).filter((token) => token.length > 0);
-	if (tokens.length === 0) {
-		return [];
-	}
-	const quoted = tokens.map((token) => `"${token}"`);
-	return [
-		`site:boards.greenhouse.io ${quoted.join(" ")}`,
-		`site:jobs.lever.co (${quoted.join(" OR ")})`,
-		`site:linkedin.com/jobs ${quoted.join(" ")}`,
-		`"${keywords.trim()}" jobs hiring`,
-	];
-}

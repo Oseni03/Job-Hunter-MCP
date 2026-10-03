@@ -4,7 +4,7 @@
 
 ## Installed portal CLIs (primary for `/scrape`)
 
-/scrape discovers every portal skill under `.agents/skills/*/SKILL.md` and runs its CLI first. Shipped country-agnostic CLIs include `linkedin-search` and `freehire-search`. You do **not** need a matching `site:` line below for those CLIs to run. The `site:` templates are the **WebSearch fallback**.
+/scrape runs the unified CLI first: `node job-scraper/cli.ts search --location "<place>"` (default source `linkedin`; `--source all` fans out to every registered adapter — see `node job-scraper/cli.ts sources`). You do **not** need a matching `site:` line below for CLI-covered sources to run. The `site:` templates are the **WebSearch fallback**.
 
 **Language scope:** write every query category in every language in the CLAUDE.md Languages table. Translate keywords (e.g. "Frontend Developer" -> "Desarrollador Frontend"), not word-for-word.
 

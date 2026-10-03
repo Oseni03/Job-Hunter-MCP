@@ -5,6 +5,8 @@
  * The employer's own posting is preferred over aggregator copies.
  */
 
+import { htmlToText } from "@/job-scraper/helpers.ts";
+
 export interface FetchResponse {
 	status: number;
 	body: string;
@@ -129,24 +131,13 @@ export function robotsAllows(robotsBody: string, botName: string, path: string):
 	return true;
 }
 
-/** Strip scripts/styles and tags; unescape common entities. */
+/**
+ * Strip scripts/styles and tags; unescape common entities. Canonical
+ * implementation lives in the scraper library so CLI and MCP paths share
+ * one HTML-to-text shape.
+ */
 export function stripHtml(html: string): string {
-	return html
-		.replace(/<script[\s\S]*?<\/script\s*>/gi, " ")
-		.replace(/<style[\s\S]*?<\/style\s*>/gi, " ")
-		.replace(/<noscript[\s\S]*?<\/noscript\s*>/gi, " ")
-		.replace(/<svg[\s\S]*?<\/svg\s*>/gi, " ")
-		.replace(/<\/(p|div|h[1-6]|li|tr|br)>/gi, "\n")
-		.replace(/<[^>]+>/g, " ")
-		.replace(/&amp;/g, "&")
-		.replace(/&lt;/g, "<")
-		.replace(/&gt;/g, ">")
-		.replace(/&quot;/g, '"')
-		.replace(/&#39;|&apos;/g, "'")
-		.replace(/&nbsp;/g, " ")
-		.replace(/[ \t]+/g, " ")
-		.replace(/\n\s*\n+/g, "\n")
-		.trim();
+	return htmlToText(html);
 }
 
 export function extractTitle(html: string): string {
