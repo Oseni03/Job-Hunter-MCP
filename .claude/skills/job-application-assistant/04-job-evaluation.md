@@ -123,9 +123,9 @@ Does this role advance career goals and contain tasks that energize?
 
 ### 6. Salary Benchmark (Optional)
 
-If the salary lookup tool is configured (`salary_data.json` exists), look up the company:
+If the salary lookup tool is configured (`host/job-hunter/workflow/salary-data.json` exists — your own dataset: union statistics, Glassdoor exports, or manual benchmarks shaped as `{metadata?, companies: [{company, city?, categories?}]}`; the file is gitignored personal data), look up the company:
 ```
-python salary_lookup.py "<Company Name>" --json
+node host/job-hunter/workflow/salary-lookup.ts "<Company Name>" --json
 ```
 
 If a city is known from the posting, add `--city "<City>"` to narrow results.

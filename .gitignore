@@ -49,5 +49,8 @@ next-env.d.ts
 # scraper HTTP cache (local-only, rebuilt on demand)
 /.scratch/scrape-cache/
 
+# personal salary dataset for the salary-lookup workflow CLI (never commit)
+/host/job-hunter/workflow/salary-data.json
+
 # assisted-apply Chrome session (logins, local-only, rebuilt on demand)
 /.scratch/apply-chrome/

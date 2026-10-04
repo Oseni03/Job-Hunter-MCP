@@ -160,14 +160,14 @@ Wherever the CV names a verifiable artifact, carry its link (`\href`) so a reade
 
 ## ATS Parseability
 
-Verify the text layer with `python tools/verify_pdf.py cv/main_<company>_<role>.pdf --dump-text cv/main_<company>_<role>.txt` (pypdf first, then Poppler `pdftotext`; pass `-enc UTF-8` with `pdftotext -layout`). Check: contact details as literal text; no `(cid:NNN)` or replacement characters; reading order matches visual order; keyword coverage in the posting's language (prefer the posting's exact term where truthful, never add unsupported keywords); accents intact.
+Verify the text layer with `node host/job-hunter/workflow/verify-pdf.ts cv/main_<company>_<role>.pdf --dump-text cv/main_<company>_<role>.txt` (Poppler `pdftotext -layout -enc UTF-8` under the hood; install poppler-utils if missing). Check: contact details as literal text; no `(cid:NNN)` or replacement characters; reading order matches visual order; keyword coverage in the posting's language (prefer the posting's exact term where truthful, never add unsupported keywords); accents intact.
 
 ### Date fields must be ASCII ranges (confirmed ATS import failure)
 
 1. Write the `\cventry` date argument with a **single hyphen** (`2016-2024`, `Mar 2016 - Jul 2016`), not `--` (which renders as en-dash U+2013 and breaks parser range splitting). Prose ranges keep `--`.
 2. Always give a start *and* an end (explicit ranges, months for sub-year roles). Do not invent dates; a lone graduation year is fine but expect manual entry.
 
-`python tools/verify_pdf.py cv/main_<company>_<role>.pdf --ascii-dates` scans the raw text layer for year-plus-Unicode-dash hits. Cause 2 stays a read-through check.
+`node host/job-hunter/workflow/verify-pdf.ts cv/main_<company>_<role>.pdf --ascii-dates` scans the raw text layer for year-plus-Unicode-dash hits. Cause 2 stays a read-through check.
 
 ## Page Budget - Hard 2-Page Limit
 

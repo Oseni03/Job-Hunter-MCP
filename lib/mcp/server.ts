@@ -1,98 +1,12 @@
-import { createMcpHandler } from "mcp-handler";
-import type { AuthInfo, McpServer } from "@modelcontextprotocol/server";
+import type { AuthInfo } from "@modelcontextprotocol/server";
 
 import { oauthConfigFromEnv, oauthRequiredScopesFromEnv, verifyMcpAuth } from "@/lib/oauth.ts";
-import { resolveActiveProfile } from "@/lib/request-profile.ts";
-import { registerAnalyzeJob } from "@/lib/mcp/tools/analyze-job.ts";
-import { registerTailorResume } from "@/lib/mcp/tools/tailor-resume.ts";
-import { registerGenerateCoverLetter } from "@/lib/mcp/tools/generate-cover-letter.ts";
-import { registerTrackApplication } from "@/lib/mcp/tools/track-application.ts";
-import { registerPrepareInterview } from "@/lib/mcp/tools/prepare-interview.ts";
-import { registerCareerStrategy } from "@/lib/mcp/tools/career-strategy.ts";
-import { registerDraftApplicationAnswers } from "@/lib/mcp/tools/draft-application-answers.ts";
-import { registerRankJobs } from "@/lib/mcp/tools/rank-jobs.ts";
-import { registerResearchCompany } from "@/lib/mcp/tools/research-company.ts";
-import { registerSearchJobs } from "@/lib/mcp/tools/search-jobs.ts";
-import { registerSetupProfile } from "@/lib/mcp/tools/setup-profile.ts";
-import { registerDueFollowups } from "@/lib/mcp/tools/due-followups.ts";
-import { getPrompt, getResource, listPrompts, listResources, renderProfileResource } from "@/lib/resources.ts";
-
-export function registerAllTools(server: McpServer): void {
-	registerAnalyzeJob(server);
-	registerTailorResume(server);
-	registerGenerateCoverLetter(server);
-	registerTrackApplication(server);
-	registerPrepareInterview(server);
-	registerCareerStrategy(server);
-	registerDraftApplicationAnswers(server);
-	registerRankJobs(server);
-	registerResearchCompany(server);
-	registerSearchJobs(server);
-	registerSetupProfile(server);
-	registerDueFollowups(server);
-}
 
 /**
- * Versioned resources and prompts (ticket 06). Private server defaults
- * stay embedded and versioned; the candidate-profile resource renders the
- * caller's stored profile per request (embedded defaults when none is
- * stored). Tools load the same stored profile instead of accepting one.
+ * Shared auth plumbing for every /<server>/mcp route. Product composition
+ * (tools, resources, handlers) lives per server — see lib/job-hunter/.
+ * This module owns only token verification and deployment settings.
  */
-export function registerAllResources(server: McpServer): void {
-	for (const descriptor of listResources()) {
-		server.registerResource(
-			descriptor.name,
-			descriptor.uri,
-			{
-				title: `${descriptor.title} (v${descriptor.version})`,
-				description: descriptor.description,
-				mimeType: descriptor.mimeType,
-			},
-			async (uri, ctx) => {
-				if (descriptor.name === "candidate-profile") {
-					const resolved = await resolveActiveProfile(ctx);
-					return {
-						contents: [
-							{
-								uri: uri.href,
-								mimeType: descriptor.mimeType,
-								text: renderProfileResource(resolved.profile, resolved.stored),
-							},
-						],
-					};
-				}
-				const read = getResource(descriptor.uri);
-				const text = read.ok ? read.text : read.error;
-				return {
-					contents: [{ uri: uri.href, mimeType: descriptor.mimeType, text }],
-				};
-			},
-		);
-	}
-	for (const descriptor of listPrompts()) {
-		server.registerPrompt(
-			descriptor.name,
-			{
-				title: `${descriptor.title} (v${descriptor.version})`,
-				description: descriptor.description,
-			},
-			async () => {
-				const read = getPrompt(descriptor.name);
-				const text = read.ok ? read.text : read.error;
-				return {
-					messages: [{ role: "user" as const, content: { type: "text" as const, text } }],
-				};
-			},
-		);
-	}
-}
-
-export function buildMcpHandler(): (req: Request) => Promise<Response> {
-	return createMcpHandler((server) => {
-		registerAllTools(server);
-		registerAllResources(server);
-	});
-}
 
 export async function verifyMcpToken(_req: Request, bearerToken?: string): Promise<AuthInfo | undefined> {
 	// Never log bearerToken: 401s carry only the generic challenge while the
@@ -115,7 +29,7 @@ export async function verifyMcpToken(_req: Request, bearerToken?: string): Promi
 	};
 }
 
-/** Least-privilege scopes enforced on /mcp (default `mcp:tools`; see `OAUTH_REQUIRED_SCOPES`). */
+/** Least-privilege scopes enforced on every /<server>/mcp route (default `mcp:tools`; see `OAUTH_REQUIRED_SCOPES`). */
 export function mcpRequiredScopes(): string[] {
 	return oauthRequiredScopesFromEnv();
 }

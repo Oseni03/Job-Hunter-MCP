@@ -7,13 +7,13 @@
     "build": "next build",
     "start": "next start",
     "type-check": "tsc --noEmit",
-    "test": "node --test --import ./scripts/alias-loader.mjs tests/*.test.ts",
+    "test": "node --test --import ./scripts/alias-loader.mjs \"tests/**/*.test.ts\"",
     "lint": "eslint .",
     "test:client": "node scripts/test-client.mjs",
     "golden": "node --import ./scripts/alias-loader.mjs scripts/golden-check.mjs",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "scrape": "node job-scraper/cli.ts",
+    "scrape": "node host/job-hunter/scraper/cli.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

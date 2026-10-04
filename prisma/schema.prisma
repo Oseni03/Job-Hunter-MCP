@@ -51,7 +51,7 @@ model User {
 }
 
 // Per-user profile upserted by setup-profile from the uploaded resume.
-// Mirrors ProfileSchema (lib/profile.ts) field for field; arrays are Json
+// Mirrors ProfileSchema (lib/job-hunter/profile.ts) field for field; arrays are Json
 // (scalar lists are Postgres-only, as are the Oauth* scopes/resources
 // columns below). userId/resumeHash/updatedAt are storage columns, the rest
 // is the profile itself.

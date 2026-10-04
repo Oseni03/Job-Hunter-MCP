@@ -16,7 +16,7 @@ export interface BearerCheck {
  * Local dev stays open: with no token configured every request passes.
  * Prod: the bearer token must exactly match the configured token.
  * Kept for backwards compatibility; Better Auth JWT is checked separately
- * in the /mcp route via `requireMcpAuth`.
+ * in each /<server>/mcp route via `requireMcpAuth`.
  */
 export function verifyBearerToken(
 	bearerToken: string | undefined,
@@ -65,6 +65,11 @@ export function getBaseURL(env: Record<string, string | undefined> = process.env
 /**
  * Canonical MCP protected-resource identifier (RFC 8707 / RFC 9728).
  * Precedence: MCP_PUBLIC_URL > `${baseURL}/mcp`.
+ *
+ * Legacy/single-server spelling: with only job-hunter deployed, point
+ * MCP_PUBLIC_URL at its full public URL (`https://host/job-hunter/mcp`)
+ * and the collection default below never matters. Kept verbatim for the
+ * legacy metadata path and its tests.
  */
 export function getMcpResource(env: Record<string, string | undefined> = process.env): string {
 	const configured = (env["MCP_PUBLIC_URL"] ?? "").trim().replace(/\/+$/, "");
@@ -72,6 +77,25 @@ export function getMcpResource(env: Record<string, string | undefined> = process
 		return configured;
 	}
 	return `${getBaseURL(env)}/mcp`;
+}
+
+/**
+ * Protected-resource identifier for one named MCP server, served at
+ * `/<server>/mcp` on the same domain (`https://host/job-hunter/mcp`).
+ * MCP_PUBLIC_URL names the job-hunter server verbatim; every later server
+ * gets its own explicit rule here when it arrives — no placeholders.
+ */
+export function getServerResource(
+	server: string,
+	env: Record<string, string | undefined> = process.env,
+): string {
+	if (server === "job-hunter") {
+		const configured = (env["MCP_PUBLIC_URL"] ?? "").trim().replace(/\/+$/, "");
+		if (configured) {
+			return configured;
+		}
+	}
+	return `${getBaseURL(env)}/${server}/mcp`;
 }
 
 /**
@@ -139,7 +163,7 @@ function createAuthPrismaClient(): PrismaClient {
  * isBetterAuthEnabled() before calling getAuth().
  */
 function createAuth() {
-	// Explicit resource row (identifier + scope allowlist) so the plugin's
+	// Explicit resource rows (identifier + scope allowlist) so the plugin's
 	// seed always writes a real array. Without this, mcp() seeds from the
 	// bare resource string and the plugin writes `allowedScopes: null`,
 	// which Prisma rejects on the required `String[]` column
@@ -148,7 +172,10 @@ function createAuth() {
 	// allowlist and an empty one fails every request with invalid_scope.
 	// The allowlist mirrors MCP_SCOPES exactly (every scope this server
 	// mints), so legitimate requests always intersect.
-	const resource = getMcpResource();
+	// One row per MCP server on this domain (each served at /<name>/mcp).
+	// Add the next server's getServerResource row here when it arrives.
+	const servers = ["job-hunter"];
+	const resource = getServerResource(servers[0] as string);
 	return betterAuth({
 		baseURL: getBaseURL(),
 		secret: resolveSecret(),
@@ -170,7 +197,7 @@ function createAuth() {
 			jwt(),
 			mcp({
 				resource,
-				resources: [{ identifier: resource, allowedScopes: [...MCP_SCOPES] }],
+				resources: servers.map((name) => ({ identifier: getServerResource(name), allowedScopes: [...MCP_SCOPES] })),
 				loginPage: "/sign-in",
 				consentPage: "/consent",
 				scopes: [...MCP_SCOPES],

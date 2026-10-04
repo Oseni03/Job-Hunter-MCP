@@ -72,15 +72,15 @@ Security posture: no custom token crypto (all signature/claim checks via `jose`)
 
 Rotate the bearer without downtime: set the new token alongside OAuth (both accepted), roll clients over, then unset the old token. JWKS outages fail closed (401, never open).
 
-Curl matrix (against a deployment with `MCP_AUTH_TOKEN=secret`, `OAUTH_ISSUER` set, `MCP_PUBLIC_URL=https://mcp.example.com/mcp`):
+Curl matrix (against a deployment with `MCP_AUTH_TOKEN=secret`, `OAUTH_ISSUER` set, `MCP_PUBLIC_URL=https://mcp.example.com/job-hunter/mcp`). Each MCP lives at its own explicit path (`/job-hunter/mcp` today; later servers get their own the same way):
 
 ```sh
 BASE=https://mcp.example.com
 curl -s -o /dev/null -w "%{http_code}\n" $BASE/.well-known/oauth-protected-resource  # 200: {resource, authorization_servers}
-curl -s -D - -o /dev/null -X POST $BASE/mcp                                            # 401 + WWW-Authenticate: Bearer ... resource_metadata="...oauth-protected-resource"
-curl -s -o /dev/null -w "%{http_code}\n" -X POST -H "Authorization: Bearer secret" $BASE/mcp            # 200 (static bearer)
-curl -s -o /dev/null -w "%{http_code}\n" -X POST -H "Authorization: Bearer wrong" $BASE/mcp             # 401
-curl -s -o /dev/null -w "%{http_code}\n" -X POST -H "Authorization: Bearer $JWT" $BASE/mcp               # 200 (valid JWT) / 401 (wrong iss/aud/expired)
+curl -s -D - -o /dev/null -X POST $BASE/job-hunter/mcp                                            # 401 + WWW-Authenticate: Bearer ... resource_metadata="...oauth-protected-resource"
+curl -s -o /dev/null -w "%{http_code}\n" -X POST -H "Authorization: Bearer secret" $BASE/job-hunter/mcp            # 200 (static bearer)
+curl -s -o /dev/null -w "%{http_code}\n" -X POST -H "Authorization: Bearer wrong" $BASE/job-hunter/mcp             # 401
+curl -s -o /dev/null -w "%{http_code}\n" -X POST -H "Authorization: Bearer $JWT" $BASE/job-hunter/mcp               # 200 (valid JWT) / 401 (wrong iss/aud/expired)
 ```
 
 ## Protocol support

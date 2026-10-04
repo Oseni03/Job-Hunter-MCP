@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-import type { SamplingSender } from "@/lib/llm.ts";
+/** Sends one MCP sampling request; implemented by the host transport. */
+export type SamplingSender = (method: string, params: Record<string, unknown>) => Promise<unknown>;
 
 /** Adapts the MCP server's request sender for sampling; null when unavailable. */
 export function makeSamplingSender(extra: unknown): SamplingSender | null {

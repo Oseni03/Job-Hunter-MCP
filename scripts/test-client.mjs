@@ -12,7 +12,7 @@ async function main() {
         name: "job-hunter-test-client",
         version: "1.0.0",
     });
-    const endpoint = new URL("/mcp", `${origin}/`);
+    const endpoint = new URL("/job-hunter/mcp", `${origin}/`);
     const transport = new StreamableHTTPClientTransport(endpoint);
 
     console.log("Connecting to", endpoint.toString());

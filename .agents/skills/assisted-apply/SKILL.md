@@ -8,7 +8,7 @@ description: >
   fill out the form, submit an application, help me apply.
 context: fork
 enabled: true
-allowed-tools: Bash(node job-apply/cli.ts *)
+allowed-tools: Bash(node host/job-hunter/apply/cli.ts *)
 ---
 
 # Assisted Apply Skill
@@ -22,7 +22,7 @@ clicks Submit, then records the application with the `track-application` tool.
 
 - **Never click Submit.** The filler has no submit path by construction; a
   source-grep test (`tests/assisted-apply.test.ts`) fails the suite if any
-  click/press/submit primitive appears in `job-apply/`.
+  click/press/submit primitive appears in `host/job-hunter/apply/`.
 - **Never touch EEO/demographic fields** (gender, race, veteran status,
   disability, voluntary self-ID). They are reported as skipped, always.
 - **Only Greenhouse and Lever.** Any other ATS refuses with `unknown-ats`
@@ -35,7 +35,7 @@ clicks Submit, then records the application with the `track-application` tool.
 ### 1. Assemble the apply pack
 
 ```bash
-node job-apply/cli.ts pack --url <posting> --name "<full name>" --email <email> \
+node host/job-hunter/apply/cli.ts pack --url <posting> --name "<full name>" --email <email> \
   --phone <phone> --location "<city, country>" --resume <cv.pdf> \
   [--cover <letter.pdf>] [--answers <draft-application-answers.json>] \
   [--field "Question label=Answer"...] [--ats greenhouse|lever] [--out pack.json]
@@ -48,7 +48,7 @@ else. Omit `--ats` to detect it from the posting URL.
 ### 2. Fill the form (headed browser, stops before Submit)
 
 ```bash
-node job-apply/cli.ts fill --pack pack.json
+node host/job-hunter/apply/cli.ts fill --pack pack.json
 ```
 
 Chrome/Edge is driven via `playwright-core` (no browser download); override
@@ -63,7 +63,7 @@ pass `--ats linkedin`, and filling additionally requires
 `--accept-linkedin-risk`:
 
 ```bash
-node job-apply/cli.ts fill --pack pack.json --ats linkedin --accept-linkedin-risk
+node host/job-hunter/apply/cli.ts fill --pack pack.json --ats linkedin --accept-linkedin-risk
 ```
 
 Why the double gate: driving your authenticated LinkedIn session is against
@@ -86,5 +86,5 @@ role, posting URL, and filenames of the submitted CV and letter.
 node --test --import ./scripts/alias-loader.mjs tests/assisted-apply.test.ts
 ```
 
-Fills run headless against `job-apply/fixtures/` pages and assert the submit
+Fills run headless against `host/job-hunter/apply/fixtures/` pages and assert the submit
 trap never fires.

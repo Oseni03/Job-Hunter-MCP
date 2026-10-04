@@ -11,20 +11,20 @@ import { join } from "node:path";
 
 import { verifyBearerToken } from "@/lib/auth.ts";
 import { oauthConfigFromEnv, oauthResourceMetadata } from "@/lib/oauth.ts";
-import { buildCoverLetter, buildTailoredCv } from "@/lib/tailor.ts";
-import { checkWritingBans, sectionHeadings } from "@/lib/latex.ts";
+import { buildCoverLetter, buildTailoredCv } from "@/lib/job-hunter/tailor.ts";
+import { checkWritingBans, sectionHeadings } from "@/lib/job-hunter/latex.ts";
 import { isCanonical, makeKey } from "@/lib/job-key.ts";
-import { TRACKER_HEADER, planRecordApplication } from "@/lib/record.ts";
-import { SEARCH_LIMIT_MAX, SEARCH_RECENCY_DAYS, planSearch } from "@/lib/search.ts";
-import { planRank } from "@/lib/rank.ts";
+import { TRACKER_HEADER, planRecordApplication } from "@/lib/job-hunter/record.ts";
+import { SEARCH_LIMIT_MAX, SEARCH_RECENCY_DAYS, planSearch } from "@/lib/job-hunter/search.ts";
+import { planRank } from "@/lib/job-hunter/rank.ts";
 import {
 	getCompanyResearchResource,
 	getPrompt,
 	getResource,
 	listPrompts,
 	listResources,
-} from "@/lib/resources.ts";
-import { resolveProfile } from "@/lib/profile.ts";
+} from "@/lib/job-hunter/resources.ts";
+import { resolveProfile } from "@/lib/job-hunter/profile.ts";
 
 let pass = 0;
 let fail = 0;
@@ -221,7 +221,7 @@ check(
 );
 
 const mcpConfig = JSON.parse(readFileSync(".mcp.json", "utf-8"));
-check("shipped client config points at /mcp", mcpConfig.mcpServers["job-hunter"].url.endsWith("/mcp"));
+check("shipped client config points at /job-hunter/mcp", mcpConfig.mcpServers["job-hunter"].url.endsWith("/job-hunter/mcp"));
 
 const coverExample = "cover_letters/cover_example.tex";
 if (!existsSync(coverExample)) {

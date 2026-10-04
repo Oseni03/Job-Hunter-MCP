@@ -5,7 +5,7 @@ description: >
   (LinkedIn, local job boards, and any skills added with /add-portal). Deduplicates
   across runs. Triggers on: job scrape, find jobs, search jobs, new jobs, job search,
   scrape jobs, /scrape
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(bun --version), Bash(bun run .agents/skills/*/cli/src/cli.ts *), Bash(python tools/job_key.py:*), Bash(python3 tools/job_key.py:*), WebFetch, WebSearch, Agent, AskUserQuestion
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(node --version), Bash(node host/job-hunter/scraper/cli.ts *), Bash(node host/job-hunter/workflow/job-key.ts *), WebFetch, WebSearch, Agent, AskUserQuestion
 ---
 
 # Job Scraper
@@ -22,9 +22,9 @@ Triggers: "Find new jobs", "Scrape for jobs", "Any new positions?", "/scrape". A
 
 ## Step 1: Search
 
-Default: top 3 priority categories; "broad": all; focus: that category first. Primary = installed CLIs; fallback = WebSearch for portals without a CLI, failed CLIs, or missing bun.
+Default: top 3 priority categories; "broad": all; focus: that category first. Primary = installed CLIs; fallback = WebSearch for portals without a CLI, failed CLIs, or missing node.
 
-1a. `bun --version`; on fail use 1c everywhere and note it. 1b. Discover portals via `.agents/skills/*/SKILL.md` (use each portal's documented flags; never guess). Honor `enabled: false` (missing = enabled); record skips. Per portal: translate queries to its flags; scope last 14 days via its recency filter (`--jobage`, `--since`, etc.) or client-side `date` drop (never invent flags; `--order` sort + `--limit` is only an approximation); cap ~20/call; `--format json`; parallel via Agent; tag results by portal; log non-zero exits and continue. 1c. WebSearch with `search-queries.md` site queries for CLI-less/failed/unavailable portals; tag source (portal tag kept when standing in for a failed CLI). Step 4 persists `source`; Step 5 reports fallback portals.
+1a. `node --version`; on fail use 1c everywhere and note it. 1b. Discover portals via `.agents/skills/*/SKILL.md` (use each portal's documented flags; never guess). Honor `enabled: false` (missing = enabled); record skips. Per portal: translate queries to its flags; scope last 14 days via its recency filter (`--jobage`, `--since`, etc.) or client-side `date` drop (never invent flags; `--order` sort + `--limit` is only an approximation); cap ~20/call; `--format json`; parallel via Agent; tag results by portal; log non-zero exits and continue. 1c. WebSearch with `search-queries.md` site queries for CLI-less/failed/unavailable portals; tag source (portal tag kept when standing in for a failed CLI). Step 4 persists `source`; Step 5 reports fallback portals.
 
 ## Step 2: Fetch & Parse
 
@@ -40,7 +40,7 @@ Triage only (not 04 full): High (core skills), Medium (adjacent), Low (major gap
 
 ## Step 4: Deduplicate & Store
 
-1. Key via `python3 tools/job_key.py --company … --title … --url …` (pure deterministic; `--audit` reports pre-rule keys, never rewrites). 2. Add ALL fetched (new + skipped) to `seen_jobs.json` `{seen: {key: {title, company, url, first_seen, posted_date|null, deadline|null, fit, status: new/skipped/ranked/expired, portal, source: cli/websearch}}}` (portal = producing skill; never backfill missing fields; `/rank` adds `rank_score/rank_verdict/rank_date/location_verdict+language_gate/note/strengths/gaps`, `status: ranked`; legacy `location` verdicts read as verdicts; `deadline`/`posted_date` from detail/CLI date, null = stated-none/portal-none, missing = predates field — never infer/backfill). 3. Present only unseen (URL or company+title) and untracked.
+1. Key via `node host/job-hunter/workflow/job-key.ts --company … --title … --url …` (pure deterministic; `--audit` reports pre-rule keys, never rewrites). 2. Add ALL fetched (new + skipped) to `seen_jobs.json` `{seen: {key: {title, company, url, first_seen, posted_date|null, deadline|null, fit, status: new/skipped/ranked/expired, portal, source: cli/websearch}}}` (portal = producing skill; never backfill missing fields; `/rank` adds `rank_score/rank_verdict/rank_date/location_verdict+language_gate/note/strengths/gaps`, `status: ranked`; legacy `location` verdicts read as verdicts; `deadline`/`posted_date` from detail/CLI date, null = stated-none/portal-none, missing = predates field — never infer/backfill). 3. Present only unseen (URL or company+title) and untracked.
 
 ## Step 4.5: Referral Contact Links (High & Medium only)
 

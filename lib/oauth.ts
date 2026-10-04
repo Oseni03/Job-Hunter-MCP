@@ -1,7 +1,7 @@
 import { importJWK, jwtVerify } from "jose";
 
 /**
- * OAuth 2.1 resource-server auth for the deployed /mcp endpoint (issue 23).
+ * OAuth 2.1 resource-server auth for the deployed MCP routes (issue 23).
  *
  * Follows the MCP authorization guide (modelcontextprotocol.io): the server
  * is a pure resource server — it validates bearer access tokens, serves RFC
@@ -356,7 +356,7 @@ export interface VerifyMcpAuthOptions {
 }
 
 /**
- * Single precedence point for /mcp auth, documented in one place:
+ * Single precedence point for MCP auth, documented in one place:
  * 1. exact static-bearer match wins (byte-for-byte legacy behavior);
  * 2. configured OAuth issuer verifies the token as a JWT via `jose`;
  * 3. configured static token without a match stays a mismatch;
