@@ -46,7 +46,7 @@ test("parseArgs applies search defaults", () => {
 	const parsed = parseArgs(["search", "-l", "Remote"]);
 	assert.equal(parsed.command, "search");
 	if (parsed.command !== "search") throw new Error("unreachable");
-	assert.equal(parsed.options.source, "linkedin");
+	assert.equal(parsed.options.source, "all");
 	assert.equal(parsed.options.page, 1);
 	assert.equal(parsed.options.format, "json");
 	assert.equal(parsed.options.query, "");

@@ -13,9 +13,9 @@ allowed-tools: Bash(node host/job-hunter/scraper/cli.ts *)
 
 # LinkedIn Search Skill
 
-Search live job listings from LinkedIn's public job board (default) plus every
-adapter in `host/job-hunter/scraper/` (remote boards, HN Who is hiring, Greenhouse company
-boards, Nigerian boards) via one unified CLI. No authentication, no API key,
+Search live job listings from every adapter in `host/job-hunter/scraper/` by default
+(`all`: LinkedIn's public job board plus remote boards, HN Who is hiring, Greenhouse company
+boards, Nigerian boards) via one unified CLI. Pass `--source <name>` to narrow to one adapter. No authentication, no API key,
 zero extra runtime dependencies — runs with plain `node`. Location is always passed explicitly.
 
 > Country-agnostic worked example of the repo's job-portal-skill pattern. LinkedIn's `jobs-guest` endpoints are global; only `--location` changes per market.
@@ -32,7 +32,7 @@ Automated access is against LinkedIn's Terms of Service: **keep volume low, no c
 node host/job-hunter/scraper/cli.ts search --location "<place>" [flags]
 ```
 
-Flags: `--location/-l` **required** (e.g. `"Berlin, Germany"`, `"Remote"`); `--query/-q` keyword (recommended); `--jobage` 1/7/14/30 days; `--jobage-minutes` sub-day (conflicts with `--jobage`); `--remote` remote/hybrid/onsite; `--page` 1-indexed (10/page, LinkedIn only); `--limit/-n` cap; `--source/-s` adapter name, `all` for every source (default `linkedin`); `--format json|table|plain` (default json); `--enrich` fetches full descriptions for snippet-only sources (LinkedIn, Jobberman, MyJobMag).
+Flags: `--location/-l` **required** (e.g. `"Berlin, Germany"`, `"Remote"`); `--query/-q` keyword (recommended); `--jobage` 1/7/14/30 days; `--jobage-minutes` sub-day (conflicts with `--jobage`); `--remote` remote/hybrid/onsite; `--page` 1-indexed (10/page, LinkedIn only); `--limit/-n` cap; `--source/-s` adapter name, `all` for every source (default `all`); `--format json|table|plain` (default json); `--enrich` fetches full descriptions for snippet-only sources (LinkedIn, Jobberman, MyJobMag).
 
 Date filters keep undated jobs (flag them "date unknown" downstream). Some boards ignore keyword params server-side, so matching is client-side over recent listings — niche keywords can return few results.
 

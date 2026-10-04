@@ -551,7 +551,7 @@ export const SearchJobsInput = z
 			.array(z.string())
 			.optional()
 			.describe(
-				"Local scraper adapters to run (registry names, or all); run after boards. Undefined or empty disables live scraping.",
+				"Local scraper adapters to run (registry names, or all); run after boards. Defaults to [\"all\"]; pass [] to disable live scraping.",
 			),
 		remoteMode: z
 			.enum(["remote", "hybrid", "onsite"])

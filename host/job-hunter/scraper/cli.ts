@@ -144,7 +144,7 @@ export function parseArgs(argv: string[]):
 		return { command: "queries", options: { query, format: parseFormat(format, ["json", "plain"], "plain") } };
 	}
 
-	const options: SearchOptions = { location: "", query: "", page: 1, source: "linkedin", format: "json", enrich: false };
+	const options: SearchOptions = { location: "", query: "", page: 1, source: "all", format: "json", enrich: false };
 	for (let i = 0; i < rest.length; i += 1) {
 		const arg = rest[i] as string;
 		const [flag, inline] = arg.split("=", 2);
@@ -217,7 +217,7 @@ function printHelpAndExit(): never {
 		"",
 		"Search flags: --location/-l (required), --query/-q, --jobage days,",
 		"  --jobage-minutes (conflicts with --jobage), --remote remote|hybrid|onsite,",
-		"  --page (1-indexed, 10/page), --limit/-n, --source/-s (default linkedin,",
+		"  --page (1-indexed, 10/page), --limit/-n, --source/-s (default all,",
 		"  or a registered adapter, or all), --format/-f json|table|plain,",
 		"  --enrich (fetch full descriptions for snippet-only sources).",
 		"",
