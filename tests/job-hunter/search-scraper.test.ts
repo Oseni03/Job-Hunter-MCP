@@ -50,7 +50,6 @@ describe("planSearch scraper source", () => {
 				return [posting()];
 			},
 		});
-		assert.deepEqual(plan.sources, ["scraper"]);
 		assert.deepEqual(plan.queriesRun, ["ML Engineer"]);
 		assert.ok(seenQueries.includes("ML Engineer"));
 		assert.equal(plan.candidates.length, 1);
@@ -67,7 +66,6 @@ describe("planSearch scraper source", () => {
 			now: NOW,
 			scraperAdapters: ["monster"],
 		});
-		assert.deepEqual(plan.sources, ["scraper"]);
 		assert.deepEqual(plan.candidates, []);
 		assert.ok(plan.errors.some((error) => error.includes("Unknown scraper adapter")));
 	});
@@ -78,7 +76,6 @@ describe("planSearch scraper source", () => {
 			filters: { keywords: "ML Engineer", location: "Berlin, Germany" },
 			now: NOW,
 		});
-		assert.deepEqual(plan.sources, []);
 		assert.ok(plan.errors.some((error) => error.includes("No search source available")));
 	});
 });

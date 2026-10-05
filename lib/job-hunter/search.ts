@@ -28,7 +28,6 @@ export const SEARCH_LIMIT_DEFAULT = 10;
 export const SEARCH_RECENCY_DAYS = 14;
 
 export type RemoteMode = "remote" | "hybrid" | "onsite";
-export type SearchSource = "scraper";
 export type FitBand = "high" | "medium" | "low" | "unscored";
 export type CandidateStatus = "active" | "expired" | "unknown";
 
@@ -189,7 +188,6 @@ export interface SearchCandidate {
 	dateUnknown: boolean;
 	status: CandidateStatus;
 	portal: string;
-	source: SearchSource;
 	quickFit: QuickFit;
 	language: { verdict: "PASS" | "FLAG" | "FAIL"; note: string };
 	consolidationNote: string | null;
@@ -226,7 +224,6 @@ export interface SearchPlan {
 	staleCount: number;
 	seenSkipped: number;
 	appliedSkipped: number;
-	sources: SearchSource[];
 	/** Query texts actually run this call, so the caller sees what coverage was bought (issue 13). */
 	queriesRun: string[];
 	/** Opaque resume token when candidates remain past this page; null when exhausted (issue 14). */
@@ -320,10 +317,8 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 			: buildAutoQueries(input.profile);
 	const notes: string[] = [];
 	const errors: string[] = [];
-	const sources: SearchSource[] = [];
 
 	let raws: RawPosting[] = [];
-	let source: SearchSource | null = null;
 	const queriesRun: string[] = [];
 
 	/**
@@ -387,8 +382,6 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 			}
 		}
 		raws = mergeRaws(collected);
-		source = "scraper";
-		sources.push(source);
 		notes.push(`Scraper run over ${input.scraperAdapters.join(", ")}; merged across ${queriesRun.length} querie(s).`);
 		for (const meta of siteMetas) {
 			const summary = summarizeScrapeMeta(meta);
@@ -455,9 +448,6 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 			dateUnknown,
 			status,
 			portal: raw.portal ?? "linkedin",
-			// Raws is empty unless the scraper ran and recorded its source, so
-			// this default is unreachable; it exists only for the type.
-			source: source ?? "scraper",
 			quickFit: {
 				score,
 				band: resolved.band,
@@ -531,7 +521,6 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 		staleCount,
 		seenSkipped: deduped.seenSkipped,
 		appliedSkipped: deduped.appliedSkipped,
-		sources,
 		queriesRun,
 		nextCursor,
 		notes,

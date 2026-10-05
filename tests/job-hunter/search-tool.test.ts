@@ -47,7 +47,6 @@ describe("search-jobs tool", () => {
 		assert.equal(result.isError, undefined);
 		const structured = result.structuredContent as Record<string, unknown>;
 		assert.deepEqual(structured["candidates"], []);
-		assert.deepEqual(structured["sources"], []);
 		assert.ok((structured["errors"] as string[]).length > 0, "expected an explicit no-source error");
 		assert.ok(result.content[0].text.includes("analyze-job"));
 	});

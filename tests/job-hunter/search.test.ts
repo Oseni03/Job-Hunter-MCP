@@ -110,7 +110,6 @@ describe("planSearch", () => {
 		assert.equal(plan.candidates.length, 1);
 		assert.match(plan.candidates[0].key, /^[a-z0-9][a-z0-9-]*_[a-z0-9][a-z0-9-]*$/);
 		assert.equal(plan.candidates[0].portal, "linkedin");
-		assert.equal(plan.candidates[0].source, "scraper");
 	});
 
 	it("flags unknown dates instead of dropping the posting", async () => {

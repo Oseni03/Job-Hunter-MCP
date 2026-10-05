@@ -236,10 +236,8 @@ describe("planSearch with the Indeed Site", () => {
 				portal: "indeed",
 			}],
 		});
-		assert.deepEqual(first.sources, ["scraper"]);
 		assert.equal(first.candidates.length, 1);
 		assert.equal(first.candidates[0].portal, "indeed");
-		assert.equal(first.candidates[0].source, "scraper");
 		assert.equal(first.candidates[0].postedDate, "2026-09-25");
 		assert.equal(first.candidates[0].dateUnknown, false);
 		assert.equal(first.errors.length, 0);
@@ -567,7 +565,7 @@ describe("board contract removal (ticket 04)", () => {
 		assert.throws(() => searchSource("greenhouse", { keywords: "x" }), /Unknown scraper adapter/);
 	});
 
-	it("never reports a board Source", async () => {
+	it("carries no Source field and tags candidates by adapter", async () => {
 		const plan = await planSearch({
 			profile: {
 				name: "Test Candidate",
@@ -598,9 +596,10 @@ describe("board contract removal (ticket 04)", () => {
 				portal: "indeed",
 			}],
 		});
-		assert.ok(!plan.sources.includes("board" as never));
+		assert.ok(!("sources" in plan), "plan carries no sources field");
 		for (const candidate of plan.candidates) {
-			assert.ok((candidate.source as string) !== "board");
+			assert.ok(!("source" in candidate), "candidate carries no source field");
+			assert.equal(candidate.portal, "indeed");
 		}
 	});
 });

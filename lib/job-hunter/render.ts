@@ -280,7 +280,6 @@ export function renderSearchMarkdown(plan: SearchPlan): string {
 		"## Job search results",
 		"",
 		`- Filters: keywords "${plan.filters.keywords || "(auto)"}" | location "${plan.filters.location || "(none)"}" | limit ${plan.filters.limit}`,
-		`- Sources: ${plan.sources.length > 0 ? plan.sources.join(", ") : "none ran"}`,
 		`- Queries run: ${plan.queriesRun.length > 0 ? plan.queriesRun.map((query) => `"${query}"`).join(", ") : "none"}`,
 		`- Candidates: ${plan.candidates.length} | stale excluded: ${plan.staleCount} | seen skipped: ${plan.seenSkipped} | applied skipped: ${plan.appliedSkipped}`,
 		...(plan.nextCursor ? [`- Next cursor: \`${plan.nextCursor}\` (pass as cursor to resume)`] : []),
@@ -295,7 +294,7 @@ export function renderSearchMarkdown(plan: SearchPlan): string {
 			`### ${candidate.title} at ${candidate.company} (${fitLabel})`,
 			`- Key: \`${candidate.key}\` | [posting](${candidate.url})`,
 			`- Posted: ${candidate.postedDate ?? "unknown"} | deadline: ${candidate.deadline ?? "unknown"}${candidate.dateUnknown ? " (date unknown, flagged)" : ""} | status: ${candidate.status}`,
-			`- Portal: ${candidate.portal} | source: ${candidate.source}`,
+			`- Portal: ${candidate.portal}`,
 			`- Language gate: ${candidate.language.verdict} — ${candidate.language.note}`,
 			...(candidate.needsVerification
 				? ["- Needs verification: employer unknown — verify the company on the posting before evaluating."]

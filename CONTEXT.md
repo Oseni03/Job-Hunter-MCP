@@ -25,8 +25,6 @@ Glossary only. No implementation details.
 - **Follow-up**: open Application untouched past the staleness threshold or
   with a near deadline. `saved` rows never count.
 - **Site**: one job board served by the shared Site client (`indeed`,
-  `linkedin`). Maps to the per-posting portal tag; `Source` stays `scraper`.
+  `linkedin`). Maps to the per-posting portal tag.
 - **Adapter**: one entry in the local scraper registry (a Site or a surviving
   board scraper). Selected by name, or all at once.
-- **Source**: the pipeline a candidate came from. Always `scraper`:
-  every search runs the local scraper adapters.

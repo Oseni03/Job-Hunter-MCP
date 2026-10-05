@@ -560,7 +560,6 @@ export const SearchCandidateSchema = z
 		dateUnknown: z.boolean(),
 		status: z.enum(["active", "expired", "unknown"]),
 		portal: z.string(),
-		source: z.enum(["scraper"]),
 		quickFit: z
 			.object({
 				score: z.number(),
@@ -601,7 +600,6 @@ export const SearchJobsOutput = z
 		staleCount: z.number(),
 		seenSkipped: z.number(),
 		appliedSkipped: z.number(),
-		sources: z.array(z.enum(["scraper"])),
 		queriesRun: z.array(z.string()),
 		nextCursor: z.string().nullable(),
 		notes: z.array(z.string()),
