@@ -168,9 +168,10 @@ test("formatDetail renders json and plain", () => {
 	assert.ok(plain.includes("Dev @ Acme") && plain.includes("Build things."));
 });
 
-test("formatSources lists adapters and flags greenhouse config", () => {
+test("formatSources lists adapters with no config flags", () => {
 	const rows = JSON.parse(formatSources("json") as string) as Array<{ name: string; needsConfig: boolean }>;
 	const names = rows.map((row) => row.name);
-	assert.ok(names.includes("linkedin") && names.includes("jobberman"));
-	assert.equal(rows.find((row) => row.name === "greenhouse")?.needsConfig, true);
+	assert.ok(names.includes("linkedin") && names.includes("jobberman") && names.includes("indeed"));
+	assert.ok(!names.includes("greenhouse") && !names.includes("lever") && !names.includes("ashby"));
+	assert.ok(rows.every((row) => row.needsConfig === false));
 });

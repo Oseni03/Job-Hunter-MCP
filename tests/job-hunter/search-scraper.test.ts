@@ -5,7 +5,7 @@ import { createScraperFetcher, planSearch } from "@/lib/job-hunter/search.ts";
 import type { RawPosting } from "@/lib/job-hunter/search.ts";
 
 // PlanSearch scraper source: local job-scraper adapters behind an explicit
-// opt-in (scraperAdapters), running after boards.
+// opt-in (scraperAdapters).
 describe("planSearch scraper source", () => {
 	const PROFILE = {
 		name: "Test Candidate",
@@ -58,34 +58,6 @@ describe("planSearch scraper source", () => {
 		assert.equal(plan.candidates[0].postedDate, "2026-09-25");
 		assert.equal(plan.candidates[0].dateUnknown, false);
 		assert.equal(plan.errors.length, 0);
-	});
-
-	it("runs boards ahead of scrapers and never calls the scraper fetch", async () => {
-		let scraperCalls = 0;
-		const plan = await planSearch({
-			profile: PROFILE,
-			filters: { keywords: "ML Engineer", location: "Berlin, Germany" },
-			now: NOW,
-			boards: [{ provider: "lever", slug: "acme", company: "Acme" }],
-			boardFetch: async () => ({
-				status: 200,
-				body: JSON.stringify([
-					{
-						text: "ML Engineer",
-						hostedUrl: "https://jobs.lever.co/acme/1",
-						descriptionPlain: "Python ML Engineer for growth.",
-						createdAt: Date.parse("2026-09-20T00:00:00Z"),
-					},
-				]),
-			}),
-			scraperAdapters: ["linkedin"],
-			scraperFetch: async () => {
-				scraperCalls += 1;
-				return [];
-			},
-		});
-		assert.deepEqual(plan.sources, ["board"]);
-		assert.equal(scraperCalls, 0);
 	});
 
 	it("records unknown adapters as errors with zero invented postings", async () => {

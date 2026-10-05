@@ -6,10 +6,6 @@ import { join } from "node:path";
 import { buildHackingQueries, dedupeJobs, normalizeUrl, jobMatchesQuery, sortNewestFirst, splitHeadline, htmlToText, decodeEntitiesTwice } from "@/host/job-hunter/scraper/helpers.ts";
 import type { Job } from "@/host/job-hunter/scraper/types.ts";
 import { adapters, searchSource } from "@/host/job-hunter/scraper/index.ts";
-import { greenhouse } from "@/host/job-hunter/scraper/adapters/greenhouse.ts";
-import { parseGreenhouseBoard } from "@/host/job-hunter/scraper/adapters/greenhouse.ts";
-import { parseLeverBoard } from "@/host/job-hunter/scraper/adapters/lever.ts";
-import { parseAshbyBoard } from "@/host/job-hunter/scraper/adapters/ashby.ts";
 import { extractDetailText } from "@/host/job-hunter/scraper/detail.ts";
 import { cacheDir, readDiskCache, writeDiskCache } from "@/host/job-hunter/scraper/cache.ts";
 import { clearHttpCache } from "@/host/job-hunter/scraper/http.ts";
@@ -101,7 +97,7 @@ test("sortNewestFirst places missing dates last", () => {
 test("adapter registry exposes every source and rejects unknown names", () => {
 	assert.deepEqual(
 		adapters.map((adapter) => adapter.name).sort(),
-		["ashby", "greenhouse", "hn", "indeed", "jobberman", "lever", "linkedin", "myjobmag", "remoteok", "remotive", "wwr"],
+		["hn", "indeed", "jobberman", "linkedin", "myjobmag", "remoteok", "remotive", "wwr"],
 	);
 	assert.throws(() => searchSource("monster", { keywords: "x" }), /Unknown scraper adapter/);
 });
@@ -210,11 +206,6 @@ test("remoteok fetches the whole board (no server-side tags filter)", async () =
 	}
 });
 
-test("greenhouse with no board tokens returns no jobs without network", async () => {
-	const jobs = await greenhouse.search({ keywords: "engineer" });
-	assert.deepEqual(jobs, []);
-});
-
 test("htmlToText strips tags and decodes entities", () => {
 	assert.equal(htmlToText("<p>Hello <b>World</b></p><p>Line2</p>"), "Hello World\nLine2");
 	assert.equal(htmlToText("<script>alert(1)</script><p>Hi</p>"), "Hi");
@@ -235,61 +226,6 @@ test("buildHackingQueries scopes keywords with site:, quotes, OR, and exact phra
 		'site:linkedin.com/jobs "fraud" "detection"',
 		'"fraud detection" jobs hiring',
 	]);
-});
-
-test("parseGreenhouseBoard uses company_name, first_published, decoded content", () => {
-	const jobs = parseGreenhouseBoard("acme-corp", {
-		jobs: [{
-			id: 1,
-			absolute_url: "https://boards.greenhouse.io/acmecorp/jobs/1",
-			title: "Backend Engineer",
-			company_name: "Acme Corp",
-			first_published: "2026-09-20T00:00:00Z",
-			updated_at: "2026-10-01T00:00:00Z",
-			location: { name: "Lagos" },
-			content: "&lt;p&gt;Build &amp;amp; APIs&lt;/p&gt;",
-		}],
-	});
-	assert.equal(jobs.length, 1);
-	assert.equal(jobs[0]?.company, "Acme Corp");
-	assert.equal(jobs[0]?.description, "Build & APIs");
-	assert.deepEqual(jobs[0]?.postedAt, new Date("2026-09-20T00:00:00.000Z"));
-	assert.equal(parseGreenhouseBoard("acme-corp", { jobs: [{ title: "No URL" }] }).length, 0);
-});
-
-test("parseLeverBoard maps postings with caller company", () => {
-	const jobs = parseLeverBoard({ slug: "acme", company: "Acme Inc" }, [{
-		id: "abc",
-		text: "Frontend Dev",
-		hostedUrl: "https://jobs.lever.co/acme/abc",
-		descriptionPlain: "React role",
-		createdAt: 1759276800000,
-		categories: { location: "Remote" },
-	}]);
-	assert.equal(jobs.length, 1);
-	assert.equal(jobs[0]?.company, "Acme Inc");
-	assert.equal(jobs[0]?.description, "React role");
-	assert.equal(jobs[0]?.remote, true);
-	assert.equal(parseLeverBoard({ slug: "acme", company: "Acme Inc" }, [{ text: "No URL" }]).length, 0);
-});
-
-test("parseAshbyBoard maps jobs with caller company", () => {
-	const jobs = parseAshbyBoard({ slug: "acme", company: "Acme Inc" }, {
-		jobs: [{
-			id: "x1",
-			title: "Designer",
-			jobUrl: "https://jobs.ashbyhq.com/acme/x1",
-			descriptionPlain: "Design things",
-			publishedAt: "2026-09-25",
-			location: "Lagos",
-			isRemote: false,
-		}],
-	});
-	assert.equal(jobs.length, 1);
-	assert.equal(jobs[0]?.company, "Acme Inc");
-	assert.equal(jobs[0]?.remote, false);
-	assert.deepEqual(jobs[0]?.postedAt, new Date("2026-09-25T00:00:00.000Z"));
-	assert.equal(parseAshbyBoard({ slug: "acme", company: "Acme Inc" }, { jobs: [{ title: "No URL" }] }).length, 0);
 });
 
 test("extractDetailText scopes to per-source containers", () => {

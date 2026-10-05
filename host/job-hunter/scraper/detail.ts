@@ -7,8 +7,8 @@ import type { Job, JobDetail } from "./types.ts";
 
 /**
  * Sources whose search results carry only snippets, with a per-source page
- * extractor for the full description. Boards with complete API descriptions
- * (remotive, remoteok, wwr, hn, greenhouse, lever, ashby) need no fetch.
+ * extractor for the full description. Sources with complete descriptions
+ * (remotive, remoteok, wwr, hn, indeed) need no fetch.
  */
 const ENRICHABLE_SOURCES = new Set(["linkedin", "jobberman", "myjobmag"]);
 

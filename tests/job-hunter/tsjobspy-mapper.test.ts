@@ -5,6 +5,7 @@ import type { ScrapeMeta, ScrapeOptions } from "ts-jobspy";
 import { adapters, searchAll, searchSource } from "@/host/job-hunter/scraper/index.ts";
 import { buildScrapeOptions, createIndeedAdapter, createSiteAdapter, describeSiteMeta, linkedin, mapTsJobToScraperJob, resolveSiteCountry, summarizeScrapeMeta } from "@/host/job-hunter/scraper/adapters/tsjobspy.ts";
 import { createScraperFetcher, planSearch } from "@/lib/job-hunter/search.ts";
+import { SearchJobsInput } from "@/lib/job-hunter/schemas.ts";
 
 // Seam 1: pure mapper ts-jobspy Job -> scraper Job (no network).
 // Expected values are hand-worked literals from the ts-jobspy v3 schema,
@@ -541,5 +542,62 @@ describe("failure isolation (ticket 03)", () => {
 		});
 		assert.deepEqual(plan.candidates, []);
 		assert.ok(plan.errors.some((error) => error.includes("indeed blocked")));
+	});
+});
+
+// Ticket 04: board-path contract removal — rejected, never silently ignored.
+describe("board contract removal (ticket 04)", () => {
+	it("rejects board refs as unknown input", () => {
+		assert.throws(
+			() => SearchJobsInput.parse({ boards: [{ provider: "lever", slug: "acme", company: "Acme" }] }),
+			/boards/,
+		);
+	});
+
+	it("registers no board adapters", () => {
+		const names = adapters.map((adapter) => adapter.name);
+		assert.ok(!names.includes("greenhouse"));
+		assert.ok(!names.includes("lever"));
+		assert.ok(!names.includes("ashby"));
+		assert.ok(names.includes("indeed"));
+		assert.ok(names.includes("linkedin"));
+		assert.throws(() => searchSource("greenhouse", { keywords: "x" }), /Unknown scraper adapter/);
+	});
+
+	it("never reports a board Source", async () => {
+		const plan = await planSearch({
+			profile: {
+				name: "Test Candidate",
+				location: "Berlin, Germany",
+				constraints: "none",
+				workCountry: "Germany",
+				citizenships: [],
+				permitClasses: [],
+				languages: [{ language: "English", level: "C1" }],
+				primarySkills: ["Python"],
+				secondarySkills: [],
+				weakSkills: [],
+				strongDomains: [],
+				adjacentDomains: [],
+				careerGoals: ["ML Engineer"],
+				energizingTasks: [],
+				drainingTasks: [],
+			},
+			filters: { keywords: "ML Engineer", location: "Berlin, Germany" },
+			now: new Date("2026-10-03T12:00:00Z"),
+			scraperAdapters: ["indeed"],
+			scraperFetch: async () => [{
+				title: "ML Engineer",
+				company: "Acme",
+				url: "https://www.indeed.com/viewjob?jk=abc123",
+				description: "Python ML Engineer with a long detailed description of stack and team.",
+				postedDate: "2026-09-25",
+				portal: "indeed",
+			}],
+		});
+		assert.ok(!plan.sources.includes("board" as never));
+		for (const candidate of plan.candidates) {
+			assert.ok((candidate.source as string) !== "board");
+		}
 	});
 });

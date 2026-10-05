@@ -5,8 +5,6 @@ import {
 import type { Job as ScrapedJob, SearchQuery as ScraperQuery } from "@/host/job-hunter/scraper/index.ts";
 import { resolveSiteCountry, summarizeScrapeMeta } from "@/host/job-hunter/scraper/adapters/tsjobspy.ts";
 import type { ScrapeMeta } from "ts-jobspy";
-import { fetchBoardJobs, filterListingsByQuery } from "@/lib/job-hunter/boards.ts";
-import type { BoardRef } from "@/lib/job-hunter/boards.ts";
 import { decodeCursor, encodeCursor } from "@/lib/cursor.ts";
 import {
 	checkLanguage,
@@ -16,8 +14,6 @@ import {
 	parsePostingDay,
 	scoreDimensions,
 } from "@/lib/job-hunter/evaluate.ts";
-import { defaultFetch } from "@/lib/job-hunter/fetch-posting.ts";
-import type { FetchLike } from "@/lib/job-hunter/fetch-posting.ts";
 import { isCanonical, makeKey } from "@/lib/job-key.ts";
 import type { Profile } from "@/lib/job-hunter/profile.ts";
 
@@ -32,7 +28,7 @@ export const SEARCH_LIMIT_DEFAULT = 10;
 export const SEARCH_RECENCY_DAYS = 14;
 
 export type RemoteMode = "remote" | "hybrid" | "onsite";
-export type SearchSource = "portal-live" | "board" | "scraper";
+export type SearchSource = "portal-live" | "scraper";
 export type FitBand = "high" | "medium" | "low" | "unscored";
 export type CandidateStatus = "active" | "expired" | "unknown";
 
@@ -283,8 +279,8 @@ export interface SearchInput {
 	portalResults?: RawPosting[];
 	/**
 	 * Local scraper adapters to run (registry names from the sources
-	 * command, or "all"). Runs after boards. Undefined
-	 * or empty means the scraper stage is off (no live fetch).
+	 * command, or "all"). Undefined or empty means the scraper stage is
+	 * off (no live fetch).
 	 */
 	scraperAdapters?: string[];
 	/** Injected scraper fetcher; defaults to the live job-scraper library. */
@@ -296,14 +292,6 @@ export interface SearchInput {
 	 * the caller holds everything else.
 	 */
 	cursor?: string;
-	/**
-	 * Caller-supplied structured board refs (issue 13). Board APIs are
-	 * per-company listings with no directory or keyword search, so the host
-	 * owns the slug mapping. Boards run ahead of scrapers when present.
-	 */
-	boards?: BoardRef[];
-	/** Injected board fetcher; defaults to the default fetch. */
-	boardFetch?: FetchLike;
 }
 
 export interface SearchPlan {
@@ -471,40 +459,13 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 				notes.push(
 					`Portal run for "${query}" walked ${outcome.pages} page(s) in ${outcome.attempts} attempt(s) with backoff on rate limits.`,
 				);
-				collected.push(outcome.jobs);
-				queriesRun.push(query);
-			}
-			raws = mergeRaws(collected);
-			source = "portal-live";
-			sources.push(source);
-		}
-	} else if (input.boards && input.boards.length > 0) {
-		const boardFetch = input.boardFetch ?? defaultFetch;
-		const listings: RawPosting[] = [];
-		for (const board of input.boards) {
-			try {
-				const jobs = await fetchBoardJobs(board, boardFetch);
-				listings.push(...jobs);
-			} catch (error) {
-				errors.push(`Board ${board.provider}/${board.slug} failed (${String(error)}); no postings invented.`);
-			}
-		}
-		// Board APIs list per company with no keyword search: the query set
-		// filters client-side, merged across queries with dedupe by URL.
-		const collected: RawPosting[][] =
-			querySet.length > 0 ? querySet.map((query) => filterListingsByQuery(listings, query)) : [listings];
-		for (const query of querySet) {
+			collected.push(outcome.jobs);
 			queriesRun.push(query);
 		}
-		if (querySet.length === 0) {
-			queriesRun.push("(all board listings; no query filter)");
-		}
 		raws = mergeRaws(collected);
-		source = "board";
+		source = "portal-live";
 		sources.push(source);
-		notes.push(
-			`Board run over ${input.boards.length} board(s) with ${listings.length} listing(s); filtered by ${queriesRun.length} querie(s).`,
-		);
+		}
 	} else if (input.scraperAdapters && input.scraperAdapters.length > 0) {
 		// Local scrapers (no key, host network): every query in the set runs
 		// with the plan's location, workplace filter, recency window, and
@@ -547,7 +508,7 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 		}
 	} else {
 		errors.push(
-			"No search source available (no portal runner, board refs, or scraper adapters); no postings invented.",
+			"No search source available (no portal runner, portal results, or scraper adapters); no postings invented.",
 		);
 	}
 
@@ -619,8 +580,7 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 			language: { verdict: languageGate.verdict, note: resolved.languageNote },
 			consolidationNote: null,
 			referralLinks: resolved.band === "high" || resolved.band === "medium" ? referralLinksFor(company) : [],
-			// Board results always carry real companies (issue 13); scraper
-			// paths keep the placeholder and flag it for host verification.
+			// Unknown employers stay flagged for host verification before evaluating.
 			needsVerification: company === "Unknown company",
 		});
 	}

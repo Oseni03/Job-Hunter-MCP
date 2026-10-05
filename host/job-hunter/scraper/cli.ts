@@ -13,7 +13,6 @@
  */
 import { pathToFileURL } from "node:url";
 import { adapters, fetchLinkedInDetail, parseLinkedInJobId, searchAll, searchSource } from "./index.ts";
-import { ashbyBoards, greenhouseBoardTokens, leverBoards } from "./config/boards.ts";
 import { buildHackingQueries } from "./helpers.ts";
 import { clearHttpCache } from "./http.ts";
 import { fetchJobDetailText, fetchPageDetail, isEnrichable } from "./detail.ts";
@@ -275,19 +274,15 @@ export function formatDetail(detail: JobDetail, format: Format): string {
 }
 
 export function formatSources(format: Format): string {
-	const needsBoardConfig = (name: string): boolean => {
-		if (name === "greenhouse") return greenhouseBoardTokens.length === 0;
-		if (name === "lever") return leverBoards.length === 0;
-		if (name === "ashby") return ashbyBoards.length === 0;
-		return false;
-	};
+	// Ticket 04 removed the board adapters and their token config; every
+	// remaining adapter runs without configuration. Full CLI resync (ticket 05).
 	const rows = adapters.map((adapter) => ({
 		name: adapter.name,
-		needsConfig: needsBoardConfig(adapter.name),
+		needsConfig: false,
 	}));
 	if (format === "json") return JSON.stringify(rows, null, 2);
 	if (format === "plain") {
-		return rows.map((row) => `${row.name}${row.needsConfig ? " (needs board tokens in host/job-hunter/scraper/config/boards.ts)" : ""}`).join("\n");
+		return rows.map((row) => row.name).join("\n");
 	}
 	return ["Name  Needs config", ...rows.map((row) => `${padEnd(row.name, 6)}${row.needsConfig ? "yes" : "no"}`)].join("\n");
 }

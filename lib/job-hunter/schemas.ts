@@ -531,27 +531,15 @@ export const PortalPostingInput = z
 	})
 	.strict();
 
-export const BoardRefSchema = z
-	.object({
-		provider: z.enum(["greenhouse", "lever", "ashby"]),
-		slug: z.string().min(1).describe("Board slug: Greenhouse token, Lever org, or Ashby board name"),
-		company: z.string().min(1).describe("Company label for the board (Lever/Ashby payloads carry none)"),
-	})
-	.strict();
-
 export const SearchJobsInput = z
 	.object({
 		keywords: z.string().optional().describe("Explicit keyword query; absent derives from the profile"),
 		location: z.string().optional().describe("Explicit location; absent derives from the profile"),
-		boards: z
-			.array(BoardRefSchema)
-			.optional()
-			.describe("Structured board refs; run ahead of scrapers, filtered by the query set"),
 		scraperAdapters: z
 			.array(z.string())
 			.optional()
 			.describe(
-				"Local scraper adapters to run (registry names, or all); run after boards. Defaults to [\"all\"]; pass [] to disable live scraping.",
+				"Local scraper adapters to run (registry names, or all). Defaults to [\"all\"]; pass [] to disable live scraping.",
 			),
 		remoteMode: z
 			.enum(["remote", "hybrid", "onsite"])
@@ -588,7 +576,7 @@ export const SearchCandidateSchema = z
 		dateUnknown: z.boolean(),
 		status: z.enum(["active", "expired", "unknown"]),
 		portal: z.string(),
-		source: z.enum(["portal-live", "board", "scraper"]),
+		source: z.enum(["portal-live", "scraper"]),
 		quickFit: z
 			.object({
 				score: z.number(),
@@ -629,7 +617,7 @@ export const SearchJobsOutput = z
 		staleCount: z.number(),
 		seenSkipped: z.number(),
 		appliedSkipped: z.number(),
-		sources: z.array(z.enum(["portal-live", "board", "scraper"])),
+		sources: z.array(z.enum(["portal-live", "scraper"])),
 		queriesRun: z.array(z.string()),
 		nextCursor: z.string().nullable(),
 		notes: z.array(z.string()),
