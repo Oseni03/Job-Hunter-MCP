@@ -1,6 +1,7 @@
 import type { Adapter, Job, JobDetail, SearchAllOptions, SearchQuery } from "./types.ts";
 import { dedupeJobs, jobMatchesQuery, sortNewestFirst } from "./helpers.ts";
 import { remotive } from "./adapters/remotive.ts";
+import { indeed } from "./adapters/tsjobspy.ts";
 import { linkedin } from "./adapters/linkedin.ts";
 import { remoteok } from "./adapters/remoteok.ts";
 import { wwr } from "./adapters/wwr.ts";
@@ -12,6 +13,7 @@ import { lever } from "./adapters/lever.ts";
 import { ashby } from "./adapters/ashby.ts";
 
 export const adapters: Adapter[] = [
+  indeed,
   linkedin,
   remotive,
   remoteok,

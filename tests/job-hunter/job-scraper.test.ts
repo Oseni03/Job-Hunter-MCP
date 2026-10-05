@@ -101,7 +101,7 @@ test("sortNewestFirst places missing dates last", () => {
 test("adapter registry exposes every source and rejects unknown names", () => {
 	assert.deepEqual(
 		adapters.map((adapter) => adapter.name).sort(),
-		["ashby", "greenhouse", "hn", "jobberman", "lever", "linkedin", "myjobmag", "remoteok", "remotive", "wwr"],
+		["ashby", "greenhouse", "hn", "indeed", "jobberman", "lever", "linkedin", "myjobmag", "remoteok", "remotive", "wwr"],
 	);
 	assert.throws(() => searchSource("monster", { keywords: "x" }), /Unknown scraper adapter/);
 });
