@@ -138,7 +138,8 @@ check(
 const search = await planSearch({
 	filters: { keywords: "Python", limit: 50 },
 	profile,
-	portalResults: [
+	scraperAdapters: ["golden"],
+	scraperFetch: async () => [
 		{ title: "Fresh Role", company: "Acme", url: "https://example.com/jobs/1", postedDate: "2026-09-20" },
 		{ title: "Stale Role", company: "Acme", url: "https://example.com/jobs/2", postedDate: "2026-01-01" },
 	],

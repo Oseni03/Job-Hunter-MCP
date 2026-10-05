@@ -28,5 +28,5 @@ Glossary only. No implementation details.
   `linkedin`). Maps to the per-posting portal tag; `Source` stays `scraper`.
 - **Adapter**: one entry in the local scraper registry (a Site or a surviving
   board scraper). Selected by name, or all at once.
-- **Source**: where a candidate came from (`portal-live` or `scraper`).
-  Answers "which pipeline produced this?".
+- **Source**: the pipeline a candidate came from. Always `scraper`:
+  every search runs the local scraper adapters.

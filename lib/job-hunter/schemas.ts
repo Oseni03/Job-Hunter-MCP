@@ -519,18 +519,6 @@ export const PortalFieldsOutput = z
 	})
 	.strict();
 
-export const PortalPostingInput = z
-	.object({
-		title: z.string().min(1).describe("Posting title as listed"),
-		company: z.string().min(1).describe("Employer name as listed"),
-		url: z.string().min(1).describe("Resolvable posting URL; fragments are stripped"),
-		description: z.string().optional().describe("Listed description or snippet for quick-fit"),
-		postedDate: z.string().optional().describe("Posted date (YYYY-MM-DD preferred); absent stays unknown"),
-		deadline: z.string().optional().describe("Deadline (YYYY-MM-DD preferred); absent stays unknown"),
-		portal: z.string().optional().describe("Portal tag; defaults to linkedin"),
-	})
-	.strict();
-
 export const SearchJobsInput = z
 	.object({
 		keywords: z.string().optional().describe("Explicit keyword query; absent derives from the profile"),
@@ -544,13 +532,9 @@ export const SearchJobsInput = z
 		remoteMode: z
 			.enum(["remote", "hybrid", "onsite"])
 			.optional()
-			.describe("Workplace filter for the live portal path"),
-		jobType: z.string().optional().describe("Job-type filter for the live portal path"),
+			.describe("Workplace filter for the scraper search"),
+		jobType: z.string().optional().describe("Job-type filter for the scraper search"),
 		limit: z.number().int().positive().optional().describe("Result cap; capped at 20 server-side"),
-		portalResults: z
-			.array(PortalPostingInput)
-			.optional()
-			.describe("Caller-supplied portal CLI output (host ran the CLI); skips every fetch"),
 		seenKeys: z
 			.array(z.string())
 			.optional()
@@ -576,7 +560,7 @@ export const SearchCandidateSchema = z
 		dateUnknown: z.boolean(),
 		status: z.enum(["active", "expired", "unknown"]),
 		portal: z.string(),
-		source: z.enum(["portal-live", "scraper"]),
+		source: z.enum(["scraper"]),
 		quickFit: z
 			.object({
 				score: z.number(),
@@ -617,7 +601,7 @@ export const SearchJobsOutput = z
 		staleCount: z.number(),
 		seenSkipped: z.number(),
 		appliedSkipped: z.number(),
-		sources: z.array(z.enum(["portal-live", "scraper"])),
+		sources: z.array(z.enum(["scraper"])),
 		queriesRun: z.array(z.string()),
 		nextCursor: z.string().nullable(),
 		notes: z.array(z.string()),

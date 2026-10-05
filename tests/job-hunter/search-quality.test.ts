@@ -95,7 +95,10 @@ describe("thin evidence and sorting (issue 12)", () => {
 		const { planSearch } = await import("@/lib/job-hunter/search.ts");
 		const plan = await planSearch({
 			profile: LANG_PROFILE,
-			portalResults: [candidate({ description: "" })],
+			scraperAdapters: ["test"],
+			scraperFetch: async () => [candidate({ description: "" })],
+			filters: { keywords: "ML Engineer" },
+			now: new Date("2026-09-29T00:00:00Z"),
 		});
 		assert.equal(plan.candidates.length, 1);
 		const fit = plan.candidates[0].quickFit;
@@ -109,7 +112,10 @@ describe("thin evidence and sorting (issue 12)", () => {
 		const { planSearch } = await import("@/lib/job-hunter/search.ts");
 		const plan = await planSearch({
 			profile: LANG_PROFILE,
-			portalResults: [candidate({ description: "Fluent Danish required." })],
+			scraperAdapters: ["test"],
+			scraperFetch: async () => [candidate({ description: "Fluent Danish required." })],
+			filters: { keywords: "ML Engineer" },
+			now: new Date("2026-09-29T00:00:00Z"),
 		});
 		assert.equal(plan.candidates[0].quickFit.band, "low");
 		assert.equal(plan.candidates[0].quickFit.lowEvidence, true);
@@ -131,7 +137,8 @@ describe("thin evidence and sorting (issue 12)", () => {
 				energizingTasks: [],
 				drainingTasks: [],
 			},
-			portalResults: [
+			scraperAdapters: ["test"],
+			scraperFetch: async () => [
 				candidate({
 					title: "Junior Clerk",
 					url: "https://example.com/jobs/low",
@@ -144,6 +151,7 @@ describe("thin evidence and sorting (issue 12)", () => {
 				}),
 			],
 			filters: { limit: 1 },
+			now: new Date("2026-09-29T00:00:00Z"),
 		});
 		assert.equal(plan.candidates.length, 1);
 		assert.equal(plan.candidates[0].url, "https://example.com/jobs/high");

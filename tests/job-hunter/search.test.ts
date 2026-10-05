@@ -10,9 +10,8 @@ import {
 	isPeopleSearchUrl,
 	planSearch,
 	resolveSearchFilters,
-	runPortalWithBackoff,
 } from "@/lib/job-hunter/search.ts";
-import type { PortalArgs, RawPosting } from "@/lib/job-hunter/search.ts";
+import type { RawPosting } from "@/lib/job-hunter/search.ts";
 import type { Profile } from "@/lib/job-hunter/profile.ts";
 
 const PROFILE: Profile = {
@@ -95,31 +94,31 @@ describe("planSearch", () => {
 		assert.ok(plan.errors.length > 0, "expected an explicit no-source error");
 	});
 
-	it("requires an explicit location for the live portal path", async () => {
-		const noLocation = { ...PROFILE, location: "" };
-		const plan = await planSearch({
-			profile: noLocation,
-			portal: async () => ({ jobs: [], errors: [], rateLimited: false }),
-		});
-		assert.ok(
-			plan.errors.some((error) => error.includes("location")),
-			"expected a missing-location error, never a silent default",
-		);
+	it("requires scraper adapters to run instead of fabricating postings", async () => {
+		const plan = await planSearch({ profile: PROFILE, scraperAdapters: [] });
 		assert.deepEqual(plan.candidates, []);
+		assert.ok(plan.errors.some((error) => error.includes("No search source available")));
 	});
 
-	it("plans caller-supplied portal results with stability-ready canonical keys", async () => {
-		const plan = await planSearch({ profile: PROFILE, portalResults: [posting()] });
+	it("plans scraper results with stability-ready canonical keys", async () => {
+		const plan = await planSearch({
+			profile: PROFILE,
+			scraperAdapters: ["test"],
+			scraperFetch: async () => [posting()],
+			now: new Date("2026-09-29T00:00:00Z"),
+		});
 		assert.equal(plan.candidates.length, 1);
 		assert.match(plan.candidates[0].key, /^[a-z0-9][a-z0-9-]*_[a-z0-9][a-z0-9-]*$/);
 		assert.equal(plan.candidates[0].portal, "linkedin");
-		assert.equal(plan.candidates[0].source, "portal-live");
+		assert.equal(plan.candidates[0].source, "scraper");
 	});
 
 	it("flags unknown dates instead of dropping the posting", async () => {
 		const plan = await planSearch({
 			profile: PROFILE,
-			portalResults: [posting({ postedDate: undefined, deadline: undefined })],
+			scraperAdapters: ["test"],
+			scraperFetch: async () => [posting({ postedDate: undefined, deadline: undefined })],
+			now: new Date("2026-09-29T00:00:00Z"),
 		});
 		assert.equal(plan.candidates.length, 1);
 		assert.equal(plan.candidates[0].dateUnknown, true);
@@ -128,7 +127,8 @@ describe("planSearch", () => {
 	it("excludes stale postings outside the 14-day window and reports the count", async () => {
 		const plan = await planSearch({
 			profile: PROFILE,
-			portalResults: [posting({ postedDate: "2026-01-01" })],
+			scraperAdapters: ["test"],
+			scraperFetch: async () => [posting({ postedDate: "2026-01-01" })],
 			now: new Date("2026-09-29T00:00:00Z"),
 		});
 		assert.deepEqual(plan.candidates, []);
@@ -139,7 +139,8 @@ describe("planSearch", () => {
 	it("keeps expired postings as ghosts, never silently dropped", async () => {
 		const plan = await planSearch({
 			profile: PROFILE,
-			portalResults: [posting({ deadline: "2026-01-01" })],
+			scraperAdapters: ["test"],
+			scraperFetch: async () => [posting({ deadline: "2026-01-01" })],
 			now: new Date("2026-09-29T00:00:00Z"),
 		});
 		assert.equal(plan.candidates.length, 1);
@@ -147,13 +148,20 @@ describe("planSearch", () => {
 	});
 
 	it("dedupes caller-passed seen keys and applied pairs without owning state", async () => {
-		const first = await planSearch({ profile: PROFILE, portalResults: [posting()] });
+		const first = await planSearch({
+			profile: PROFILE,
+			scraperAdapters: ["test"],
+			scraperFetch: async () => [posting()],
+			now: new Date("2026-09-29T00:00:00Z"),
+		});
 		const key = first.candidates[0].key;
 		const plan = await planSearch({
 			profile: PROFILE,
-			portalResults: [posting(), posting({ title: "Other Role", url: "https://example.com/jobs/2" })],
+			scraperAdapters: ["test"],
+			scraperFetch: async () => [posting(), posting({ title: "Other Role", url: "https://example.com/jobs/2" })],
 			seenKeys: [key],
 			appliedPairs: ["acme||other role"],
+			now: new Date("2026-09-29T00:00:00Z"),
 		});
 		assert.deepEqual(plan.candidates, []);
 		assert.equal(plan.seenSkipped, 1);
@@ -175,14 +183,24 @@ describe("planSearch", () => {
 		const germanPosting = posting({
 			description: "Danish is required for this role. Python and SQL for fraud detection.",
 		});
-		const plan = await planSearch({ profile: PROFILE, portalResults: [germanPosting] });
+		const plan = await planSearch({
+			profile: PROFILE,
+			scraperAdapters: ["test"],
+			scraperFetch: async () => [germanPosting],
+			now: new Date("2026-09-29T00:00:00Z"),
+		});
 		assert.equal(plan.candidates[0].quickFit.band, "low");
 		assert.ok(plan.candidates[0].language.note.includes("Danish"));
 		assert.deepEqual(plan.candidates[0].referralLinks, [], "no referral links for low fits");
 	});
 
 	it("adds referral links for high and medium fits only", async () => {
-		const plan = await planSearch({ profile: PROFILE, portalResults: [posting()] });
+		const plan = await planSearch({
+			profile: PROFILE,
+			scraperAdapters: ["test"],
+			scraperFetch: async () => [posting()],
+			now: new Date("2026-09-29T00:00:00Z"),
+		});
 		const band = plan.candidates[0].quickFit.band;
 		if (band === "high" || band === "medium") {
 			assert.ok(plan.candidates[0].referralLinks.length > 0, "referral links for promising fits");
@@ -194,10 +212,12 @@ describe("planSearch", () => {
 	it("consolidates mass postings with an explicit note", async () => {
 		const plan = await planSearch({
 			profile: PROFILE,
-			portalResults: [
+			scraperAdapters: ["test"],
+			scraperFetch: async () => [
 				posting({ url: "https://example.com/jobs/1" }),
 				posting({ url: "https://example.com/jobs/2" }),
 			],
+			now: new Date("2026-09-29T00:00:00Z"),
 		});
 		assert.equal(plan.candidates.length, 1);
 		assert.ok(
@@ -209,7 +229,9 @@ describe("planSearch", () => {
 	it("strips URL fragments so keys stay stable", async () => {
 		const plan = await planSearch({
 			profile: PROFILE,
-			portalResults: [posting({ url: "https://example.com/jobs/1#apply" })],
+			scraperAdapters: ["test"],
+			scraperFetch: async () => [posting({ url: "https://example.com/jobs/1#apply" })],
+			now: new Date("2026-09-29T00:00:00Z"),
 		});
 		assert.equal(plan.candidates[0].url, "https://example.com/jobs/1");
 	});

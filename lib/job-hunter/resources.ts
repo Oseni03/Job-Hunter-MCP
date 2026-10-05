@@ -186,7 +186,7 @@ const RESOURCES: ResourceBody[] = [
 		uri: "job-hunter://strategy/search-queries",
 		name: "search-query-strategy",
 		title: "Search query strategy",
-		description: "Function-based, per-language query strategy with the 14-day window and portal-first order.",
+		description: "Function-based, per-language query strategy with the 14-day window and scraper order.",
 		version: 1,
 		mimeType: "text/markdown",
 		text: [
@@ -194,7 +194,7 @@ const RESOURCES: ResourceBody[] = [
 			"",
 			"- Organize by function, not title; render every category in every profile language.",
 			"- Scope: last 14 days; unknown dates flagged, never dropped; result cap 20 per call.",
-			"- Order: installed portal CLIs first, Site clients (Indeed/LinkedIn), local scrapers when requested.",
+			"- Order: Site clients (Indeed/LinkedIn) first, then local scrapers; every search runs the scraper adapters.",
 			"- Never scrape people-search pages; never fabricate postings.",
 			"- Framework version: evaluation v1.",
 		].join("\n"),

@@ -169,15 +169,7 @@ async function main() {
             location: "Berlin, Germany",
             limit: 10,
             profile,
-            portalResults: [
-                {
-                    title: "ML Engineer",
-                    company: "Acme",
-                    url: "https://example.com/jobs/1",
-                    description: "Python and SQL for fraud detection.",
-                    postedDate: "2026-09-20",
-                },
-            ],
+            scraperAdapters: ["indeed", "linkedin"],
         },
     });
     console.log("Search", JSON.stringify(search, null, 2));

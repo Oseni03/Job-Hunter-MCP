@@ -28,15 +28,10 @@ const ARGS = {
 	keywords: "Python ML Engineer",
 	location: "Berlin, Germany",
 	limit: 10,
-	portalResults: [
-		{
-			title: "ML Engineer",
-			company: "Acme",
-			url: "https://example.com/jobs/1",
-			description: "Python and SQL for fraud detection.",
-			postedDate: "2026-09-20",
-		},
-	],
+	// No scraperFetch injection at the tool boundary: tests pin the
+	// no-network paths (registration, honest errors), while planning
+	// behavior is covered at the planSearch level with stub fetchers.
+	scraperAdapters: [] as string[],
 };
 
 describe("search-jobs tool", () => {
@@ -46,32 +41,22 @@ describe("search-jobs tool", () => {
 		assert.equal(tools[0].name, "search-jobs");
 	});
 
-	it("plans caller-supplied portal output with stable keys", async () => {
+	it("returns an honest no-source error when scraping is disabled, inventing nothing", async () => {
 		const tools = registered();
 		const result = await (tools[0].handler as LooseHandler)(ARGS, {});
 		assert.equal(result.isError, undefined);
 		const structured = result.structuredContent as Record<string, unknown>;
-		const candidates = structured["candidates"] as { key: string; url: string }[];
-		assert.equal(candidates.length, 1);
-		assert.match(candidates[0].key, /^[a-z0-9][a-z0-9-]*_[a-z0-9][a-z0-9-]*$/);
+		assert.deepEqual(structured["candidates"], []);
+		assert.deepEqual(structured["sources"], []);
+		assert.ok((structured["errors"] as string[]).length > 0, "expected an explicit no-source error");
 		assert.ok(result.content[0].text.includes("analyze-job"));
 	});
 
-	it("dedupes caller-passed seen keys without owning state", async () => {
+	it("passes caller-held dedupe stores through without owning state", async () => {
 		const tools = registered();
-		const first = await (tools[0].handler as LooseHandler)(ARGS, {});
-		const key = (first.structuredContent as Record<string, unknown>)["candidates"] as { key: string }[];
-		const second = await (tools[0].handler as LooseHandler)({ ...ARGS, seenKeys: [key[0].key] }, {});
-		const structured = second.structuredContent as Record<string, unknown>;
-		assert.deepEqual(structured["candidates"], []);
-		assert.equal(structured["seenSkipped"], 1);
-	});
-
-	it("plans empty caller-supplied output without fetching or inventing", async () => {
-		const tools = registered();
-		const result = await (tools[0].handler as LooseHandler)({ ...ARGS, portalResults: [] }, {});
+		const result = await (tools[0].handler as LooseHandler)({ ...ARGS, seenKeys: ["acme_ml-engineer"] }, {});
 		const structured = result.structuredContent as Record<string, unknown>;
 		assert.deepEqual(structured["candidates"], []);
-		assert.deepEqual(structured["sources"], ["portal-live"]);
+		assert.equal(structured["seenSkipped"], 0, "nothing to dedupe against, nothing skipped");
 	});
 });

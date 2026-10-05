@@ -53,18 +53,23 @@ describe("planSearch paging (issue 14)", () => {
 
 	it("pages the sorted candidates with an opaque next cursor", async () => {
 		const { planSearch } = await import("@/lib/job-hunter/search.ts");
+		const stub = async () => [posting(1), posting(2), posting(3)];
 		const first = await planSearch({
 			profile: PROFILE,
-			portalResults: [posting(1), posting(2), posting(3)],
+			scraperAdapters: ["test"],
+			scraperFetch: stub,
 			filters: { limit: 2 },
+			now: new Date("2026-09-29T00:00:00Z"),
 		});
 		assert.equal(first.candidates.length, 2);
 		assert.ok(first.nextCursor, "more results remain");
 		const second = await planSearch({
 			profile: PROFILE,
-			portalResults: [posting(1), posting(2), posting(3)],
+			scraperAdapters: ["test"],
+			scraperFetch: stub,
 			filters: { limit: 2 },
 			cursor: first.nextCursor,
+			now: new Date("2026-09-29T00:00:00Z"),
 		});
 		assert.equal(second.candidates.length, 1);
 		assert.equal(second.nextCursor, null);
@@ -76,8 +81,10 @@ describe("planSearch paging (issue 14)", () => {
 		const { planSearch } = await import("@/lib/job-hunter/search.ts");
 		const plan = await planSearch({
 			profile: PROFILE,
-			portalResults: [posting(1)],
+			scraperAdapters: ["test"],
+			scraperFetch: async () => [posting(1)],
 			cursor: "garbage",
+			now: new Date("2026-09-29T00:00:00Z"),
 		});
 		assert.equal(plan.candidates.length, 1);
 		assert.ok(plan.notes.some((note) => note.includes("cursor")));
@@ -201,14 +208,21 @@ describe("delta seenKeys (issue 14)", () => {
 			{ title: "A", company: "Acme", url: "https://example.com/a", description: "Python role with detail.", postedDate: "2026-09-20" },
 			{ title: "B", company: "Acme", url: "https://example.com/b", description: "Python role with detail.", postedDate: "2026-09-20" },
 		];
-		const first = await planSearch({ profile, portalResults: results });
+		const first = await planSearch({
+			profile,
+			scraperAdapters: ["test"],
+			scraperFetch: async () => results,
+			now: new Date("2026-09-29T00:00:00Z"),
+		});
 		assert.equal(first.candidates.length, 2);
 		// Host sends only the new key since the last call (delta); the old
 		// exclusion holds because the host filtered its side of the store.
 		const delta = await planSearch({
 			profile,
-			portalResults: [results[1]],
+			scraperAdapters: ["test"],
+			scraperFetch: async () => [results[1]],
 			seenKeys: [first.candidates[0].key],
+			now: new Date("2026-09-29T00:00:00Z"),
 		});
 		assert.equal(delta.candidates.length, 1);
 		assert.equal(delta.seenSkipped, 0, "delta keys not present are not skipped");
