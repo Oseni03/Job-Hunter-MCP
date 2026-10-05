@@ -1,10 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import type { ScrapeOptions } from "ts-jobspy";
-import { adapters, searchSource } from "@/host/job-hunter/scraper/index.ts";
-import { buildScrapeOptions, createIndeedAdapter, createSiteAdapter, linkedin, mapTsJobToScraperJob } from "@/host/job-hunter/scraper/adapters/tsjobspy.ts";
-import { planSearch } from "@/lib/job-hunter/search.ts";
+import type { ScrapeMeta, ScrapeOptions } from "ts-jobspy";
+import { adapters, searchAll, searchSource } from "@/host/job-hunter/scraper/index.ts";
+import { buildScrapeOptions, createIndeedAdapter, createSiteAdapter, describeSiteMeta, linkedin, mapTsJobToScraperJob, resolveSiteCountry, summarizeScrapeMeta } from "@/host/job-hunter/scraper/adapters/tsjobspy.ts";
+import { createScraperFetcher, planSearch } from "@/lib/job-hunter/search.ts";
 
 // Seam 1: pure mapper ts-jobspy Job -> scraper Job (no network).
 // Expected values are hand-worked literals from the ts-jobspy v3 schema,
@@ -393,5 +393,153 @@ describe("linkedin adapter (injected runner)", () => {
 		assert.equal(jobs.length, 1);
 		assert.equal(jobs[0].source, "linkedin");
 		assert.equal(jobs[0].company, "Google");
+	});
+});
+
+// Seam 1 (ticket 03): pure Site-meta mapping and country resolution.
+describe("site meta honesty (ticket 03)", () => {
+	it("notes full and genuinely empty runs", () => {
+		assert.deepEqual(describeSiteMeta({ site: "indeed", status: "ok", jobs: 10, requested: 10, durationMs: 500, jobsPerSecond: 20 }), {
+			note: "Site indeed: ok — 10 job(s) in 500ms.",
+		});
+		assert.deepEqual(describeSiteMeta({ site: "indeed", status: "empty", jobs: 0, requested: 10, durationMs: 400, jobsPerSecond: 0 }), {
+			note: "Site indeed: empty — no matches (never a block).",
+		});
+	});
+
+	it("errors interrupted and failed runs with the board's reason", () => {
+		assert.deepEqual(
+			describeSiteMeta({ site: "linkedin", status: "partial", jobs: 9, requested: 15, durationMs: 3000, jobsPerSecond: 3, error: { name: "RateLimitException", message: "429 rate limited" } }),
+			{ error: "Site linkedin: partial — 9 job(s) kept, then interrupted: 429 rate limited" },
+		);
+		assert.deepEqual(
+			describeSiteMeta({ site: "linkedin", status: "error", jobs: 0, requested: 15, durationMs: 200, jobsPerSecond: 0, error: { name: "LinkedInException", message: "guest wall" } }),
+			{ error: "Site linkedin: error — guest wall" },
+		);
+	});
+
+	it("notes dropped filters instead of silently ignoring them", () => {
+		assert.deepEqual(
+			describeSiteMeta({ site: "indeed", status: "ok", jobs: 4, requested: 10, durationMs: 500, jobsPerSecond: 8, unsupportedOptions: ["easyApply"] }),
+			{
+				note: "Site indeed: ok — 4 job(s) in 500ms. Site indeed ignores unsupported option(s): easyApply.",
+			},
+		);
+	});
+
+	it("splits a mixed scrape into notes and errors", () => {
+		const summary = summarizeScrapeMeta({
+			sites: [
+				{ site: "indeed", status: "ok", jobs: 10, requested: 10, durationMs: 500, jobsPerSecond: 20 },
+				{ site: "linkedin", status: "error", jobs: 0, requested: 10, durationMs: 200, jobsPerSecond: 0, error: { name: "RateLimitException", message: "429 rate limited" } },
+			],
+			totalDurationMs: 700,
+			jobsPerSecond: 14,
+			failureRate: 0.5,
+			duplicatesRemoved: 0,
+		});
+		assert.deepEqual(summary.notes, ["Site indeed: ok — 10 job(s) in 500ms."]);
+		assert.deepEqual(summary.errors, ["Site linkedin: error — 429 rate limited"]);
+	});
+
+	it("derives the Indeed country from the profile with a safe fallback", () => {
+		assert.equal(resolveSiteCountry("Germany"), "germany");
+		assert.equal(resolveSiteCountry("  United Kingdom  "), "united kingdom");
+		assert.equal(resolveSiteCountry(""), "usa");
+	});
+});
+
+// Seam 2 (ticket 03): country and meta-collector threading through the fetcher.
+describe("fetcher threading (ticket 03)", () => {
+	it("threads an explicit country into options", () => {
+		const options = buildScrapeOptions({ keywords: "x", location: "Berlin, Germany", limit: 5 }, "indeed", "germany");
+		assert.equal(options.country, "germany");
+	});
+
+	it("forwards Site meta from the adapter query to the planner callback", async () => {
+		const seen: unknown[] = [];
+		const metas: unknown[] = [];
+		const cannedMeta: ScrapeMeta = {
+			sites: [{ site: "indeed", status: "ok", jobs: 1, requested: 5, durationMs: 100, jobsPerSecond: 10 }],
+			totalDurationMs: 100,
+			jobsPerSecond: 10,
+			failureRate: 0,
+			duplicatesRemoved: 0,
+		};
+		const fetch = createScraperFetcher(
+			{ location: "Berlin, Germany", limit: 5, adapters: ["indeed"], country: "germany" },
+			async (query) => {
+				seen.push(query);
+				query.metaSink?.(cannedMeta);
+				return [{
+					id: "indeed:1",
+					source: "indeed",
+					title: "ML Engineer",
+					company: "Acme",
+					url: "https://www.indeed.com/viewjob?jk=1",
+					description: "Python role with detail.",
+					postedAt: new Date("2026-09-25T10:00:00Z"),
+				}];
+			},
+			(meta) => {
+				metas.push(meta);
+			},
+		);
+		const postings = await fetch("ML Engineer");
+		assert.equal(postings.length, 1);
+		assert.equal(postings[0].portal, "indeed");
+		assert.equal((seen[0] as { country?: string }).country, "germany");
+		assert.deepEqual(metas, [cannedMeta]);
+	});
+});
+
+// Seam 3 (ticket 03): failure isolation with zero inventions.
+describe("failure isolation (ticket 03)", () => {
+	it("keeps the healthy adapter's jobs when another adapter fails", async () => {
+		const jobs = await searchAll({ keywords: "ML Engineer", limit: 5 }, {
+			adapters: [
+				{ name: "dead", search: async () => { throw new Error("dead board"); } },
+				{
+					name: "alive",
+					search: async () => [{
+						id: "alive:1",
+						source: "alive",
+						title: "ML Engineer",
+						company: "Acme",
+						url: "https://example.com/jobs/1",
+					}],
+				},
+			],
+		});
+		assert.equal(jobs.length, 1);
+		assert.equal(jobs[0].company, "Acme");
+	});
+
+	it("records a throwing fetch as errors with zero invented postings", async () => {
+		const plan = await planSearch({
+			profile: {
+				name: "Test Candidate",
+				location: "Berlin, Germany",
+				constraints: "none",
+				workCountry: "Germany",
+				citizenships: [],
+				permitClasses: [],
+				languages: [{ language: "English", level: "C1" }],
+				primarySkills: ["Python"],
+				secondarySkills: [],
+				weakSkills: [],
+				strongDomains: [],
+				adjacentDomains: [],
+				careerGoals: ["ML Engineer"],
+				energizingTasks: [],
+				drainingTasks: [],
+			},
+			filters: { keywords: "ML Engineer", location: "Berlin, Germany" },
+			now: new Date("2026-10-03T12:00:00Z"),
+			scraperAdapters: ["indeed"],
+			scraperFetch: async () => { throw new Error("indeed blocked"); },
+		});
+		assert.deepEqual(plan.candidates, []);
+		assert.ok(plan.errors.some((error) => error.includes("indeed blocked")));
 	});
 });

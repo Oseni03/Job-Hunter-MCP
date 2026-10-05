@@ -1,3 +1,5 @@
+import type { ScrapeMeta } from "ts-jobspy";
+
 export interface Job {
   id: string;
   source: string;
@@ -21,6 +23,10 @@ export interface SearchQuery {
   postedWithinMinutes?: number;
   page?: number;
   limit?: number;
+  /** ts-jobspy country override; legacy adapters ignore it. */
+  country?: string;
+  /** ts-jobspy Sites report per-call meta here; legacy adapters ignore it. */
+  metaSink?: (meta: ScrapeMeta) => void;
 }
 
 export interface Adapter {

@@ -3,6 +3,8 @@ import {
 	searchAll as searchScrapers,
 } from "@/host/job-hunter/scraper/index.ts";
 import type { Job as ScrapedJob, SearchQuery as ScraperQuery } from "@/host/job-hunter/scraper/index.ts";
+import { resolveSiteCountry, summarizeScrapeMeta } from "@/host/job-hunter/scraper/adapters/tsjobspy.ts";
+import type { ScrapeMeta } from "ts-jobspy";
 import { fetchBoardJobs, filterListingsByQuery } from "@/lib/job-hunter/boards.ts";
 import type { BoardRef } from "@/lib/job-hunter/boards.ts";
 import { decodeCursor, encodeCursor } from "@/lib/cursor.ts";
@@ -506,15 +508,25 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 	} else if (input.scraperAdapters && input.scraperAdapters.length > 0) {
 		// Local scrapers (no key, host network): every query in the set runs
 		// with the plan's location, workplace filter, recency window, and
-		// limit, merged across queries with dedupe by URL.
+		// limit, merged across queries with dedupe by URL. Site clients
+		// report per-call meta through the collector below; a throwing
+		// fetch degrades per query into errors[] with zero inventions.
+		const siteMetas: ScrapeMeta[] = [];
 		const scraperFetch =
 			input.scraperFetch ??
-			createScraperFetcher({
-				location: filters.location,
-				remoteMode: filters.remoteMode,
-				limit: filters.limit,
-				adapters: input.scraperAdapters,
-			});
+			createScraperFetcher(
+				{
+					location: filters.location,
+					remoteMode: filters.remoteMode,
+					limit: filters.limit,
+					adapters: input.scraperAdapters,
+					country: resolveSiteCountry(input.profile.workCountry),
+				},
+				undefined,
+				(meta) => {
+					siteMetas.push(meta);
+				},
+			);
 		const collected: RawPosting[][] = [];
 		for (const query of querySet) {
 			try {
@@ -528,6 +540,11 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 		source = "scraper";
 		sources.push(source);
 		notes.push(`Scraper run over ${input.scraperAdapters.join(", ")}; merged across ${queriesRun.length} querie(s).`);
+		for (const meta of siteMetas) {
+			const summary = summarizeScrapeMeta(meta);
+			notes.push(...summary.notes);
+			errors.push(...summary.errors);
+		}
 	} else {
 		errors.push(
 			"No search source available (no portal runner, board refs, or scraper adapters); no postings invented.",
@@ -703,17 +720,22 @@ export interface ScraperFetchOptions {
 	remoteMode?: RemoteMode;
 	limit: number;
 	adapters: string[];
+	/** ts-jobspy country override; absent falls back inside the Site client. */
+	country?: string;
 }
 
 /**
  * PostingFetcher over local scrapers: each query runs with the plan's
  * location, workplace filter, 14-day recency window, and limit. Scraped jobs
  * map to raw postings with the adapter name as portal and ISO dates cut to
- * YYYY-MM-DD for parsePostingDay downstream.
+ * YYYY-MM-DD for parsePostingDay downstream. Site clients report per-call
+ * meta through onSiteMeta when the caller collects it; legacy adapters
+ * ignore the collector. Dedupe stays caller-owned upstream.
  */
 export function createScraperFetcher(
 	options: ScraperFetchOptions,
 	run: ScraperRunner = defaultScraperRunner(options.adapters),
+	onSiteMeta?: (meta: ScrapeMeta) => void,
 ): PostingFetcher {
 	return async (query: string) => {
 		const jobs = await run({
@@ -722,6 +744,8 @@ export function createScraperFetcher(
 			remoteFilter: options.remoteMode,
 			postedWithinDays: SEARCH_RECENCY_DAYS,
 			limit: options.limit,
+			...(options.country !== undefined ? { country: options.country } : {}),
+			...(onSiteMeta !== undefined ? { metaSink: (meta: ScrapeMeta) => onSiteMeta(meta) } : {}),
 		});
 		return jobs.map((job) => ({
 			title: job.title,
