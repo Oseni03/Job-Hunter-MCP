@@ -13,7 +13,7 @@ Stateless Next.js MCP server (`mcp-handler` 2 + MCP TypeScript SDK v2) implement
 | `prepare-interview` | Stage pack + STAR map + mock, writes only archive + approved STAR + new facts to profile |
 | `career-strategy` | Profile-driven direction advice |
 | `draft-application-answers` | Portal free-text fields per `08` (counted, grounded, `.txt` with `NOTE TO SELF`) |
-| `search-jobs` | Portal live + boards + local scrapers, 14d window, max 20/call, canonical keys, caller-passed dedupe |
+| `search-jobs` | Portal live + Site clients (Indeed/LinkedIn) + local scrapers, 14d window, max 20/call, canonical keys, caller-passed dedupe |
 | `rank-jobs` | Batch triage: weights/vetoes/urgency/sweep/staleness, additive-only state writes |
 | `research-company` | Cache-first (`company_research/<slug>.json`, 30d TTL), verified claims only |
 

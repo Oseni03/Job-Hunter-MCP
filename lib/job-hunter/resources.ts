@@ -194,7 +194,7 @@ const RESOURCES: ResourceBody[] = [
 			"",
 			"- Organize by function, not title; render every category in every profile language.",
 			"- Scope: last 14 days; unknown dates flagged, never dropped; result cap 20 per call.",
-			"- Order: installed portal CLIs first, structured boards, local scrapers when requested.",
+			"- Order: installed portal CLIs first, Site clients (Indeed/LinkedIn), local scrapers when requested.",
 			"- Never scrape people-search pages; never fabricate postings.",
 			"- Framework version: evaluation v1.",
 		].join("\n"),

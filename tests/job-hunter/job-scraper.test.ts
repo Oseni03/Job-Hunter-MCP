@@ -3,7 +3,7 @@ import test, { after } from "node:test";
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildHackingQueries, dedupeJobs, normalizeUrl, jobMatchesQuery, sortNewestFirst, splitHeadline, htmlToText, decodeEntitiesTwice } from "@/host/job-hunter/scraper/helpers.ts";
+import { dedupeJobs, normalizeUrl, jobMatchesQuery, sortNewestFirst, splitHeadline, htmlToText, decodeEntitiesTwice } from "@/host/job-hunter/scraper/helpers.ts";
 import type { Job } from "@/host/job-hunter/scraper/types.ts";
 import { adapters, searchSource } from "@/host/job-hunter/scraper/index.ts";
 import { extractDetailText } from "@/host/job-hunter/scraper/detail.ts";
@@ -215,17 +215,6 @@ test("htmlToText strips tags and decodes entities", () => {
 
 test("decodeEntitiesTwice unwraps double-encoded content", () => {
 	assert.equal(decodeEntitiesTwice("&lt;p&gt;Build &amp;amp; APIs&lt;/p&gt;"), "<p>Build & APIs</p>");
-});
-
-test("buildHackingQueries scopes keywords with site:, quotes, OR, and exact phrase", () => {
-	assert.deepEqual(buildHackingQueries(""), []);
-	assert.deepEqual(buildHackingQueries("   "), []);
-	assert.deepEqual(buildHackingQueries("fraud detection"), [
-		'site:boards.greenhouse.io "fraud" "detection"',
-		'site:jobs.lever.co ("fraud" OR "detection")',
-		'site:linkedin.com/jobs "fraud" "detection"',
-		'"fraud detection" jobs hiring',
-	]);
 });
 
 test("extractDetailText scopes to per-source containers", () => {

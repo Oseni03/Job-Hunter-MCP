@@ -24,3 +24,9 @@ Glossary only. No implementation details.
   note). Bearers never logged; PII redacted in notes only. Kept forever.
 - **Follow-up**: open Application untouched past the staleness threshold or
   with a near deadline. `saved` rows never count.
+- **Site**: one job board served by the shared Site client (`indeed`,
+  `linkedin`). Maps to the per-posting portal tag; `Source` stays `scraper`.
+- **Adapter**: one entry in the local scraper registry (a Site or a surviving
+  board scraper). Selected by name, or all at once.
+- **Source**: where a candidate came from (`portal-live` or `scraper`).
+  Answers "which pipeline produced this?".

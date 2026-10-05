@@ -1,5 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import type { ScrapeMeta, ScrapeOptions } from "ts-jobspy";
 import { adapters, searchAll, searchSource } from "@/host/job-hunter/scraper/index.ts";
@@ -598,6 +601,30 @@ describe("board contract removal (ticket 04)", () => {
 		assert.ok(!plan.sources.includes("board" as never));
 		for (const candidate of plan.candidates) {
 			assert.ok((candidate.source as string) !== "board");
+		}
+	});
+});
+
+// Ticket 05: Site searches never touch the legacy disk cache.
+describe("site cache isolation (ticket 05)", () => {
+	it("writes nothing to the disk cache", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "site-cache-probe-"));
+		const savedDir = process.env.SCRAPER_CACHE_DIR;
+		const savedDisable = process.env.SCRAPER_CACHE_DISABLE;
+		process.env.SCRAPER_CACHE_DIR = dir;
+		delete process.env.SCRAPER_CACHE_DISABLE;
+		try {
+			const adapter = createSiteAdapter("indeed", async () => ({
+				jobs: [],
+				meta: { sites: [], totalDurationMs: 0, jobsPerSecond: 0, failureRate: 0, duplicatesRemoved: 0 },
+			}));
+			await adapter.search({ keywords: "x", limit: 1 });
+			assert.deepEqual(readdirSync(dir), []);
+		} finally {
+			if (savedDir === undefined) delete process.env.SCRAPER_CACHE_DIR;
+			else process.env.SCRAPER_CACHE_DIR = savedDir;
+			if (savedDisable !== undefined) process.env.SCRAPER_CACHE_DISABLE = savedDisable;
+			rmSync(dir, { recursive: true, force: true });
 		}
 	});
 });

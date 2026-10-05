@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CliError, formatDetail, formatJobs, formatQueries, formatSources, parseArgs } from "@/host/job-hunter/scraper/cli.ts";
+import { CliError, formatDetail, formatJobs, formatSources, parseArgs, toSearchQuery } from "@/host/job-hunter/scraper/cli.ts";
 import { parseLinkedInJobId, parseLinkedInSearch } from "@/host/job-hunter/scraper/adapters/linkedin.ts";
 import { jobMatchesQuery } from "@/host/job-hunter/scraper/helpers.ts";
 import type { Job, JobDetail } from "@/host/job-hunter/scraper/types.ts";
@@ -71,26 +71,28 @@ test("parseArgs reads detail and sources", () => {
 	assert.equal(sources.command, "sources");
 });
 
-test("parseArgs reads queries and formatQueries prints paste-ready operators", () => {
-	const parsed = parseArgs(["queries", "--query", "Python ML Engineer"]);
-	assert.equal(parsed.command, "queries");
-	if (parsed.command !== "queries") throw new Error("unreachable");
-	assert.equal(parsed.options.query, "Python ML Engineer");
-	assert.equal(parsed.options.format, "plain");
-	assert.throws(() => parseArgs(["queries"]), /requires --query/);
-	assert.throws(() => parseArgs(["queries", "--query", "  "]), /requires --query/);
-	const plain = formatQueries("Python ML Engineer", "plain");
-	assert.ok(plain.includes('site:boards.greenhouse.io "Python"'));
-	assert.ok(plain.includes('site:jobs.lever.co ("Python" OR "ML" OR "Engineer")'));
-	assert.ok(plain.includes("site:linkedin.com/jobs"));
-	assert.deepEqual(JSON.parse(formatQueries("fraud detection", "json") as string), [
-		'site:boards.greenhouse.io "fraud" "detection"',
-		'site:jobs.lever.co ("fraud" OR "detection")',
-		'site:linkedin.com/jobs "fraud" "detection"',
-		'"fraud detection" jobs hiring',
-	]);
+test("parseArgs reads --country and rejects the retired queries command", () => {
+	const parsed = parseArgs(["search", "-l", "Berlin, Germany", "--country", "germany"]);
+	assert.equal(parsed.command, "search");
+	if (parsed.command !== "search") throw new Error("unreachable");
+	assert.equal(parsed.options.country, "germany");
+	const def = parseArgs(["search", "-l", "Remote"]);
+	assert.equal(def.command, "search");
+	if (def.command !== "search") throw new Error("unreachable");
+	assert.equal(def.options.country, undefined);
+	assert.throws(() => parseArgs(["queries", "--query", "x"]), /Unknown command/);
 });
 
+test("toSearchQuery threads the country passthrough", () => {
+	assert.equal(
+		toSearchQuery({ location: "Berlin, Germany", query: "ML Engineer", country: "germany", page: 1, source: "all", format: "json", enrich: false }).country,
+		"germany",
+	);
+	assert.equal(
+		toSearchQuery({ location: "Remote", query: "", page: 1, source: "all", format: "json", enrich: false }).country,
+		undefined,
+	);
+});
 test("parseLinkedInJobId accepts ids, URLs, and URNs", () => {
 	assert.equal(parseLinkedInJobId("4412815061"), "4412815061");
 	assert.equal(parseLinkedInJobId("https://www.linkedin.com/jobs/view/frontend-dev-at-acme-4412815061?position=1"), "4412815061");

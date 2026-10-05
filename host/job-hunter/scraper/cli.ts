@@ -5,7 +5,6 @@
  *   node host/job-hunter/scraper/cli.ts search --location "<place>" [flags]
  *   node host/job-hunter/scraper/cli.ts detail <id|url> [--format json|plain]
  *   node host/job-hunter/scraper/cli.ts sources [--format json|table|plain]
- *   node host/job-hunter/scraper/cli.ts queries --query "ML Engineer" [--format json|plain]
  *
  * Results print to stdout (JSON by default). Failures print
  * { "error": "...", "code": "..." } to stderr and exit 1.
@@ -13,7 +12,6 @@
  */
 import { pathToFileURL } from "node:url";
 import { adapters, fetchLinkedInDetail, parseLinkedInJobId, searchAll, searchSource } from "./index.ts";
-import { buildHackingQueries } from "./helpers.ts";
 import { clearHttpCache } from "./http.ts";
 import { fetchJobDetailText, fetchPageDetail, isEnrichable } from "./detail.ts";
 import type { Job, JobDetail, RemoteFilter, SearchQuery } from "./types.ts";
@@ -26,6 +24,8 @@ export interface SearchOptions {
 	jobageDays?: number;
 	jobageMinutes?: number;
 	remote?: RemoteFilter;
+	/** ts-jobspy country for Site searches (Indeed domain); Sites fall back when absent. */
+	country?: string;
 	page: number;
 	limit?: number;
 	source: string;
@@ -36,11 +36,6 @@ export interface SearchOptions {
 export interface DetailOptions {
 	target: string;
 	format: Format;
-}
-
-export interface QueriesOptions {
-	query: string;
-	format: Extract<Format, "json" | "plain">;
 }
 
 export class CliError extends Error {
@@ -78,11 +73,10 @@ function parseFormat<T extends Format>(raw: string | undefined, allowed: T[], fa
 export function parseArgs(argv: string[]):
 	| { command: "search"; options: SearchOptions }
 	| { command: "detail"; options: DetailOptions }
-	| { command: "queries"; options: QueriesOptions }
 	| { command: "sources"; options: { format: Format } } {
 	const [command, ...rest] = argv;
 	if (!command || command === "--help" || command === "-h") return printHelpAndExit();
-	if (command !== "search" && command !== "detail" && command !== "queries" && command !== "sources") {
+	if (command !== "search" && command !== "detail" && command !== "sources") {
 		throw new CliError("bad-args", `Unknown command ${JSON.stringify(command)}. See --help.`);
 	}
 
@@ -122,27 +116,6 @@ export function parseArgs(argv: string[]):
 		return { command: "detail", options: { target, format: parseFormat(format, ["json", "plain"], "json") } };
 	}
 
-	if (command === "queries") {
-		let query: string | undefined;
-		let format: string | undefined;
-		for (let i = 0; i < rest.length; i += 1) {
-			const arg = rest[i] as string;
-			if (arg === "--query" || arg === "-q") {
-				const taken = takeValue(rest, i + 1, "--query");
-				query = taken.value;
-				i = taken.next - 1;
-			} else if (arg === "--format" || arg === "-f") {
-				const taken = takeValue(rest, i + 1, "--format");
-				format = taken.value;
-				i = taken.next - 1;
-			} else {
-				throw new CliError("bad-args", `Unexpected argument ${JSON.stringify(arg)} for queries.`);
-			}
-		}
-		if (!query?.trim()) throw new CliError("bad-args", "queries requires --query with keywords.");
-		return { command: "queries", options: { query, format: parseFormat(format, ["json", "plain"], "plain") } };
-	}
-
 	const options: SearchOptions = { location: "", query: "", page: 1, source: "all", format: "json", enrich: false };
 	for (let i = 0; i < rest.length; i += 1) {
 		const arg = rest[i] as string;
@@ -168,14 +141,17 @@ export function parseArgs(argv: string[]):
 			case "--jobage-minutes":
 				options.jobageMinutes = takePositiveInt(readValue("--jobage-minutes"), "--jobage-minutes");
 				break;
-			case "--remote": {
-				const value = readValue("--remote");
-				if (value !== "remote" && value !== "hybrid" && value !== "onsite") {
-					throw new CliError("bad-args", `--remote must be remote|hybrid|onsite, got ${JSON.stringify(value)}.`);
-				}
-				options.remote = value;
-				break;
+		case "--remote": {
+			const value = readValue("--remote");
+			if (value !== "remote" && value !== "hybrid" && value !== "onsite") {
+				throw new CliError("bad-args", `--remote must be remote|hybrid|onsite, got ${JSON.stringify(value)}.`);
 			}
+			options.remote = value;
+			break;
+		}
+		case "--country":
+			options.country = readValue("--country");
+			break;
 			case "--page":
 				options.page = takePositiveInt(readValue("--page"), "--page");
 				break;
@@ -212,20 +188,18 @@ function printHelpAndExit(): never {
 		'  node host/job-hunter/scraper/cli.ts search --location "<place>" [flags]',
 		"  node host/job-hunter/scraper/cli.ts detail <id|url> [--format json|plain]",
 		"  node host/job-hunter/scraper/cli.ts sources [--format json|table|plain]",
-		'  node host/job-hunter/scraper/cli.ts queries --query "ML Engineer" [--format json|plain]',
 		"",
 		"Search flags: --location/-l (required), --query/-q, --jobage days,",
 		"  --jobage-minutes (conflicts with --jobage), --remote remote|hybrid|onsite,",
-		"  --page (1-indexed, 10/page), --limit/-n, --source/-s (default all,",
-		"  or a registered adapter, or all), --format/-f json|table|plain,",
+		"  --country (Indeed domain, e.g. germany; default usa),",
+		"  --page (1-indexed, legacy adapters only), --limit/-n, --source/-s (default all,",
+		"  a Site (indeed, linkedin) or a registered adapter), --format/-f json|table|plain,",
 		"  --enrich (fetch full descriptions for snippet-only sources).",
 		"",
 		"Date filters keep undated jobs (flagged downstream as date unknown).",
-		"Manual fallback: queries prints Google-hacking operators (site:-scoped",
-		"  board/jobs pages, quoted terms, OR groups, exact phrase) to paste into",
-		"  a search engine when structured adapters miss. Nothing is fetched.",
 		"Responses are cached on disk (.scratch/scrape-cache, 1h default,",
-		"details 7d); repeat runs are instant until entries expire.",
+		"details 7d) for legacy adapters only; Site searches never touch the cache.",
+		"Repeat runs are instant until entries expire.",
 	].join("\n");
 	process.stdout.write(`${help}\n`);
 	process.exit(0);
@@ -287,18 +261,7 @@ export function formatSources(format: Format): string {
 	return ["Name  Needs config", ...rows.map((row) => `${padEnd(row.name, 6)}${row.needsConfig ? "yes" : "no"}`)].join("\n");
 }
 
-/**
- * Manual-search operators for the host to paste into a search engine when
- * structured adapters miss. Plain prints one per line (paste-ready);
- * JSON prints the array for scripting.
- */
-export function formatQueries(query: string, format: "json" | "plain"): string {
-	const queries = buildHackingQueries(query);
-	if (format === "json") return JSON.stringify(queries, null, 2);
-	return queries.join("\n");
-}
-
-function toSearchQuery(options: SearchOptions): SearchQuery {
+export function toSearchQuery(options: SearchOptions): SearchQuery {
 	return {
 		keywords: options.query,
 		location: options.location,
@@ -307,6 +270,7 @@ function toSearchQuery(options: SearchOptions): SearchQuery {
 		postedWithinMinutes: options.jobageMinutes,
 		page: options.page,
 		limit: options.limit,
+		...(options.country !== undefined ? { country: options.country } : {}),
 	};
 }
 
@@ -368,8 +332,6 @@ export async function main(argv: string[]): Promise<number> {
 		} else if (parsed.command === "detail") {
 			const detail = await runDetail(parsed.options.target);
 			process.stdout.write(`${formatDetail(detail, parsed.options.format)}\n`);
-		} else if (parsed.command === "queries") {
-			process.stdout.write(`${formatQueries(parsed.options.query, parsed.options.format)}\n`);
 		} else {
 			process.stdout.write(`${formatSources(parsed.options.format)}\n`);
 		}

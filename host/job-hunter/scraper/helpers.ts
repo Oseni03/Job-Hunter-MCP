@@ -232,23 +232,3 @@ export function decodeEntitiesTwice(value: string): string {
 			.replace(/&nbsp;/g, " ");
 	return once(once(value));
 }
-
-/**
- * Manual-search operators for the human host: site:-scoped board and jobs
- * pages, quoted terms, OR groups, plus an exact-phrase query. Printed by
- * the CLI `queries` command to paste into any search engine when the
- * structured adapters miss — never fetched server-side.
- */
-export function buildHackingQueries(keywords: string): string[] {
-	const tokens = keywords.split(/\s+/).filter((token) => token.length > 0);
-	if (tokens.length === 0) {
-		return [];
-	}
-	const quoted = tokens.map((token) => `"${token}"`);
-	return [
-		`site:boards.greenhouse.io ${quoted.join(" ")}`,
-		`site:jobs.lever.co (${quoted.join(" OR ")})`,
-		`site:linkedin.com/jobs ${quoted.join(" ")}`,
-		`"${keywords.trim()}" jobs hiring`,
-	];
-}
