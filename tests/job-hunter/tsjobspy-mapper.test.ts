@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import type { ScrapeOptions } from "ts-jobspy";
 import { adapters, searchSource } from "@/host/job-hunter/scraper/index.ts";
-import { buildScrapeOptions, createIndeedAdapter, mapTsJobToScraperJob } from "@/host/job-hunter/scraper/adapters/tsjobspy.ts";
+import { buildScrapeOptions, createIndeedAdapter, createSiteAdapter, linkedin, mapTsJobToScraperJob } from "@/host/job-hunter/scraper/adapters/tsjobspy.ts";
 import { planSearch } from "@/lib/job-hunter/search.ts";
 
 // Seam 1: pure mapper ts-jobspy Job -> scraper Job (no network).
@@ -258,5 +258,140 @@ describe("planSearch with the Indeed Site", () => {
 		});
 		assert.deepEqual(second.candidates, []);
 		assert.equal(second.seenSkipped, 1);
+	});
+});
+
+// Seam 1b: pure mapper LinkedIn cases — tsJob.site drives source/id.
+describe("ts-jobspy mapper (LinkedIn cutover)", () => {
+	it("maps a LinkedIn posting under the linkedin source", () => {
+		const job = mapTsJobToScraperJob({
+			id: "4326639307",
+			site: "linkedin",
+			jobUrl: "https://www.linkedin.com/jobs/view/4326639307/",
+			jobUrlDirect: null,
+			title: "Software Engineer, Infrastructure",
+			company: "Google",
+			location: "Mountain View, CA",
+			datePosted: "2025-12-31",
+			jobTypes: ["fulltime"],
+			salarySource: "direct_data",
+			interval: "yearly",
+			minAmount: 141000,
+			maxAmount: 202000,
+			currency: "USD",
+			isRemote: false,
+			jobLevel: null,
+			jobFunction: null,
+			listingType: null,
+			emails: [],
+			description: "Infrastructure snippet in plain text.",
+			companyIndustry: null,
+			companyUrl: null,
+			companyLogo: null,
+			bannerPhotoUrl: null,
+			companyUrlDirect: null,
+			companyAddresses: null,
+			companyNumEmployees: null,
+			companyRevenue: null,
+			companyDescription: null,
+			skills: [],
+			experienceRange: null,
+			companyRating: null,
+			companyReviewsCount: null,
+			vacancyCount: null,
+			workFromHomeType: null,
+		});
+		assert.equal(job.source, "linkedin");
+		assert.equal(job.title, "Software Engineer, Infrastructure");
+		assert.equal(job.company, "Google");
+		assert.equal(job.url, "https://www.linkedin.com/jobs/view/4326639307/");
+		assert.ok(job.id.startsWith("linkedin:"));
+		assert.deepEqual(job.postedAt?.toISOString().slice(0, 10), "2025-12-31");
+	});
+});
+
+// Seam 2b: site-parameterized options builder.
+describe("site options builder (LinkedIn cutover)", () => {
+	it("defaults to the Indeed Site so ticket-01 calls are unchanged", () => {
+		const options = buildScrapeOptions({ keywords: "ML Engineer", location: "Berlin, Germany", limit: 10 });
+		assert.deepEqual(options.sites, ["indeed"]);
+		assert.equal(options.country, "usa");
+	});
+
+	it("builds LinkedIn options with rich descriptions off", () => {
+		const options = buildScrapeOptions({ keywords: "ML Engineer", location: "Berlin, Germany", limit: 10 }, "linkedin");
+		assert.deepEqual(options.sites, ["linkedin"]);
+		assert.deepEqual(options.linkedin, { fetchDescription: false });
+		assert.equal(options.resultsWanted, 10);
+		assert.equal(options.hoursOld, 336);
+		assert.equal(options.descriptionFormat, "plain");
+		assert.equal(options.dedupe, "none");
+		assert.equal(options.strict, false);
+	});
+
+	it("maps the onsite workplace filter to a non-remote search", () => {
+		const options = buildScrapeOptions({ keywords: "x", remoteFilter: "onsite", limit: 5 }, "linkedin");
+		assert.equal(options.isRemote, false);
+	});
+});
+
+// Seam 3b: registry 'linkedin' is the Site adapter (injected runner, no network).
+describe("linkedin adapter (injected runner)", () => {
+	it("is the shared Site client, not the legacy guest scraper", () => {
+		const registered = adapters.find((adapter) => adapter.name === "linkedin");
+		assert.equal(registered, linkedin);
+	});
+
+	it("searches through the injected runner and maps jobs", async () => {
+		const seen: ScrapeOptions[] = [];
+		const adapter = createSiteAdapter("linkedin", async (options) => {
+			seen.push(options);
+			return {
+				jobs: [{
+					id: "4326639307",
+					site: "linkedin",
+					jobUrl: "https://www.linkedin.com/jobs/view/4326639307/",
+					jobUrlDirect: null,
+					title: "Software Engineer, Infrastructure",
+					company: "Google",
+					location: "Mountain View, CA",
+					datePosted: "2025-12-31",
+					jobTypes: [],
+					salarySource: null,
+					interval: null,
+					minAmount: null,
+					maxAmount: null,
+					currency: null,
+					isRemote: null,
+					jobLevel: null,
+					jobFunction: null,
+					listingType: null,
+					emails: [],
+					description: "Infrastructure snippet in plain text.",
+					companyIndustry: null,
+					companyUrl: null,
+					companyLogo: null,
+					bannerPhotoUrl: null,
+					companyUrlDirect: null,
+					companyAddresses: null,
+					companyNumEmployees: null,
+					companyRevenue: null,
+					companyDescription: null,
+					skills: [],
+					experienceRange: null,
+					companyRating: null,
+					companyReviewsCount: null,
+					vacancyCount: null,
+					workFromHomeType: null,
+				}],
+				meta: { sites: [], totalDurationMs: 0, jobsPerSecond: 0, failureRate: 0, duplicatesRemoved: 0 },
+			};
+		});
+		const jobs = await adapter.search({ keywords: "Software Engineer", location: "Mountain View, CA", limit: 5 });
+		assert.equal(seen.length, 1);
+		assert.deepEqual(seen[0].sites, ["linkedin"]);
+		assert.equal(jobs.length, 1);
+		assert.equal(jobs[0].source, "linkedin");
+		assert.equal(jobs[0].company, "Google");
 	});
 });

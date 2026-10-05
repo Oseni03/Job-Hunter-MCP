@@ -1,8 +1,8 @@
 import * as cheerio from "cheerio";
-import type { Adapter, Job, JobDetail } from "../types.ts";
+import type { Job, JobDetail } from "../types.ts";
 import { get } from "../http.ts";
-import { SEARCH_CACHE_TTL_MS, DETAIL_CACHE_TTL_MS } from "../cache.ts";
-import { applyQueryAndLimit, cleanText, firstNonEmpty, inferRemote, makeId, parseDate } from "../helpers.ts";
+import { DETAIL_CACHE_TTL_MS } from "../cache.ts";
+import { cleanText, firstNonEmpty, inferRemote, makeId, parseDate } from "../helpers.ts";
 
 // LinkedIn's guest endpoints need a browser User-Agent; the generic toolkit
 // UA gets challenged. Keep volume low: automated access is against
@@ -15,11 +15,7 @@ const LINKEDIN_HEADERS = {
 	"Accept-Language": "en-US,en;q=0.9",
 };
 
-const WORKPLACE_PARAM: Record<string, string> = {
-	onsite: "1",
-	remote: "2",
-	hybrid: "3",
-};
+/** Detail + URL helpers stay for the host CLI (ticket 05 owns that contract). */
 
 /**
  * Accept a numeric posting id, a jobs/view URL, or a urn:li:jobPosting: URN.
@@ -35,26 +31,6 @@ export function parseLinkedInJobId(input: string): string | undefined {
 
 export function linkedInCanonicalUrl(id: string): string {
 	return `https://www.linkedin.com/jobs/view/${id}/`;
-}
-
-function buildSearchUrl(keywords: string, location: string | undefined, page: number, q: Parameters<typeof applyQueryAndLimit>[1]): string {
-	const params = new URLSearchParams();
-	if (keywords.trim()) params.set("keywords", keywords.trim());
-	if (location?.trim()) params.set("location", location.trim());
-	params.set("start", String(Math.max(0, (page - 1) * 10)));
-
-	const seconds = q.postedWithinMinutes && q.postedWithinMinutes > 0
-		? Math.round(q.postedWithinMinutes * 60)
-		: q.postedWithinDays && q.postedWithinDays > 0
-			? Math.round(q.postedWithinDays * 86_400)
-			: 0;
-	if (seconds > 0) params.set("f_TPR", `r${seconds}`);
-
-	const workplace = q.remoteFilter ? WORKPLACE_PARAM[q.remoteFilter] : undefined;
-	if (q.remoteOnly && !workplace) params.set("f_WT", "2");
-	if (workplace) params.set("f_WT", workplace);
-
-	return `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?${params.toString()}`;
 }
 
 export function parseLinkedInSearch(html: string): Job[] {
@@ -135,26 +111,3 @@ export async function fetchLinkedInDetail(id: string): Promise<JobDetail> {
 		...(industries?.length ? { industries } : {}),
 	};
 }
-
-export const linkedin: Adapter = {
-	name: "linkedin",
-	async search(q) {
-		const page = q.page && q.page > 0 ? Math.floor(q.page) : 1;
-		const html = await get(buildSearchUrl(q.keywords, q.location, page, q), {
-			headers: LINKEDIN_HEADERS,
-			cacheTtlMs: SEARCH_CACHE_TTL_MS,
-		});
-		const jobs = parseLinkedInSearch(html);
-		// Workplace and recency are enforced server-side (f_WT/f_TPR).
-		// Re-checking them client-side would drop server-matched jobs whose
-		// card text lacks explicit markers. Keywords and location still
-		// filter client-side for precision.
-		return applyQueryAndLimit(jobs, {
-			...q,
-			remoteOnly: false,
-			remoteFilter: undefined,
-			postedWithinDays: undefined,
-			postedWithinMinutes: undefined,
-		});
-	},
-};

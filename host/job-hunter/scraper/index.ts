@@ -1,8 +1,7 @@
 import type { Adapter, Job, JobDetail, SearchAllOptions, SearchQuery } from "./types.ts";
 import { dedupeJobs, jobMatchesQuery, sortNewestFirst } from "./helpers.ts";
 import { remotive } from "./adapters/remotive.ts";
-import { indeed } from "./adapters/tsjobspy.ts";
-import { linkedin } from "./adapters/linkedin.ts";
+import { indeed, linkedin } from "./adapters/tsjobspy.ts";
 import { remoteok } from "./adapters/remoteok.ts";
 import { wwr } from "./adapters/wwr.ts";
 import { hn } from "./adapters/hn.ts";
