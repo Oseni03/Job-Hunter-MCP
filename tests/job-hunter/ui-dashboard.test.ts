@@ -45,6 +45,19 @@ describe("dashboard mappers", () => {
 		);
 		assert.equal(analysis.items?.length, 4);
 		assert.ok(analysis.summary?.includes("Strong Fit"));
+		assert.ok(analysis.description?.includes("Build and own Python APIs"));
+
+		const truncated = mapToolToDashboard("analyze-job", { postingText: `${"x".repeat(5000)}` }, {}, null);
+		assert.ok((truncated.description?.length ?? 0) < 5000);
+		assert.ok(truncated.description?.includes("truncated"));
+
+		const linked = mapToolToDashboard(
+			"analyze-job",
+			{ postingUrl: "https://example.com/jobs/1" },
+			{},
+			null,
+		);
+		assert.equal(linked.description, "Full posting: https://example.com/jobs/1");
 
 		const analysisJson = JSON.parse(analysis.markdown ?? "") as {
 			overallScore?: number;

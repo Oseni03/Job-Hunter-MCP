@@ -27,7 +27,11 @@ export const SAMPLE_TOOLS = [
 
 export const SAMPLE_CALLS: Record<(typeof SAMPLE_TOOLS)[number], SampleCall> = {
 	"analyze-job": {
-		args: { company: "Acme Corp", role: "Backend Engineer" },
+		args: {
+			company: "Acme Corp",
+			role: "Backend Engineer",
+			postingText: "Backend Engineer at Acme Corp (hybrid, Berlin). Build and own Python APIs serving usage-based billing. Requirements: 4+ years of backend delivery, PostgreSQL, incident ownership. Nice to have: Kubernetes.",
+		},
 		structured: {
 			scored: true,
 			eligibility: { verdict: "PASS", note: "Work authorization covers the posting country." },

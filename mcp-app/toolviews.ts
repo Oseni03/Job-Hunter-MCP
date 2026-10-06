@@ -69,6 +69,15 @@ function num(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
+const DESCRIPTION_EXCERPT_LIMIT = 2000;
+
+function excerpt(value: unknown, limit: number): string | undefined {
+	const str = text(value);
+	if (str.trim() === "") return undefined;
+	if (str.length <= limit) return str;
+	return `${str.slice(0, limit)}\n\n…truncated to the first ${limit} characters`;
+}
+
 function prettyJson(value: Rec): string | undefined {
 	if (Object.keys(value).length === 0) return undefined;
 	try {
@@ -120,6 +129,10 @@ function mapAnalysis(args: Rec, structured: Rec, markdown?: string): DashboardDa
 	const languageGate = rec(structured["languageGate"]);
 	const dimensions = list(structured["dimensions"]);
 	const call = rec(structured["shouldCallEmployer"]);
+	const postingUrl = text(args["postingUrl"]);
+	const description =
+		excerpt(args["postingText"], DESCRIPTION_EXCERPT_LIMIT) ??
+		(postingUrl !== "" ? `Full posting: ${postingUrl}` : undefined);
 	const actions: string[] = [];
 	if (call["suggest"] === true && text(call["reason"]) !== "") {
 		actions.push(`Call the employer: ${text(call["reason"])}`);
@@ -132,6 +145,7 @@ function mapAnalysis(args: Rec, structured: Rec, markdown?: string): DashboardDa
 			`${verdict ?? "Not scored"}${score !== undefined ? ` ${score}/100` : ""}`,
 			`Eligibility ${text(eligibility["verdict"], "?")} · Language ${text(languageGate["verdict"], "?")}`,
 		].join(" · "),
+		description,
 		items: dimensions.map((entry) => {
 			const dimension = rec(entry);
 			return {

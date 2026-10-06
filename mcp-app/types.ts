@@ -13,6 +13,7 @@ export interface DashboardData {
 	view?: DashboardView;
 	title?: string;
 	summary?: string;
+	description?: string;
 	markdown?: string;
 	items?: DashboardItem[];
 	actions?: string[];

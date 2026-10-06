@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { VIEW_LABELS, type DashboardData, type DashboardView } from "./types.ts";
 
 function clampScore(score: number): number {
@@ -5,11 +7,27 @@ function clampScore(score: number): number {
 	return Math.min(100, Math.max(0, Math.round(score)));
 }
 
-export function Dashboard(props: { data: DashboardData; status?: string }): React.JSX.Element {
-	const { data, status } = props;
+export function Dashboard(props: {
+	data: DashboardData;
+	status?: string;
+	onAction?: (action: string) => void;
+}): React.JSX.Element {
+	const { data, status, onAction } = props;
 	const view: DashboardView = data.view ?? "overview";
 	const items = data.items ?? [];
 	const actions = data.actions ?? [];
+	const [copied, setCopied] = useState(false);
+
+	async function copyDetails(): Promise<void> {
+		if (!data.markdown || typeof navigator === "undefined" || !navigator.clipboard) return;
+		try {
+			await navigator.clipboard.writeText(data.markdown);
+			setCopied(true);
+			window.setTimeout(() => setCopied(false), 1500);
+		} catch {
+			setCopied(false);
+		}
+	}
 
 	return (
 		<div className="jh-root">
@@ -25,6 +43,13 @@ export function Dashboard(props: { data: DashboardData; status?: string }): Reac
 						<h2>Summary</h2>
 						<p className="jh-summary">{data.summary}</p>
 					</section>
+				) : null}
+
+				{data.description ? (
+					<details className="jh-card jh-desc">
+						<summary className="jh-desc-toggle">Job description</summary>
+						<pre className="jh-desc-body">{data.description}</pre>
+					</details>
 				) : null}
 
 				{items.length > 0 ? (
@@ -65,7 +90,12 @@ export function Dashboard(props: { data: DashboardData; status?: string }): Reac
 
 				{data.markdown ? (
 					<section className="jh-card">
-						<h2>Details</h2>
+						<div className="jh-details-head">
+							<h2>Details</h2>
+							<button type="button" className="jh-copy" onClick={() => void copyDetails()}>
+								{copied ? "Copied" : "Copy"}
+							</button>
+						</div>
 						<pre className="jh-markdown">{data.markdown}</pre>
 					</section>
 				) : null}
@@ -73,15 +103,22 @@ export function Dashboard(props: { data: DashboardData; status?: string }): Reac
 				{actions.length > 0 ? (
 					<section className="jh-card">
 						<h2>Suggested next steps</h2>
-						<ul className="jh-actions">
+						<div className="jh-button-row">
 							{actions.map((action, index) => (
-								<li key={`${index}-${action.slice(0, 24)}`}>{action}</li>
+								<button
+									key={`${index}-${action.slice(0, 24)}`}
+									type="button"
+									className="jh-button"
+									onClick={() => onAction?.(action)}
+								>
+									{action}
+								</button>
 							))}
-						</ul>
+						</div>
 					</section>
 				) : null}
 
-				{!data.summary && items.length === 0 && !data.markdown ? (
+				{!data.summary && !data.description && items.length === 0 && !data.markdown ? (
 					<section className="jh-card">
 						<h2>Waiting for results</h2>
 						<p className="jh-summary">

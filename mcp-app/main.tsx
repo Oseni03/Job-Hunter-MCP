@@ -49,6 +49,7 @@ function initialStandaloneTool(): (typeof SAMPLE_TOOLS)[number] {
 
 function StandaloneApp(): React.JSX.Element {
 	const [tool, setTool] = useState<(typeof SAMPLE_TOOLS)[number]>(initialStandaloneTool);
+	const [note, setNote] = useState<string | null>(null);
 	const sample = SAMPLE_CALLS[tool];
 	const data = mapToolToDashboard(tool, sample.args, sample.structured, sample.text);
 	return (
@@ -74,7 +75,11 @@ function StandaloneApp(): React.JSX.Element {
 					</div>
 				</div>
 			</div>
-			<Dashboard data={data} status="Standalone preview with sample data" />
+			<Dashboard
+				data={data}
+				status={note ?? "Standalone preview with sample data"}
+				onAction={(step) => setNote(`Preview only — this step runs when connected: ${step.slice(0, 90)}`)}
+			/>
 		</>
 	);
 }
@@ -143,6 +148,14 @@ function McpApp(): React.JSX.Element {
 
 	const displayStatus = cancelled ? `Cancelled (${cancelled})` : status;
 
+	function requestStep(step: string): void {
+		const app = appRef.current;
+		if (!app) return;
+		void app
+			.sendMessage({ role: "user", content: [{ type: "text", text: step }] })
+			.catch(() => {});
+	}
+
 	if (error) {
 		return (
 			<>
@@ -171,6 +184,7 @@ function McpApp(): React.JSX.Element {
 				resultText(toolResult),
 			)}
 			status={toolName ? undefined : displayStatus}
+			onAction={requestStep}
 		/>
 	);
 }
