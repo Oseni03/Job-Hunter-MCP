@@ -19,6 +19,10 @@ Stateless Next.js MCP server (`mcp-handler` 2 + MCP TypeScript SDK v2) implement
 
 Hybrid side-effects: server returns text + paths; host owns file writes and LaTeX compiles (`lualatex` CV exactly 2 pages, `xelatex` letter exactly 1 page) plus `verify_pdf.py` / `verify_layout.py`.
 
+## MCP App UI
+
+Every tool declares `_meta.ui.resourceUri: ui://job-hunter/dashboard.html` (plus the legacy `ui/resourceUri` key), so UI-capable hosts render the single-file dashboard (`npm run build:ui`, served from `public/mcp-app/mcp-app.html` and also openable standalone for a sample-data preview) with rich cards mapped from the calling tool's structured output. Text-only hosts ignore `_meta` and keep the markdown fallback. Server wiring lives in `lib/job-hunter/ui.ts`; mapping in `mcp-app/toolviews.ts`.
+
 ## Resources
 
 `candidate://profile`, `behavioral://profile`, `style://writing`, `framework://evaluation`, `template://cv-master`, `template://cover-example`, `queries://search-queries`, `research://company/{slug}`, `jobs://seen-keys`, CV variant listing/fetch. Private defaults versioned; per-call override wins.

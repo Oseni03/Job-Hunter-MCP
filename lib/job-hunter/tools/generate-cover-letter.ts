@@ -1,5 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
+import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
+
 import { loadActiveProfile } from "@/lib/job-hunter/request-profile.ts";
 import { buildCoverLetter } from "@/lib/job-hunter/tailor.ts";
 import { documentSignals } from "@/lib/job-hunter/verify.ts";
@@ -15,6 +17,7 @@ export function registerGenerateCoverLetter(server: McpServer): void {
 				"Drafts the cover.cls cover letter for one posting: forward-looking task-solving, 250-300 words, bullets outside lettercontent. Returns LaTeX source plus file path; the host owns file writes and the xelatex compile (exactly 1 page). EMPTY_SLUG hard error with no TeX when nothing identifies the posting.",
 			inputSchema: CoverInput,
 			outputSchema: CoverOutput,
+			...jobHunterAppMeta(),
 			annotations: {
 				readOnlyHint: true,
 				destructiveHint: false,

@@ -1,5 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
+import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
+
 import { planCareerStrategy } from "@/lib/job-hunter/strategy.ts";
 import { loadActiveProfile } from "@/lib/job-hunter/request-profile.ts";
 import { StrategyInput, StrategyOutput } from "@/lib/job-hunter/schemas.ts";
@@ -14,6 +16,7 @@ export function registerCareerStrategy(server: McpServer): void {
 				"Recommends career directions from the profile plus the evaluation framework: career goals and strong domains become grounded directions ranked by evidence depth, nominated focus areas are assessed when a skills/experience phrase grounds them and honestly skipped otherwise (goal-only overlap is circular, never grounding). Accepts one or several analyze-job summaries; recurring gaps surface as priority gaps and summary strengths reinforce evidence labeled as evaluation strengths. Every direction cites profile evidence and framework dimensions; draining tasks become steer-away notes. Never invents experience.",
 			inputSchema: StrategyInput,
 			outputSchema: StrategyOutput,
+			...jobHunterAppMeta(),
 			annotations: {
 				readOnlyHint: true,
 				destructiveHint: false,

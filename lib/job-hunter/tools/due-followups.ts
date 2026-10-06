@@ -1,5 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
+import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
+
 import { parseTrackerApplications, planDueFollowups } from "@/lib/job-hunter/followups.ts";
 import { DueFollowupsInput, DueFollowupsOutput } from "@/lib/job-hunter/schemas.ts";
 import { renderDueFollowupsMarkdown } from "@/lib/job-hunter/render.ts";
@@ -13,6 +15,7 @@ export function registerDueFollowups(server: McpServer): void {
 				"Read-only follow-up queue over caller-held applications: open rows untouched for staleDays (default 7) or with a deadline within deadlineWithinDays (default 3), oldest first. Saved rows and final statuses excluded. Accepts structured applications or raw tracker CSV; the server holds no state.",
 			inputSchema: DueFollowupsInput,
 			outputSchema: DueFollowupsOutput,
+			...jobHunterAppMeta(),
 			annotations: {
 				readOnlyHint: true,
 				destructiveHint: false,

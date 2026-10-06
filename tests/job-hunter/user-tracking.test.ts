@@ -9,11 +9,26 @@ import { registerSetupProfile } from "@/lib/job-hunter/tools/setup-profile.ts";
 import { registerJobHunterTools } from "@/lib/job-hunter/server.ts";
 import { getPrompt } from "@/lib/job-hunter/resources.ts";
 
-function registered(register: (server: McpServer) => void): { name: string; handler: unknown }[] {
-	const captured: { name: string; handler: unknown }[] = [];
+function registered(register: (server: McpServer) => void): {
+	name: string;
+	config: { _meta?: { ui?: { resourceUri?: string }; "ui/resourceUri"?: string } };
+	handler: unknown;
+}[] {
+	const captured: {
+		name: string;
+		config: { _meta?: { ui?: { resourceUri?: string }; "ui/resourceUri"?: string } };
+		handler: unknown;
+	}[] = [];
 	const server = {
-		registerTool(name: string, _config: unknown, handler: unknown) {
-			captured.push({ name, handler });
+		registerTool(
+			name: string,
+			config: { _meta?: { ui?: { resourceUri?: string }; "ui/resourceUri"?: string } },
+			handler: unknown,
+		) {
+			captured.push({ name, config, handler });
+		},
+		registerResource(_name: string, _uri: string, _config: unknown, _read: unknown) {
+			// App UI resource; not a tool, so nothing to capture.
 		},
 	} as unknown as McpServer;
 	register(server);
@@ -102,6 +117,21 @@ describe("new tools + prompts", () => {
 				"track-application",
 			],
 		);
+	});
+
+	it("points every tool at the shared dashboard UI resource", () => {
+		for (const tool of registered(registerJobHunterTools)) {
+			assert.equal(
+				tool.config._meta?.ui?.resourceUri,
+				"ui://job-hunter/dashboard.html",
+				`${tool.name} must render the dashboard via _meta.ui.resourceUri`,
+			);
+			assert.equal(
+				tool.config._meta?.["ui/resourceUri"],
+				"ui://job-hunter/dashboard.html",
+				`${tool.name} must carry the legacy ui/resourceUri key for older hosts`,
+			);
+		}
 	});
 
 	it("adds apply-to-job and interview-prep orchestration prompts", () => {

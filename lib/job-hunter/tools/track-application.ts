@@ -1,5 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
+import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
+
 import { planRecordApplication } from "@/lib/job-hunter/record.ts";
 import { RecordApplicationInput, RecordApplicationOutput } from "@/lib/job-hunter/schemas.ts";
 import { renderRecordMarkdown } from "@/lib/job-hunter/render.ts";
@@ -13,6 +15,7 @@ export function registerTrackApplication(server: McpServer): void {
 				"Records two finished documents to the tracker with match-then-update (posting URL first, then normalized company+role with legal-suffix tolerance): appends a drafted row on no match or all-final matches, otherwise refreshes the open row without moving status backwards. Cells are spreadsheet-injection neutralized and newline-free; returns the full tracker text plus the verbatim posting archive payload and the input tracker hash. The host passes its local day as today and writes only if the file still matches the hash; the host owns file writes and never touches seen_jobs.json.",
 			inputSchema: RecordApplicationInput,
 			outputSchema: RecordApplicationOutput,
+			...jobHunterAppMeta(),
 			annotations: {
 				readOnlyHint: true,
 				destructiveHint: false,

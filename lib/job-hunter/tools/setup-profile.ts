@@ -1,4 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/server";
+
+import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 import type { Prisma } from "@/generated/prisma/client.ts";
 
 import { loadPrismaClient } from "@/lib/db.ts";
@@ -57,6 +59,7 @@ export function registerSetupProfile(server: McpServer): void {
 				"Builds the validated per-user profile from the uploaded resume text plus optional structured corrections. Returns the profile, resume hash, and storage note; persists server-side to the caller's Profile row when dbWrite is set. Tools load the stored profile; run setup again to update it.",
 			inputSchema: SetupProfileInput,
 			outputSchema: SetupProfileOutput,
+			...jobHunterAppMeta(),
 			annotations: {
 				readOnlyHint: false,
 				destructiveHint: false,

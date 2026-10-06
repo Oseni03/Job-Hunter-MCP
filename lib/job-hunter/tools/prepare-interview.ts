@@ -1,5 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
+import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
+
 import { planInterviewPrep } from "@/lib/job-hunter/prep.ts";
 import { loadActiveProfile } from "@/lib/job-hunter/request-profile.ts";
 import { PrepInterviewInput, PrepInterviewOutput } from "@/lib/job-hunter/schemas.ts";
@@ -14,6 +16,7 @@ export function registerPrepareInterview(server: McpServer): void {
 				"Builds a per-stage interview-prep pack from caller-held facts only: recorded feedback first, then fit gaps with honest bridge answers, then posting requirements, then stage type. Maps STAR examples by Use-for tags, drafts new STAR only from profile facts, lists probeable claims, customizes tough questions only with verified company hooks, and picks stage-appropriate questions to ask. Asks only for missing stage logistics; every absent input degrades to an explicit fallback and nothing is pulled from sibling roles. Returns the pack markdown; the host owns the save.",
 			inputSchema: PrepInterviewInput,
 			outputSchema: PrepInterviewOutput,
+			...jobHunterAppMeta(),
 			annotations: {
 				readOnlyHint: true,
 				destructiveHint: false,

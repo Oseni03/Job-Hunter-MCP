@@ -14,6 +14,7 @@ import { registerResearchCompany } from "@/lib/job-hunter/tools/research-company
 import { registerSearchJobs } from "@/lib/job-hunter/tools/search-jobs.ts";
 import { registerSetupProfile } from "@/lib/job-hunter/tools/setup-profile.ts";
 import { registerDueFollowups } from "@/lib/job-hunter/tools/due-followups.ts";
+import { registerJobHunterAppResource } from "@/lib/job-hunter/ui.ts";
 import { getPrompt, getResource, listPrompts, listResources, renderProfileResource } from "@/lib/job-hunter/resources.ts";
 
 /**
@@ -34,6 +35,7 @@ export function registerJobHunterTools(server: McpServer): void {
 	registerSearchJobs(server);
 	registerSetupProfile(server);
 	registerDueFollowups(server);
+	registerJobHunterAppResource(server);
 }
 
 /**
