@@ -1,327 +1,37 @@
-/* Job Hunter dashboard: host variables with standalone fallbacks. No external
-   origins: system font stack, inlined bundle, no remote fetches. */
+@import "tailwindcss";
 
-.jh-root {
-	font-family: var(--font-sans, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
-	background: var(--color-background-primary, #ffffff);
-	color: var(--color-text-primary, #1a1a1a);
-	min-height: 100vh;
-	margin: 0;
-	padding: 20px 16px 28px;
-	box-sizing: border-box;
-}
+/* shadcn tokens bridged to host variables (fallbacks for standalone use).
+   Tailwind utilities like bg-card / text-muted-foreground resolve against
+   the host theme when embedded, and against the fallbacks in preview. */
 
-.jh-container {
-	max-width: 880px;
-	margin: 0 auto;
-	display: flex;
-	flex-direction: column;
-	gap: 14px;
-}
-
-.jh-header {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	flex-wrap: wrap;
-	padding: 4px 2px;
-}
-
-.jh-title {
-	font-size: var(--font-heading-md-size, 22px);
-	line-height: var(--font-heading-md-line-height, 1.25);
-	font-weight: var(--font-weight-bold, 700);
-	letter-spacing: -0.01em;
-	margin: 0;
-}
-
-.jh-badge {
-	font-size: var(--font-text-xs-size, 12px);
-	font-weight: var(--font-weight-medium, 500);
-	border: 1px solid var(--color-border-secondary, #d8d8d8);
-	border-radius: var(--border-radius-full, 999px);
-	padding: 3px 12px;
-	color: var(--color-text-secondary, #555);
-	background: var(--color-background-secondary, #f5f5f5);
-}
-
-.jh-card {
-	background: var(--color-background-secondary, #f7f7f7);
-	border: 1px solid var(--color-border-primary, #e5e5e5);
-	border-radius: var(--border-radius-lg, 12px);
-	padding: 16px 18px;
-	box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.05));
-}
-
-.jh-card h2 {
-	font-size: var(--font-text-xs-size, 12px);
-	font-weight: var(--font-weight-semibold, 600);
-	letter-spacing: 0.06em;
-	text-transform: uppercase;
-	color: var(--color-text-secondary, #666);
-	margin: 0 0 10px 0;
-}
-
-.jh-summary {
-	font-size: var(--font-text-md-size, 14px);
-	line-height: var(--font-text-md-line-height, 1.55);
-	margin: 0;
-	white-space: pre-wrap;
-}
-
-.jh-markdown,
-.jh-desc-body {
-	font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-	font-size: var(--font-text-sm-size, 12.5px);
-	line-height: 1.6;
-	white-space: pre-wrap;
-	word-break: break-word;
-	margin: 0;
-	max-height: 320px;
-	overflow: auto;
-}
-
-.jh-desc {
-	padding: 0;
-}
-
-.jh-desc-toggle {
-	cursor: pointer;
-	padding: 14px 18px;
-	font-size: var(--font-text-md-size, 14px);
-	font-weight: var(--font-weight-semibold, 600);
-	list-style: none;
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-
-.jh-desc-toggle::-webkit-details-marker {
-	display: none;
-}
-
-.jh-desc-toggle::before {
-	content: "";
-	border: solid currentColor;
-	border-width: 0 2px 2px 0;
-	padding: 3px;
-	transform: rotate(-45deg);
-	transition: transform 0.15s ease;
-	flex: none;
-}
-
-.jh-desc[open] .jh-desc-toggle::before {
-	transform: rotate(45deg);
-}
-
-.jh-desc-body {
-	max-height: 260px;
-	padding: 0 18px 16px;
-}
-
-.jh-details-head {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 10px;
-	margin-bottom: 10px;
-}
-
-.jh-details-head h2 {
-	margin: 0;
-}
-
-.jh-copy {
-	font: inherit;
-	font-size: var(--font-text-sm-size, 13px);
-	font-weight: var(--font-weight-medium, 500);
-	border: 1px solid var(--color-border-secondary, #d8d8d8);
-	background: var(--color-background-primary, #fff);
-	color: var(--color-text-primary, #1a1a1a);
-	border-radius: var(--border-radius-full, 999px);
-	padding: 4px 14px;
-	cursor: pointer;
-	flex: none;
-}
-
-.jh-copy:hover {
-	opacity: 0.8;
-}
-
-.jh-items {
-	display: flex;
-	flex-direction: column;
-	gap: 10px;
-	margin: 0;
-	padding: 0;
-	list-style: none;
-}
-
-.jh-item {
-	border: 1px solid var(--color-border-primary, #e5e5e5);
-	border-radius: var(--border-radius-md, 10px);
-	padding: 12px 14px;
-	background: var(--color-background-primary, #ffffff);
-}
-
-.jh-item-top {
-	display: flex;
-	justify-content: space-between;
-	gap: 8px;
-	align-items: baseline;
-	flex-wrap: wrap;
-}
-
-.jh-item-title {
-	font-weight: var(--font-weight-medium, 500);
-	font-size: var(--font-text-md-size, 14px);
-}
-
-.jh-score {
-	font-size: var(--font-text-sm-size, 13px);
-	font-weight: var(--font-weight-semibold, 600);
-	color: var(--color-text-secondary, #555);
-	white-space: nowrap;
-}
-
-.jh-bar {
-	height: 8px;
-	border-radius: var(--border-radius-full, 999px);
-	background: var(--color-background-tertiary, #e8e8e8);
-	margin-top: 10px;
-	overflow: hidden;
-}
-
-.jh-bar-fill {
-	height: 100%;
-	border-radius: inherit;
-	background: linear-gradient(90deg, var(--color-background-inverse, #1a1a1a), var(--color-background-inverse, #1a1a1a));
-}
-
-.jh-note {
-	font-size: var(--font-text-sm-size, 13px);
-	color: var(--color-text-secondary, #555);
-	margin: 8px 0 0 0;
-	line-height: 1.5;
-}
-
-.jh-link {
-	font-size: var(--font-text-sm-size, 13px);
-	word-break: break-all;
-}
-
-.jh-button-row {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-}
-
-.jh-button {
-	font: inherit;
-	font-size: var(--font-text-sm-size, 13.5px);
-	font-weight: var(--font-weight-medium, 500);
-	line-height: 1.4;
-	text-align: left;
-	color: var(--color-text-inverse, #fff);
-	background: var(--color-background-inverse, #1a1a1a);
-	border: 1px solid transparent;
-	border-radius: var(--border-radius-full, 999px);
-	padding: 8px 16px;
-	cursor: pointer;
-	transition: opacity 0.15s ease, transform 0.05s ease;
-}
-
-.jh-button:hover {
-	opacity: 0.85;
-}
-
-.jh-button:active {
-	transform: scale(0.98);
-}
-
-.jh-button:focus-visible,
-.jh-copy:focus-visible,
-.jh-desc-toggle:focus-visible {
-	outline: 2px solid var(--color-border-focus, #2563eb);
-	outline-offset: 2px;
-}
-
-.jh-tabs {
-	display: flex;
-	gap: 6px;
-	flex-wrap: wrap;
-}
-
-.jh-tab {
-	font: inherit;
-	font-size: var(--font-text-sm-size, 13px);
-	border: 1px solid var(--color-border-secondary, #d8d8d8);
-	background: var(--color-background-primary, #fff);
-	color: var(--color-text-primary, #1a1a1a);
-	border-radius: var(--border-radius-full, 999px);
-	padding: 4px 12px;
-	cursor: pointer;
-}
-
-.jh-tab[aria-pressed="true"] {
-	background: var(--color-background-inverse, #1a1a1a);
-	color: var(--color-text-inverse, #fff);
-	border-color: transparent;
-}
-
-.jh-status {
-	font-size: var(--font-text-sm-size, 13px);
-	color: var(--color-text-secondary, #555);
-}
-
-.jh-error {
-	border: 1px solid var(--color-border-danger, #d88);
-	background: var(--color-background-danger, #fdf0f0);
-	color: var(--color-text-danger, #8a1f1f);
-	border-radius: var(--border-radius-md, 8px);
-	padding: 12px 14px;
-	font-size: var(--font-text-md-size, 14px);
+@theme {
+	--color-background: var(--color-background-primary, #ffffff);
+	--color-foreground: var(--color-text-primary, #1a1a1a);
+	--color-card: var(--color-background-secondary, #f7f7f7);
+	--color-card-foreground: var(--color-text-primary, #1a1a1a);
+	--color-popover: var(--color-background-primary, #ffffff);
+	--color-popover-foreground: var(--color-text-primary, #1a1a1a);
+	--color-primary: var(--color-background-inverse, #1a1a1a);
+	--color-primary-foreground: var(--color-text-inverse, #ffffff);
+	--color-secondary: var(--color-background-tertiary, #eeeeee);
+	--color-secondary-foreground: var(--color-text-primary, #1a1a1a);
+	--color-muted: var(--color-background-tertiary, #eeeeee);
+	--color-muted-foreground: var(--color-text-secondary, #555555);
+	--color-accent: var(--color-background-tertiary, #eeeeee);
+	--color-accent-foreground: var(--color-text-primary, #1a1a1a);
+	--color-destructive: var(--color-text-danger, #8a1f1f);
+	--color-border: var(--color-border-primary, #e5e5e5);
+	--color-input: var(--color-border-secondary, #d8d8d8);
+	--color-ring: var(--color-border-focus, #2563eb);
 }
 
 @media (prefers-color-scheme: dark) {
-	.jh-root {
-		background: var(--color-background-primary, #111);
-		color: var(--color-text-primary, #eee);
+	:root {
+		--color-background: var(--color-background-primary, #111111);
+		--color-foreground: var(--color-text-primary, #eeeeee);
+		--color-card: var(--color-background-secondary, #1c1c1c);
+		--color-card-foreground: var(--color-text-primary, #eeeeee);
+		--color-muted: var(--color-background-tertiary, #2a2a2a);
+		--color-border: var(--color-border-primary, #333333);
 	}
-	.jh-card {
-		background: var(--color-background-secondary, #1c1c1c);
-		border-color: var(--color-border-primary, #333);
-		box-shadow: none;
-	}
-	.jh-item {
-		background: var(--color-background-primary, #111);
-		border-color: var(--color-border-primary, #333);
-	}
-	.jh-badge,
-	.jh-tab {
-		border-color: var(--color-border-secondary, #444);
-	}
-}
-
-.jh-picker {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	flex-wrap: wrap;
-}
-
-.jh-label {
-	font-size: var(--font-text-sm-size, 13px);
-	color: var(--color-text-secondary, #555);
-}
-
-.jh-select {
-	font: inherit;
-	font-size: var(--font-text-md-size, 14px);
-	color: var(--color-text-primary, #1a1a1a);
-	background: var(--color-background-primary, #fff);
-	border: 1px solid var(--color-border-secondary, #d8d8d8);
-	border-radius: var(--border-radius-sm, 6px);
-	padding: 6px 10px;
-	max-width: 100%;
 }

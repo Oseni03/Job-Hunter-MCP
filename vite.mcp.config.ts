@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
 
 // MCP App bundle only. The Next.js app is untouched; this config produces a
@@ -7,7 +8,7 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 // static standalone page. No external origins (system fonts, inlined assets,
 // no fetch, no storage), so the resource needs no custom CSP domains.
 export default defineConfig({
-	plugins: [react(), viteSingleFile()],
+	plugins: [react(), tailwindcss(), viteSingleFile()],
 	build: {
 		outDir: "public/mcp-app",
 		emptyOutDir: false,

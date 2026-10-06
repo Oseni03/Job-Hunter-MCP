@@ -5,6 +5,7 @@ import { useApp, useHostStyles, type App } from "@modelcontextprotocol/ext-apps/
 import { Dashboard } from "./dashboard.tsx";
 import { SAMPLE_CALLS, SAMPLE_TOOLS } from "./samples.ts";
 import { TOOL_LABELS, mapToolToDashboard } from "./toolviews.ts";
+import { Card } from "./components/ui/card.tsx";
 import "./styles.css";
 
 const APP_INFO = { name: "job-hunter-dashboard", version: "1.0.0" } as const;
@@ -54,15 +55,15 @@ function StandaloneApp(): React.JSX.Element {
 	const data = mapToolToDashboard(tool, sample.args, sample.structured, sample.text);
 	return (
 		<>
-			<div className="jh-root">
-				<div className="jh-container">
-					<div className="jh-card jh-picker">
-						<label className="jh-label" htmlFor="jh-tool">
+			<div className="min-h-screen bg-background font-sans text-foreground">
+				<div className="mx-auto flex max-w-[880px] flex-col gap-3.5 px-4 py-5">
+					<Card className="flex flex-wrap items-center gap-2.5 p-4">
+						<label className="text-[13px] text-muted-foreground" htmlFor="jh-tool">
 							Previewing tool output
 						</label>
 						<select
 							id="jh-tool"
-							className="jh-select"
+							className="max-w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm text-foreground"
 							value={tool}
 							onChange={(event) => setTool(event.target.value as (typeof SAMPLE_TOOLS)[number])}
 						>
@@ -72,7 +73,7 @@ function StandaloneApp(): React.JSX.Element {
 								</option>
 							))}
 						</select>
-					</div>
+					</Card>
 				</div>
 			</div>
 			<Dashboard
@@ -159,9 +160,12 @@ function McpApp(): React.JSX.Element {
 	if (error) {
 		return (
 			<>
-				<div className="jh-root">
-					<div className="jh-container">
-						<div className="jh-error" role="alert">
+				<div className="min-h-screen bg-background font-sans text-foreground">
+					<div className="mx-auto flex max-w-[880px] flex-col gap-3.5 px-4 py-5">
+						<div
+							className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+							role="alert"
+						>
 							Could not connect to the MCP host: {error.message}.
 						</div>
 					</div>
