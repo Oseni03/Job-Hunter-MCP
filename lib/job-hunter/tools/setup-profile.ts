@@ -8,7 +8,6 @@ import { profileToRow, type Profile } from "@/lib/job-hunter/profile.ts";
 import { userIdFromRequest } from "@/lib/job-hunter/request-profile.ts";
 import { planSetupProfile } from "@/lib/job-hunter/setup-profile.ts";
 import { SetupProfileInput, SetupProfileOutput } from "@/lib/job-hunter/schemas.ts";
-import { renderSetupProfileMarkdown } from "@/lib/job-hunter/render.ts";
 
 const asJson = (value: unknown): Prisma.InputJsonValue => value as Prisma.InputJsonValue;
 
@@ -89,7 +88,7 @@ export function registerSetupProfile(server: McpServer): void {
 			}
 			const { ok: _setupOk, ...setupStructured } = { ...result, dbNote };
 			return {
-				content: [{ type: "text" as const, text: renderSetupProfileMarkdown({ ...result, dbNote }) }],
+				content: [{ type: "text" as const, text: JSON.stringify(setupStructured, null, 2) }],
 				structuredContent: setupStructured,
 			};
 		},

@@ -64,7 +64,11 @@ describe("tailor-resume signals", () => {
 		assert.equal((signals["pageBudget"] as { pageLimit: number }).pageLimit, 2);
 		assert.equal(typeof (signals["latexSafety"] as { passed: boolean }).passed, "boolean");
 		assert.equal((signals["layout"] as { degraded: boolean }).degraded, true);
-		assert.ok(result.content[0].text.includes("Document signals"), "signals rendered for the host");
+		assert.deepEqual(
+			JSON.parse(result.content[0].text),
+			JSON.parse(JSON.stringify(result.structuredContent)),
+			"text carries the signals JSON",
+		);
 	});
 });
 

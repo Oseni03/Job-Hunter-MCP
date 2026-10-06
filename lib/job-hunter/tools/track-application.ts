@@ -4,7 +4,6 @@ import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 
 import { planRecordApplication } from "@/lib/job-hunter/record.ts";
 import { RecordApplicationInput, RecordApplicationOutput } from "@/lib/job-hunter/schemas.ts";
-import { renderRecordMarkdown } from "@/lib/job-hunter/render.ts";
 
 export function registerTrackApplication(server: McpServer): void {
 	server.registerTool(
@@ -49,7 +48,7 @@ export function registerTrackApplication(server: McpServer): void {
 			}
 			const { ok: _recordOk, ...recordStructured } = result;
 			return {
-				content: [{ type: "text" as const, text: renderRecordMarkdown(result) }],
+				content: [{ type: "text" as const, text: JSON.stringify(recordStructured, null, 2) }],
 				structuredContent: recordStructured,
 			};
 		},

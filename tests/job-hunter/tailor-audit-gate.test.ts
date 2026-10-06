@@ -11,7 +11,6 @@ import {
 } from "@/lib/job-hunter/tailor.ts";
 import { planInterviewPrep } from "@/lib/job-hunter/prep.ts";
 import { planPortalFields } from "@/lib/job-hunter/fields.ts";
-import { renderTailoredCvMarkdown } from "@/lib/job-hunter/render.ts";
 
 const PROFILE = {
 	name: "Test Candidate",
@@ -157,7 +156,7 @@ describe("gate input", () => {
 });
 
 describe("visible cuts", () => {
-	it("returns dropped bullets with their role and renders them", () => {
+	it("returns dropped bullets with their role and carries them in the JSON text", () => {
 		const bullets = [
 			"Python pipeline cut costs",
 			"SQL model improved recall",
@@ -182,23 +181,29 @@ describe("visible cuts", () => {
 			assert.ok(dropped.role.includes("Engineer"), `role carried, got ${dropped.role}`);
 			assert.ok(dropped.bullet.length > 0);
 		}
-		const markdown = renderTailoredCvMarkdown({
-			...result,
-			signals: {
-				pageBudget: {
-					kind: "cv",
-					pageLimit: 2,
-					wordCount: 10,
-					wordBudgetMin: null,
-					wordBudgetMax: null,
-					overBudget: false,
-					shapingNotes: [],
+		const parsed = JSON.parse(
+			JSON.stringify({
+				...result,
+				signals: {
+					pageBudget: {
+						kind: "cv",
+						pageLimit: 2,
+						wordCount: 10,
+						wordBudgetMin: null,
+						wordBudgetMax: null,
+						overBudget: false,
+						shapingNotes: [],
+					},
+					latexSafety: { passed: true, checks: [] },
+					layout: { degraded: false, note: null, problems: [] },
 				},
-				latexSafety: { passed: true, checks: [] },
-				layout: { degraded: false, note: null, problems: [] },
-			},
-		});
-		assert.ok(markdown.includes("Dropped bullets"), "renderer surfaces the cuts");
+			}),
+		) as { droppedBullets: { role: string; bullet: string }[] };
+		assert.equal(parsed.droppedBullets.length, 2);
+		for (const dropped of parsed.droppedBullets) {
+			assert.ok(dropped.role.includes("Engineer"), `role carried, got ${dropped.role}`);
+			assert.ok(dropped.bullet.length > 0);
+		}
 	});
 });
 

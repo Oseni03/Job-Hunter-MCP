@@ -6,7 +6,6 @@ import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 
 import { researchCompany } from "@/lib/job-hunter/research-company.ts";
 import { ResearchCompanyInput, ResearchCompanyOutput } from "@/lib/job-hunter/schemas.ts";
-import { renderResearchMarkdown } from "@/lib/job-hunter/render.ts";
 
 export function registerResearchCompany(server: McpServer): void {
 	server.registerTool(
@@ -44,7 +43,7 @@ export function registerResearchCompany(server: McpServer): void {
 				trustNote: result.trustNote,
 			};
 			return {
-				content: [{ type: "text" as const, text: renderResearchMarkdown(plan) }],
+				content: [{ type: "text" as const, text: JSON.stringify(plan, null, 2) }],
 				structuredContent: { ...plan },
 			};
 		},

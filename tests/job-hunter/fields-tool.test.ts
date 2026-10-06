@@ -53,6 +53,6 @@ describe("draft-application-answers tool", () => {
 		assert.deepEqual(structured["selfIntros"], []);
 		assert.deepEqual(structured["pitches"], []);
 		assert.deepEqual(structured["ungrounded"], []);
-		assert.ok(result.content[0].text.includes("# Portal fields (copy-paste)"));
+		assert.deepEqual(JSON.parse(result.content[0].text), JSON.parse(JSON.stringify(structured)));
 	});
 });

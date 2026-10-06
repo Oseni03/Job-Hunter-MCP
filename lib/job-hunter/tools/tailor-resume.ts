@@ -7,7 +7,6 @@ import { loadActiveProfile } from "@/lib/job-hunter/request-profile.ts";
 import { buildTailoredCv } from "@/lib/job-hunter/tailor.ts";
 import { documentSignals } from "@/lib/job-hunter/verify.ts";
 import { TailorCvInput, TailorCvOutput } from "@/lib/job-hunter/schemas.ts";
-import { renderTailoredCvMarkdown } from "@/lib/job-hunter/render.ts";
 
 export function registerTailorResume(server: McpServer): void {
 	server.registerTool(
@@ -44,9 +43,10 @@ export function registerTailorResume(server: McpServer): void {
 				language,
 				sections: Object.values(sectionHeadings(language)),
 			});
+			const payload = { ...cvStructured, signals };
 			return {
-				content: [{ type: "text" as const, text: renderTailoredCvMarkdown({ ...result, signals }) }],
-				structuredContent: { ...cvStructured, signals },
+				content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
+				structuredContent: payload,
 			};
 		},
 	);

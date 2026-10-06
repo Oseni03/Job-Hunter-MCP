@@ -4,7 +4,6 @@ import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 
 import { parseTrackerApplications, planDueFollowups } from "@/lib/job-hunter/followups.ts";
 import { DueFollowupsInput, DueFollowupsOutput } from "@/lib/job-hunter/schemas.ts";
-import { renderDueFollowupsMarkdown } from "@/lib/job-hunter/render.ts";
 
 export function registerDueFollowups(server: McpServer): void {
 	server.registerTool(
@@ -42,7 +41,7 @@ export function registerDueFollowups(server: McpServer): void {
 				today: input.today,
 			});
 			return {
-				content: [{ type: "text" as const, text: renderDueFollowupsMarkdown(plan) }],
+				content: [{ type: "text" as const, text: JSON.stringify(plan, null, 2) }],
 				structuredContent: { ...plan },
 			};
 		},

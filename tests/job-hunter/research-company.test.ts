@@ -292,7 +292,7 @@ describe("research-company tool", () => {
 			assert.equal(structured["cached"], true);
 			assert.ok((structured["cacheFile"] as string).endsWith("acme-corp.json"));
 			assert.ok((structured["cacheText"] as string).includes("Acme Corp"));
-			assert.ok(result.content[0].text.includes("untrusted"));
+			assert.deepEqual(JSON.parse(result.content[0].text), JSON.parse(JSON.stringify(structured)));
 		} finally {
 			process.chdir(realCwd);
 		}

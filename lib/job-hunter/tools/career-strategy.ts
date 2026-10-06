@@ -5,7 +5,6 @@ import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 import { planCareerStrategy } from "@/lib/job-hunter/strategy.ts";
 import { loadActiveProfile } from "@/lib/job-hunter/request-profile.ts";
 import { StrategyInput, StrategyOutput } from "@/lib/job-hunter/schemas.ts";
-import { renderStrategyMarkdown } from "@/lib/job-hunter/render.ts";
 
 export function registerCareerStrategy(server: McpServer): void {
 	server.registerTool(
@@ -34,7 +33,7 @@ export function registerCareerStrategy(server: McpServer): void {
 				workspaceProfileText: input.workspaceProfileText,
 			});
 			return {
-				content: [{ type: "text" as const, text: renderStrategyMarkdown(result) }],
+				content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
 				structuredContent: result,
 			};
 		},

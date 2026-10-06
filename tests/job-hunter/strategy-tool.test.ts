@@ -44,6 +44,6 @@ describe("career-strategy tool", () => {
 		assert.deepEqual(structured["directions"], []);
 		assert.deepEqual(structured["skipped"], []);
 		assert.deepEqual(structured["avoidNotes"], []);
-		assert.ok(result.content[0].text.includes("## Career strategy"));
+		assert.deepEqual(JSON.parse(result.content[0].text), JSON.parse(JSON.stringify(structured)));
 	});
 });

@@ -46,6 +46,21 @@ describe("dashboard mappers", () => {
 		assert.equal(analysis.items?.length, 4);
 		assert.ok(analysis.summary?.includes("Strong Fit"));
 
+		const analysisJson = JSON.parse(analysis.markdown ?? "") as {
+			overallScore?: number;
+			verdict?: string;
+		};
+		assert.equal(analysisJson.overallScore, 82);
+		assert.equal(analysisJson.verdict, "Strong Fit");
+
+		const analysisWithText = mapToolToDashboard(
+			"analyze-job",
+			SAMPLE_CALLS["analyze-job"].args,
+			SAMPLE_CALLS["analyze-job"].structured,
+			SAMPLE_CALLS["analyze-job"].text,
+		);
+		assert.ok(!analysisWithText.markdown?.includes("## Job Fit Evaluation"));
+
 		const rank = mapToolToDashboard("rank-jobs", {}, SAMPLE_CALLS["rank-jobs"].structured, null);
 		assert.equal(rank.items?.length, 1);
 		assert.equal(rank.items?.[0].score, 82);

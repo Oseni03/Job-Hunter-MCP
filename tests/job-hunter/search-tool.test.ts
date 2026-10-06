@@ -48,7 +48,7 @@ describe("search-jobs tool", () => {
 		const structured = result.structuredContent as Record<string, unknown>;
 		assert.deepEqual(structured["candidates"], []);
 		assert.ok((structured["errors"] as string[]).length > 0, "expected an explicit no-source error");
-		assert.ok(result.content[0].text.includes("analyze-job"));
+		assert.deepEqual(JSON.parse(result.content[0].text), JSON.parse(JSON.stringify(structured)));
 	});
 
 	it("passes caller-held dedupe stores through without owning state", async () => {

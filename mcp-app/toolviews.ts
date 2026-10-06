@@ -69,6 +69,15 @@ function num(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
+function prettyJson(value: Rec): string | undefined {
+	if (Object.keys(value).length === 0) return undefined;
+	try {
+		return JSON.stringify(value, null, 2);
+	} catch {
+		return undefined;
+	}
+}
+
 function postingTitle(role?: string, company?: string, fallback = "Result"): string {
 	if (role && company) return `${role} at ${company}`;
 	return role ?? company ?? fallback;
@@ -131,7 +140,7 @@ function mapAnalysis(args: Rec, structured: Rec, markdown?: string): DashboardDa
 				note: text(dimension["notes"]) || undefined,
 			};
 		}),
-		markdown,
+		markdown: prettyJson(structured) ?? markdown,
 		actions,
 	};
 }

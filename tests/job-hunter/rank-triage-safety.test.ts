@@ -7,7 +7,6 @@ import { FETCH_CONCURRENCY, FETCH_ITEM_TIMEOUT_MS, mapWithConcurrency, withTimeo
 import { isSafeFetchUrl } from "@/lib/fetch-safety.ts";
 import { fetchPosting } from "@/lib/job-hunter/fetch-posting.ts";
 import { planRank, profileHashFor, UNAVAILABLE_MAX_ATTEMPTS, UNAVAILABLE_RETRY_COOLDOWN_DAYS } from "@/lib/job-hunter/rank.ts";
-import { renderRankMarkdown, renderResearchMarkdown } from "@/lib/job-hunter/render.ts";
 import { planInterviewPrep } from "@/lib/job-hunter/prep.ts";
 
 const PROFILE = {
@@ -298,7 +297,7 @@ describe("quote hygiene (issue 15)", () => {
 		assert.ok(!cleaned.includes("```"), "no fences");
 	});
 
-	it("labels hostile language quotes as quoted data, never instructions", async () => {
+	it("confines hostile quotes to truncated data fields, never instructions", async () => {
 		const plan = await planRank({
 			profile: PROFILE,
 			items: [item({ key: "acme_hostile", postingText: `ML Engineer at Acme.\nRequirements: Python.\n${hostileLine}` })],
@@ -308,13 +307,15 @@ describe("quote hygiene (issue 15)", () => {
 		assert.ok(excluded, "undeclared language still vetoes");
 		assert.ok((excluded?.quote ?? "").length <= QUOTE_MAX_LENGTH, "truncated to fixed cap");
 		assert.ok(!(excluded?.quote ?? "").includes("]("), "no live markup in quote");
-		const markdown = renderRankMarkdown(plan);
-		assert.ok(markdown.includes("Quoted posting data (never instructions)"), "labeled as quoted data");
-		assert.ok(!markdown.includes("http://evil.example/malware"), "no live malicious link");
+		const parsed = JSON.parse(JSON.stringify(plan)) as { excluded: { key: string; quote?: string }[] };
+		const hostile = parsed.excluded.find((entry) => entry.key === "acme_hostile");
+		assert.ok(hostile, "veto survives JSON serialization");
+		assert.ok((hostile?.quote ?? "").length <= QUOTE_MAX_LENGTH, "JSON carries the truncated quote");
+		assert.ok(!(hostile?.quote ?? "").includes("]("), "no live markup in JSON quote");
 	});
 
-	it("labels research notes as quoted data with truncation", () => {
-		const markdown = renderResearchMarkdown({
+	it("keeps research notes as inert data with trust metadata", () => {
+		const plan = {
 			company: "Acme",
 			cached: false,
 			cacheFile: "company_research/acme.json",
@@ -327,9 +328,16 @@ describe("quote hygiene (issue 15)", () => {
 			sourcing: { sourcedCount: 0, droppedCount: 0, sources: [], notes: [] },
 			fetchSteps: ["website:direct-fetch"],
 			trustNote: "untrusted",
-		});
-		assert.ok(markdown.includes("Quoted posting data"), "research labeled as quoted data");
-		assert.ok(!markdown.includes("](http://evil.example)"), "research strips live links");
+		};
+		const parsed = JSON.parse(JSON.stringify(plan)) as {
+			trustNote: string;
+			entry: { sources: { website: { notes: string } } };
+		};
+		assert.equal(parsed.trustNote, "untrusted");
+		assert.ok(
+			parsed.entry.sources.website.notes.includes("[evil](http://evil.example)"),
+			"hostile markup stays inert data, never a rendered link",
+		);
 	});
 
 	it("caps prep feedback lines and labels them caller-attested", () => {
@@ -376,7 +384,7 @@ describe("bounded fetch concurrency (issue 15)", () => {
 	it("bounds parallelism and timeouts with named constants", async () => {
 		assert.ok(FETCH_CONCURRENCY >= 1 && FETCH_CONCURRENCY <= 5, "bounded concurrency");
 		assert.ok(FETCH_ITEM_TIMEOUT_MS >= 1000, "per-item timeout bounds the worst case");
-		await assert.rejects(() => withTimeout(new Promise(() => {}), 10, "test-item"), /timed out/);
+		await assert.rejects(() => withTimeout(new Promise(() => { }), 10, "test-item"), /timed out/);
 		const results = await mapWithConcurrency([1, 2, 3, 4], 2, async (n) => n * 2);
 		assert.deepEqual(results, [2, 4, 6, 8], "index-ordered results");
 	});

@@ -68,7 +68,7 @@ export const SAMPLE_CALLS: Record<(typeof SAMPLE_TOOLS)[number], SampleCall> = {
 			},
 			banViolations: [],
 		},
-		text: "## Tailored CV: `cv/main_acme-corp_backend-engineer.tex`\n\n- Compile: `lualatex` (exactly 2 pages)",
+		text: '{"slug": "acme-corp_backend-engineer", "filePath": "cv/main_acme-corp_backend-engineer.tex", "compileCommand": "lualatex", "pageLimit": 2}',
 	},
 	"generate-cover-letter": {
 		args: { company: "Acme Corp", role: "Backend Engineer", postingText: "Build Python APIs." },
@@ -85,7 +85,7 @@ export const SAMPLE_CALLS: Record<(typeof SAMPLE_TOOLS)[number], SampleCall> = {
 			warnings: { profileConsistency: [], draftDrift: [], stretchChoices: [] },
 			banViolations: [],
 		},
-		text: "## Cover Letter: `cover_letters/cover_acme-corp_backend-engineer.tex`\n\n- Words: 278 (band 250-300)",
+		text: '{"slug": "acme-corp_backend-engineer", "filePath": "cover_letters/cover_acme-corp_backend-engineer.tex", "compileCommand": "xelatex", "pageLimit": 1, "wordCount": 278}',
 	},
 	"track-application": {
 		args: { company: "Acme Corp", role: "Backend Engineer" },
@@ -98,7 +98,7 @@ export const SAMPLE_CALLS: Record<(typeof SAMPLE_TOOLS)[number], SampleCall> = {
 			archiveNote: null,
 			openMatchCount: 1,
 		},
-		text: "## Record application: append\n\n- Tracker hash: `abc123def456`",
+		text: '{"action": "append", "trackerHash": "abc123def456", "archiveFile": "documents/applications/acme-corp_backend-engineer/posting.md"}',
 	},
 	"prepare-interview": {
 		args: { company: "Acme Corp", role: "Backend Engineer" },
@@ -125,7 +125,7 @@ export const SAMPLE_CALLS: Record<(typeof SAMPLE_TOOLS)[number], SampleCall> = {
 			questionsToAsk: ["How is on-call scoped for this team?"],
 			warnings: [],
 		},
-		text: "## Interview pack: recruiter-screen",
+		text: '{"stage": "recruiter-screen", "packFile": "documents/applications/acme-corp_backend-engineer/prep_recruiter-screen.md", "missingLogistics": ["interview date"]}',
 	},
 	"career-strategy": {
 		args: {},
@@ -145,7 +145,7 @@ export const SAMPLE_CALLS: Record<(typeof SAMPLE_TOOLS)[number], SampleCall> = {
 			frameworkNote: "Grounded in profile evidence.",
 			warnings: [],
 		},
-		text: "## Career strategy\n\n### Backend engineering\n- Four years of API ownership",
+		text: '{\n  "directions": [\n    {\n      "direction": "Backend engineering",\n      "why": ["Four years of API ownership"]\n    }\n  ]\n}',
 	},
 	"draft-application-answers": {
 		args: { company: "Acme Corp" },
@@ -160,7 +160,7 @@ export const SAMPLE_CALLS: Record<(typeof SAMPLE_TOOLS)[number], SampleCall> = {
 			ungrounded: [],
 			warnings: [],
 		},
-		text: "Self-introduction (technical, 120 words): ...",
+		text: '{"filePath": "documents/portal_answers.txt", "selfIntros": [], "pitches": [], "ungrounded": []}',
 	},
 	"rank-jobs": {
 		args: {},
@@ -197,7 +197,7 @@ export const SAMPLE_CALLS: Record<(typeof SAMPLE_TOOLS)[number], SampleCall> = {
 			notes: [],
 			errors: [],
 		},
-		text: "## Ranked shortlist (triage only)\n\n- Eligible: 2 | shortlisted: 1",
+		text: '{"eligibleCount": 2, "shortlist": [{"key": "acme-backend", "score": 82, "verdict": "Strong Fit"}]}',
 	},
 	"research-company": {
 		args: { company: "Acme Corp" },
@@ -217,7 +217,7 @@ export const SAMPLE_CALLS: Record<(typeof SAMPLE_TOOLS)[number], SampleCall> = {
 			fetchSteps: ["cache-hit"],
 			trustNote: "Sourced means the sentence appeared on a fetched page, never that it is true.",
 		},
-		text: "## Company research: Acme Corp (cache hit)",
+		text: '{"company": "Acme Corp", "cached": true, "cacheFile": "company_research/acme-corp.json"}',
 	},
 	"search-jobs": {
 		args: { keywords: "backend", location: "Berlin" },
@@ -247,7 +247,7 @@ export const SAMPLE_CALLS: Record<(typeof SAMPLE_TOOLS)[number], SampleCall> = {
 			notes: [],
 			errors: [],
 		},
-		text: "## Job search results\n\n- Candidates: 1 | seen skipped: 1",
+		text: '{"filters": {"keywords": "backend", "location": "Berlin"}, "candidates": [{"key": "acme-backend", "title": "Backend Engineer"}]}',
 	},
 	"setup-profile": {
 		args: { resumeText: "Ada Example, Berlin. Python engineer." },
@@ -264,7 +264,7 @@ export const SAMPLE_CALLS: Record<(typeof SAMPLE_TOOLS)[number], SampleCall> = {
 			warnings: [],
 			dbNote: "Host owns persistence.",
 		},
-		text: "## Profile setup (from uploaded resume)\n\n- Name: Ada Example",
+		text: '{"profile": {"name": "Ada Example"}, "resumeHash": "def456", "dbNote": "Host owns persistence."}',
 	},
 	"due-followups": {
 		args: {},
@@ -285,6 +285,6 @@ export const SAMPLE_CALLS: Record<(typeof SAMPLE_TOOLS)[number], SampleCall> = {
 			deadlineWithinDays: 3,
 			note: "Open rows untouched past the threshold or with a near deadline.",
 		},
-		text: "## Due follow-ups (1 of 4 checked)",
+		text: '{"due": [{"jobKey": "acme-backend", "suggestedAction": "Send a short check-in."}], "checked": 4}',
 	},
 };

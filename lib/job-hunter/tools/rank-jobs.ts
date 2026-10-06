@@ -5,7 +5,6 @@ import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 import { loadActiveProfile } from "@/lib/job-hunter/request-profile.ts";
 import { planRank } from "@/lib/job-hunter/rank.ts";
 import { RankJobsInput, RankJobsOutput } from "@/lib/job-hunter/schemas.ts";
-import { renderRankMarkdown } from "@/lib/job-hunter/render.ts";
 
 export function registerRankJobs(server: McpServer): void {
 	server.registerTool(
@@ -54,7 +53,7 @@ export function registerRankJobs(server: McpServer): void {
 				cursor: input.cursor,
 			});
 			return {
-				content: [{ type: "text" as const, text: renderRankMarkdown(plan) }],
+				content: [{ type: "text" as const, text: JSON.stringify(plan, null, 2) }],
 				structuredContent: { ...plan },
 			};
 		},

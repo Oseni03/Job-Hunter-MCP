@@ -55,7 +55,7 @@ describe("track-application tool", () => {
 		assert.ok((structured["row"] as string).includes(",drafted,"));
 		assert.equal(structured["archiveFile"], "documents/applications/acme_senior-ml-engineer/job_posting.md");
 		assert.equal(structured["archiveText"], "Senior ML Engineer at Acme.");
-		assert.ok(result.content[0].text.includes("## Record application: append"));
+		assert.deepEqual(JSON.parse(result.content[0].text), JSON.parse(JSON.stringify(structured)));
 	});
 
 	it("updates the open row when the tracker already holds one", async () => {

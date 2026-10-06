@@ -11,7 +11,6 @@ import { refineEvaluation } from "@/lib/job-hunter/llm.ts";
 import { loadActiveProfile } from "@/lib/job-hunter/request-profile.ts";
 import { researchCompany } from "@/lib/job-hunter/research-company.ts";
 import { EvaluateJobInput, EvaluationSchema } from "@/lib/job-hunter/schemas.ts";
-import { renderMarkdown } from "@/lib/job-hunter/render.ts";
 import { makeSamplingSender } from "@/lib/mcp/sampling.ts";
 
 export function registerAnalyzeJob(server: McpServer): void {
@@ -121,18 +120,10 @@ export function registerAnalyzeJob(server: McpServer): void {
 				};
 			}
 
-			const text = renderMarkdown(
-				evaluation,
-				input.company,
-				input.role,
-				companyResearch.websiteUrl,
-				fetchSteps,
-				discrepancies,
-				refinement,
-			);
+			const payload = { ...evaluation, companyResearch, refinement, fetchSteps, discrepancies };
 			return {
-				content: [{ type: "text" as const, text }],
-				structuredContent: { ...evaluation, companyResearch, refinement, fetchSteps, discrepancies },
+				content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
+				structuredContent: payload,
 			};
 		},
 	);

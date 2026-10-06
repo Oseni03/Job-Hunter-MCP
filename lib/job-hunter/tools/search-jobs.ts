@@ -5,7 +5,6 @@ import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 import { loadActiveProfile } from "@/lib/job-hunter/request-profile.ts";
 import { planSearch } from "@/lib/job-hunter/search.ts";
 import { SearchJobsInput, SearchJobsOutput } from "@/lib/job-hunter/schemas.ts";
-import { renderSearchMarkdown } from "@/lib/job-hunter/render.ts";
 
 export function registerSearchJobs(server: McpServer): void {
 	server.registerTool(
@@ -41,7 +40,7 @@ export function registerSearchJobs(server: McpServer): void {
 				cursor: input.cursor,
 			});
 			return {
-				content: [{ type: "text" as const, text: renderSearchMarkdown(plan) }],
+				content: [{ type: "text" as const, text: JSON.stringify(plan, null, 2) }],
 				structuredContent: { ...plan },
 			};
 		},

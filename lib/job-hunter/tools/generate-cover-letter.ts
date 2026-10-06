@@ -6,7 +6,6 @@ import { loadActiveProfile } from "@/lib/job-hunter/request-profile.ts";
 import { buildCoverLetter } from "@/lib/job-hunter/tailor.ts";
 import { documentSignals } from "@/lib/job-hunter/verify.ts";
 import { CoverInput, CoverOutput } from "@/lib/job-hunter/schemas.ts";
-import { renderCoverMarkdown } from "@/lib/job-hunter/render.ts";
 
 export function registerGenerateCoverLetter(server: McpServer): void {
 	server.registerTool(
@@ -42,9 +41,10 @@ export function registerGenerateCoverLetter(server: McpServer): void {
 				language: input.postingLanguage ?? "en",
 				sections: [],
 			});
+			const payload = { ...coverStructured, signals };
 			return {
-				content: [{ type: "text" as const, text: renderCoverMarkdown({ ...result, signals }) }],
-				structuredContent: { ...coverStructured, signals },
+				content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
+				structuredContent: payload,
 			};
 		},
 	);
