@@ -4,7 +4,7 @@ import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 
 import { planInterviewPrep } from "@/lib/job-hunter/prep.ts";
 import { loadActiveProfile } from "@/lib/job-hunter/request-profile.ts";
-import { PrepInterviewInput, PrepInterviewOutput } from "@/lib/job-hunter/schemas.ts";
+import { PrepInterviewInput, PrepInterviewOutput } from "@/lib/job-hunter/schemas/prepare-interview.ts";
 
 export function registerPrepareInterview(server: McpServer): void {
 	server.registerTool(

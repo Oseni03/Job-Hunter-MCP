@@ -8,7 +8,7 @@ import type { ScrapeMeta, ScrapeOptions } from "ts-jobspy";
 import { adapters, searchAll, searchSource } from "@/host/job-hunter/scraper/index.ts";
 import { buildScrapeOptions, createIndeedAdapter, createSiteAdapter, describeSiteMeta, linkedin, mapTsJobToScraperJob, resolveSiteCountry, summarizeScrapeMeta } from "@/host/job-hunter/scraper/adapters/tsjobspy.ts";
 import { createScraperFetcher, planSearch } from "@/lib/job-hunter/search.ts";
-import { SearchJobsInput } from "@/lib/job-hunter/schemas.ts";
+import { SearchJobsInput } from "@/lib/job-hunter/schemas/search-jobs.ts";
 
 // Seam 1: pure mapper ts-jobspy Job -> scraper Job (no network).
 // Expected values are hand-worked literals from the ts-jobspy v3 schema,

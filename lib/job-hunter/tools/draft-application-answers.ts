@@ -4,7 +4,7 @@ import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 
 import { planPortalFields } from "@/lib/job-hunter/fields.ts";
 import { loadActiveProfile } from "@/lib/job-hunter/request-profile.ts";
-import { PortalFieldsInput, PortalFieldsOutput } from "@/lib/job-hunter/schemas.ts";
+import { PortalFieldsInput, PortalFieldsOutput } from "@/lib/job-hunter/schemas/draft-application-answers.ts";
 
 export function registerDraftApplicationAnswers(server: McpServer): void {
 	server.registerTool(

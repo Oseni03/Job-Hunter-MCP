@@ -4,7 +4,7 @@ import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 
 import { planJobResearch, type HostFinding } from "@/lib/job-hunter/job-research.ts";
 import { loadActiveProfile } from "@/lib/job-hunter/request-profile.ts";
-import { ResearchJobInput, ResearchJobOutput } from "@/lib/job-hunter/schemas.ts";
+import { ResearchJobInput, ResearchJobOutput } from "@/lib/job-hunter/schemas/research-job.ts";
 
 export function registerResearchJob(server: McpServer): void {
 	server.registerTool(

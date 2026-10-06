@@ -3,7 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 
 import { planRecordApplication } from "@/lib/job-hunter/record.ts";
-import { RecordApplicationInput, RecordApplicationOutput } from "@/lib/job-hunter/schemas.ts";
+import { RecordApplicationInput, RecordApplicationOutput } from "@/lib/job-hunter/schemas/track-application.ts";
 
 export function registerTrackApplication(server: McpServer): void {
 	server.registerTool(

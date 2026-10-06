@@ -4,7 +4,7 @@ import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 
 import { loadActiveProfile } from "@/lib/job-hunter/request-profile.ts";
 import { planRank } from "@/lib/job-hunter/rank.ts";
-import { RankJobsInput, RankJobsOutput } from "@/lib/job-hunter/schemas.ts";
+import { RankJobsInput, RankJobsOutput } from "@/lib/job-hunter/schemas/rank-jobs.ts";
 
 export function registerRankJobs(server: McpServer): void {
 	server.registerTool(

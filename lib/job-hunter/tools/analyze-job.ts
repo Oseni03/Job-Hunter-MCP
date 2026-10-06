@@ -10,7 +10,7 @@ import { fetchPosting } from "@/lib/job-hunter/fetch-posting.ts";
 import { refineEvaluation } from "@/lib/job-hunter/llm.ts";
 import { loadActiveProfile } from "@/lib/job-hunter/request-profile.ts";
 import { researchCompany } from "@/lib/job-hunter/research-company.ts";
-import { EvaluateJobInput, EvaluationSchema } from "@/lib/job-hunter/schemas.ts";
+import { EvaluateJobInput, EvaluationSchema } from "@/lib/job-hunter/schemas/analyze-job.ts";
 import { makeSamplingSender } from "@/lib/mcp/sampling.ts";
 
 export function registerAnalyzeJob(server: McpServer): void {

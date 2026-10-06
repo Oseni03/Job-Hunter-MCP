@@ -6,7 +6,7 @@ import { sectionHeadings } from "@/lib/job-hunter/latex.ts";
 import { loadActiveProfile } from "@/lib/job-hunter/request-profile.ts";
 import { buildTailoredCv } from "@/lib/job-hunter/tailor.ts";
 import { documentSignals } from "@/lib/job-hunter/verify.ts";
-import { TailorCvInput, TailorCvOutput } from "@/lib/job-hunter/schemas.ts";
+import { TailorCvInput, TailorCvOutput } from "@/lib/job-hunter/schemas/tailor-resume.ts";
 
 export function registerTailorResume(server: McpServer): void {
 	server.registerTool(

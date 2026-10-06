@@ -5,7 +5,7 @@ import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 import { loadActiveProfile } from "@/lib/job-hunter/request-profile.ts";
 import { buildCoverLetter } from "@/lib/job-hunter/tailor.ts";
 import { documentSignals } from "@/lib/job-hunter/verify.ts";
-import { CoverInput, CoverOutput } from "@/lib/job-hunter/schemas.ts";
+import { CoverInput, CoverOutput } from "@/lib/job-hunter/schemas/generate-cover-letter.ts";
 
 export function registerGenerateCoverLetter(server: McpServer): void {
 	server.registerTool(

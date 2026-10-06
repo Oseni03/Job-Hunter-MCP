@@ -5,7 +5,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 
 import { researchCompany } from "@/lib/job-hunter/research-company.ts";
-import { ResearchCompanyInput, ResearchCompanyOutput } from "@/lib/job-hunter/schemas.ts";
+import { ResearchCompanyInput, ResearchCompanyOutput } from "@/lib/job-hunter/schemas/research-company.ts";
 
 export function registerResearchCompany(server: McpServer): void {
 	server.registerTool(

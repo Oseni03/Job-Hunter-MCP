@@ -7,7 +7,7 @@ import { loadPrismaClient } from "@/lib/db.ts";
 import { profileToRow, type Profile } from "@/lib/job-hunter/profile.ts";
 import { userIdFromRequest } from "@/lib/job-hunter/request-profile.ts";
 import { planSetupProfile } from "@/lib/job-hunter/setup-profile.ts";
-import { SetupProfileInput, SetupProfileOutput } from "@/lib/job-hunter/schemas.ts";
+import { SetupProfileInput, SetupProfileOutput } from "@/lib/job-hunter/schemas/setup-profile.ts";
 
 const asJson = (value: unknown): Prisma.InputJsonValue => value as Prisma.InputJsonValue;
 

@@ -3,7 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 
 import { parseTrackerApplications, planDueFollowups } from "@/lib/job-hunter/followups.ts";
-import { DueFollowupsInput, DueFollowupsOutput } from "@/lib/job-hunter/schemas.ts";
+import { DueFollowupsInput, DueFollowupsOutput } from "@/lib/job-hunter/schemas/due-followups.ts";
 
 export function registerDueFollowups(server: McpServer): void {
 	server.registerTool(

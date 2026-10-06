@@ -4,7 +4,7 @@ import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 
 import { planCareerStrategy } from "@/lib/job-hunter/strategy.ts";
 import { loadActiveProfile } from "@/lib/job-hunter/request-profile.ts";
-import { StrategyInput, StrategyOutput } from "@/lib/job-hunter/schemas.ts";
+import { StrategyInput, StrategyOutput } from "@/lib/job-hunter/schemas/career-strategy.ts";
 
 export function registerCareerStrategy(server: McpServer): void {
 	server.registerTool(

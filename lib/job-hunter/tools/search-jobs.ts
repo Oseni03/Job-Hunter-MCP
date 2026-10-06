@@ -4,7 +4,7 @@ import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 
 import { loadActiveProfile } from "@/lib/job-hunter/request-profile.ts";
 import { planSearch } from "@/lib/job-hunter/search.ts";
-import { SearchJobsInput, SearchJobsOutput } from "@/lib/job-hunter/schemas.ts";
+import { SearchJobsInput, SearchJobsOutput } from "@/lib/job-hunter/schemas/search-jobs.ts";
 
 export function registerSearchJobs(server: McpServer): void {
 	server.registerTool(
