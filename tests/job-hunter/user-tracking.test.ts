@@ -98,7 +98,7 @@ describe("new tools + prompts", () => {
 		assert.equal(result.structuredContent.due.length, 1);
 	});
 
-	it("registers the twelve tools under one canonical name each", () => {
+	it("registers the thirteen tools under one canonical name each", () => {
 		const names = registered(registerJobHunterTools).map((tool) => tool.name);
 		assert.deepEqual(
 			[...names].sort(),
@@ -111,6 +111,7 @@ describe("new tools + prompts", () => {
 				"prepare-interview",
 				"rank-jobs",
 				"research-company",
+				"research-job",
 				"search-jobs",
 				"setup-profile",
 				"tailor-resume",

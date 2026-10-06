@@ -15,6 +15,7 @@ const EXPECTED_VIEWS: Record<(typeof SAMPLE_TOOLS)[number], DashboardView> = {
 	"draft-application-answers": "overview",
 	"rank-jobs": "rank",
 	"research-company": "overview",
+	"research-job": "overview",
 	"search-jobs": "search",
 	"setup-profile": "overview",
 	"due-followups": "followups",

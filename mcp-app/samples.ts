@@ -20,6 +20,7 @@ export const SAMPLE_TOOLS = [
 	"draft-application-answers",
 	"rank-jobs",
 	"research-company",
+	"research-job",
 	"search-jobs",
 	"setup-profile",
 	"due-followups",
@@ -222,6 +223,34 @@ export const SAMPLE_CALLS: Record<(typeof SAMPLE_TOOLS)[number], SampleCall> = {
 			trustNote: "Sourced means the sentence appeared on a fetched page, never that it is true.",
 		},
 		text: '{"company": "Acme Corp", "cached": true, "cacheFile": "company_research/acme-corp.json"}',
+	},
+	"research-job": {
+		args: { company: "Acme Corp", role: "Backend Engineer" },
+		structured: {
+			company: "Acme Corp",
+			role: "Backend Engineer",
+			briefMode: false,
+			snapshot: [
+				{
+					topic: "salary",
+					claim: "Levels-fyi band €90-110k for Berlin backend roles.",
+					sourceLabel: "Sourced via host search",
+					sourceUrl: "https://example.com/salary",
+				},
+				{
+					topic: "culture",
+					claim: "Reviews praise on-call compensation.",
+					sourceLabel: "Unsourced host note (lead only, never cite)",
+				},
+			],
+			fitNotes: ["Python appears in the findings and matches your core strengths"],
+			redFlags: [],
+			questionsToAsk: ["What are the interview stages and the hiring timeline?"],
+			suggestedQueries: ['"Acme Corp" "Backend Engineer" salary band'],
+			sourcing: { sourcedCount: 1, unsourcedCount: 1, sources: ["https://example.com/salary"], droppedEmpty: 0 },
+			warnings: [],
+		},
+		text: '{"company": "Acme Corp", "role": "Backend Engineer", "briefMode": false, "snapshot": [{"topic": "salary"}]}',
 	},
 	"search-jobs": {
 		args: { keywords: "backend", location: "Berlin" },

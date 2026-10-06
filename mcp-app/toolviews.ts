@@ -17,6 +17,7 @@ export const TOOL_NAMES = [
 	"draft-application-answers",
 	"rank-jobs",
 	"research-company",
+	"research-job",
 	"search-jobs",
 	"setup-profile",
 	"due-followups",
@@ -34,6 +35,7 @@ export const TOOL_LABELS: Record<string, string> = {
 	"draft-application-answers": "Draft application answers",
 	"rank-jobs": "Rank jobs",
 	"research-company": "Research company",
+	"research-job": "Research job",
 	"search-jobs": "Search jobs",
 	"setup-profile": "Setup profile",
 	"due-followups": "Due follow-ups",
@@ -418,6 +420,56 @@ function mapResearch(structured: Rec, markdown?: string): DashboardData {
 	};
 }
 
+const RESEARCH_TOPIC_LABELS: Record<string, string> = {
+	company: "Company",
+	role: "Role",
+	salary: "Salary",
+	culture: "Culture",
+	interview: "Interview",
+	news: "News",
+};
+
+function mapJobResearch(args: Rec, structured: Rec, markdown?: string): DashboardData {
+	const company = text(structured["company"]) || text(args["company"]) || undefined;
+	const role = text(structured["role"]) || text(args["role"]) || undefined;
+	const snapshot = list(structured["snapshot"]);
+	const sourcing = rec(structured["sourcing"]);
+	const questions = strings(structured["questionsToAsk"]);
+	const queries = strings(structured["suggestedQueries"]);
+	const briefMode = structured["briefMode"] === true;
+	return {
+		view: "overview",
+		title: `Job brief: ${postingTitle(role, company, "role")}`,
+		summary: [
+			briefMode ? "Research brief — no findings yet" : `${snapshot.length} findings`,
+			`${num(sourcing["sourcedCount"]) ?? 0} sourced`,
+			`${strings(structured["redFlags"]).length} red flags`,
+		].join(" · "),
+		items: [
+			...snapshot.map((entry) => {
+				const finding = rec(entry);
+				const url = text(finding["sourceUrl"]);
+				const topic = text(finding["topic"]);
+				const sourceLabel = text(finding["sourceLabel"]);
+				return {
+					title: text(finding["claim"], "Finding"),
+					url: url !== "" ? url : undefined,
+					note:
+						[RESEARCH_TOPIC_LABELS[topic] ?? topic, sourceLabel].filter((part) => part !== "").join(" · ") ||
+						undefined,
+				};
+			}),
+			...strings(structured["fitNotes"]).map((note) => ({ title: note })),
+			...strings(structured["redFlags"]).map((flag) => ({ title: flag, verdict: "Verify" })),
+		],
+		markdown,
+		actions: [
+			...questions.map((question) => `Ask: ${question}`),
+			...(briefMode ? queries.map((query) => `Research: ${query}`) : []),
+		],
+	};
+}
+
 function mapProfile(structured: Rec, markdown?: string): DashboardData {
 	const profile = rec(structured["profile"]);
 	const skills = strings(profile["primarySkills"]);
@@ -484,6 +536,8 @@ export function mapToolToDashboard(
 			return mapRank(s, markdown);
 		case "research-company":
 			return mapResearch(s, markdown);
+		case "research-job":
+			return mapJobResearch(a, s, markdown);
 		case "search-jobs":
 			return mapSearch(s, markdown);
 		case "setup-profile":

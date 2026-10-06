@@ -11,6 +11,7 @@ import { registerCareerStrategy } from "@/lib/job-hunter/tools/career-strategy.t
 import { registerDraftApplicationAnswers } from "@/lib/job-hunter/tools/draft-application-answers.ts";
 import { registerRankJobs } from "@/lib/job-hunter/tools/rank-jobs.ts";
 import { registerResearchCompany } from "@/lib/job-hunter/tools/research-company.ts";
+import { registerResearchJob } from "@/lib/job-hunter/tools/research-job.ts";
 import { registerSearchJobs } from "@/lib/job-hunter/tools/search-jobs.ts";
 import { registerSetupProfile } from "@/lib/job-hunter/tools/setup-profile.ts";
 import { registerDueFollowups } from "@/lib/job-hunter/tools/due-followups.ts";
@@ -32,6 +33,7 @@ export function registerJobHunterTools(server: McpServer): void {
 	registerDraftApplicationAnswers(server);
 	registerRankJobs(server);
 	registerResearchCompany(server);
+	registerResearchJob(server);
 	registerSearchJobs(server);
 	registerSetupProfile(server);
 	registerDueFollowups(server);
