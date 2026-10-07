@@ -4,7 +4,7 @@
 
 **Blocked by:** 01-slug-fail-loud
 
-**Status:** ready-for-agent
+**Status:** done (record builder + graceful save/fetch, type-check clean, 5/5 node:test green)
 
 - [ ] New tailoring appends a new immutable ResumeVersion for the user and posting, never overwrites
 - [ ] Stored version holds recompilable source plus review text plus verification payload (Profile stays the single source of truth)

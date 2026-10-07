@@ -125,6 +125,8 @@ model ResumeVersion {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   jobKey    String
   tex       String
+  markdown  String   @default("")
+  verification Json?
   createdAt DateTime @default(now())
 
   @@index([userId, jobKey])
