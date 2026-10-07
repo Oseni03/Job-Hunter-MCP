@@ -13,13 +13,19 @@ describe("setup-profile from uploaded resume", () => {
 	it("builds a validated profile with hash and unset warnings", () => {
 		const result = planSetupProfile({
 			resumeText: "Jane Doe, Python engineer, 5 years fraud detection.",
-			profile: { name: "Jane Doe", primarySkills: ["Python", "SQL"] },
+			profile: {
+				name: "Jane Doe",
+				skills: [
+					{ name: "Python", category: "primary" },
+					{ name: "SQL", category: "primary" },
+				],
+			},
 		});
 		assert.equal(result.ok, true);
 		assert.ok(result.ok && result.resumeHash.length === 40);
 		assert.ok(result.ok && result.profile.name === "Jane Doe");
 		assert.ok(
-			result.ok && result.warnings.join(" ").includes("strongDomains"),
+			result.ok && result.warnings.join(" ").includes("domains"),
 			"flags fields still unset",
 		);
 	});

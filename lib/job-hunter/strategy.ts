@@ -1,6 +1,13 @@
 import { checkSourceConsistency, CONTENT_STOPWORDS } from "@/lib/job-hunter/tailor.ts";
 import { contentWords } from "@/lib/job-hunter/evaluate.ts";
 import { resolveProfile, evidencePool, type Profile } from "@/lib/job-hunter/profile.ts";
+import {
+	adjacentDomainNames,
+	careerTargetNames,
+	primarySkillNames,
+	secondarySkillNames,
+	strongDomainNames,
+} from "@/lib/job-hunter/profile.ts";
 
 export interface EvaluationSummary {
 	fitScore?: number;
@@ -100,10 +107,10 @@ function contentTokens(text: string): Set<string> {
  */
 function groundingPool(profile: Profile): string[] {
 	return [
-		...profile.primarySkills,
-		...profile.secondarySkills,
-		...profile.strongDomains,
-		...profile.adjacentDomains,
+		...primarySkillNames(profile),
+		...secondarySkillNames(profile),
+		...strongDomainNames(profile),
+		...adjacentDomainNames(profile),
 		...profile.energizingTasks,
 	].filter((phrase) => phrase.trim().length >= 2);
 }
@@ -252,10 +259,11 @@ export function planCareerStrategy(input: StrategyInput): StrategyPlan {
 	const directions: Direction[] = [];
 	const covered = new Set<string>();
 
-	const transferable = [...profile.primarySkills, ...profile.secondarySkills].slice(0, 3);
-	for (const goal of profile.careerGoals) {
+	const transferable = [...primarySkillNames(profile), ...secondarySkillNames(profile)].slice(0, 3);
+	const targetRoles = careerTargetNames(profile);
+	for (const goal of targetRoles) {
 		const overlapping = pool.filter(
-			(phrase) => phrase !== goal && sharesWords(phrase, goal) && !profile.careerGoals.includes(phrase),
+			(phrase) => phrase !== goal && sharesWords(phrase, goal) && !targetRoles.includes(phrase),
 		);
 		const evidence = [...overlapping, ...transferable.filter((skill) => !overlapping.includes(skill))];
 		directions.push({
@@ -276,7 +284,7 @@ export function planCareerStrategy(input: StrategyInput): StrategyPlan {
 		covered.add(goal.toLowerCase());
 	}
 
-	for (const domain of profile.strongDomains) {
+	for (const domain of strongDomainNames(profile)) {
 		if (covered.has(domain.toLowerCase())) {
 			continue;
 		}
@@ -298,7 +306,7 @@ export function planCareerStrategy(input: StrategyInput): StrategyPlan {
 		}
 		const grounding = groundingFor(area, profile);
 		if (grounding.length === 0) {
-			const goalOnly = tokenOverlap(area, profile.careerGoals).length > 0;
+			const goalOnly = tokenOverlap(area, careerTargetNames(profile)).length > 0;
 			skipped.push(
 				goalOnly
 					? `${area} skipped: overlaps only career goals, which is circular (pursue X because you want X); add skills or experience before pursuing.`

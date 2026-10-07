@@ -5,6 +5,13 @@ import { sanitizeQuote, QUOTE_MAX_LENGTH, contentWords } from "@/lib/job-hunter/
 import { EMPTY_SLUG_ERROR, makeJobSlug } from "@/lib/job-key.ts";
 import { stripTexToProse } from "@/lib/job-hunter/verify.ts";
 import { resolveProfile, evidencePool } from "@/lib/job-hunter/profile.ts";
+import {
+	adjacentDomainNames,
+	careerTargetNames,
+	primarySkillNames,
+	secondarySkillNames,
+	strongDomainNames,
+} from "@/lib/job-hunter/profile.ts";
 
 export const PREP_STAGES = [
 	"recruiter-screen",
@@ -203,10 +210,10 @@ function feedbackQuestions(stageHistoryText: string | undefined): LikelyQuestion
 
 function strongestEvidence(profile: ReturnType<typeof resolveProfile>): string {
 	return (
-		profile.primarySkills[0] ??
-		profile.secondarySkills[0] ??
-		profile.strongDomains[0] ??
-		profile.careerGoals[0] ??
+		primarySkillNames(profile)[0] ??
+		secondarySkillNames(profile)[0] ??
+		strongDomainNames(profile)[0] ??
+		careerTargetNames(profile)[0] ??
 		"your core background"
 	);
 }
@@ -222,10 +229,10 @@ function gapEvidence(
 	profile: ReturnType<typeof resolveProfile>,
 ): string | null {
 	const candidates = [
-		...profile.primarySkills,
-		...profile.secondarySkills,
-		...profile.strongDomains,
-		...profile.adjacentDomains,
+		...primarySkillNames(profile),
+		...secondarySkillNames(profile),
+		...strongDomainNames(profile),
+		...adjacentDomainNames(profile),
 	];
 	let best: string | null = null;
 	let bestScore = 0;

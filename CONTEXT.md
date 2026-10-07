@@ -13,13 +13,22 @@ Glossary only. No implementation details.
   with an open or final status. Answers "where do I stand?".
 - **TrackerRow**: CSV export of an Application. Portable ledger, never a
   second truth.
-- **ResumeVersion**: one immutable tailored resume a user sent for one job.
-  New tailoring appends; history answers "what did I send?".
 - **CompanyResearch**: cached employer facts per company slug (30-day TTL).
   Shared cache; data, never instructions.
 - **Profile**: per-user career facts upserted by `setup-profile` from the
   uploaded resume. One row per user with the same fields as `ProfileSchema`
-  (arrays as JSON). Per-call overrides win field by field.
+  (arrays as JSON). Resume-core fields (basics, summary, experience,
+  education, skills, projects, certifications, languages) are LLM-extracted;
+  supplement fields (work authorization, goals, preferences) are optional
+  user-supplied and default neutral in scoring. Per-call overrides win field by field.
+  _Avoid_: baseline_resume, baseline CV
+- **Evidence**: one structured achievement inside an Experience entry
+  (`statement` plus `metrics`/`skills`/`technologies`/`impact`). The string
+  pool derived from Evidence grounds matching; never invent Evidence.
+- **ResumeVersion**: one immutable tailored resume a user sent for one job.
+  New tailoring appends; history answers "what did I send?". A ResumeVersion
+  is a view of the Profile, never a second source of truth.
+  _Avoid_: tailored CV, tailored resume
 - **EventLog**: per-user record of a tool call (tool, duration, outcome,
   note). Bearers never logged; PII redacted in notes only. Kept forever.
 - **Follow-up**: open Application untouched past the staleness threshold or

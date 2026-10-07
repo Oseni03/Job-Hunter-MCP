@@ -28,9 +28,9 @@ function toolHandler(register: (server: McpServer) => void): LooseHandler {
 
 const PROFILE = {
 	name: "Test Candidate",
-	primarySkills: ["Python", "SQL"],
-	strongDomains: ["fraud detection"],
-	careerGoals: ["ML Engineer"],
+	preferences: { targetRoles: ["ML Engineer"] },
+	skills: [{ name: "Python", category: "primary" as const }, { name: "SQL", category: "primary" as const }],
+	domains: [{ name: "fraud detection", category: "strong" as const }],
 };
 
 const POSTING = [

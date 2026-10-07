@@ -129,11 +129,9 @@ describe("thin evidence and sorting (issue 12)", () => {
 		const plan = await planSearch({
 			profile: {
 				...LANG_PROFILE,
-				primarySkills: ["Python", "SQL"],
-				secondarySkills: [],
-				strongDomains: ["fraud detection"],
-				adjacentDomains: [],
-				careerGoals: ["ML Engineer"],
+				preferences: { targetRoles: ["ML Engineer"] },
+				skills: [{ name: "Python", category: "primary" as const }, { name: "SQL", category: "primary" as const }],
+				domains: [{ name: "fraud detection", category: "strong" as const }],
 				energizingTasks: [],
 				drainingTasks: [],
 			},

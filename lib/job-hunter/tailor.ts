@@ -9,6 +9,13 @@ import {
 import type { SectionHeadings } from "@/lib/job-hunter/latex.ts";
 import { EMPTY_SLUG_ERROR, makeJobSlug } from "@/lib/job-key.ts";
 import type { Profile } from "@/lib/job-hunter/profile.ts";
+import {
+	adjacentDomainNames,
+	matchingPool,
+	primarySkillNames,
+	secondarySkillNames,
+	strongDomainNames,
+} from "@/lib/job-hunter/profile.ts";
 
 /**
  * Slice A: requirement coverage, logistics extraction, and factual
@@ -72,11 +79,7 @@ const STOPWORDS = CONTENT_STOPWORDS;
 
 function profilePhrases(profile: Profile): string[] {
 	return [
-		...profile.primarySkills,
-		...profile.secondarySkills,
-		...profile.strongDomains,
-		...profile.adjacentDomains,
-		...profile.careerGoals,
+		...matchingPool(profile),
 		...profile.languages.map((entry) => entry.language),
 	].filter((phrase) => phrase.trim().length >= 2);
 }
@@ -711,10 +714,10 @@ export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 	const profile = input.profile;
 	const coverage = matchRequirements(input.postingText, profile);
 
-	const coreSkills = [...profile.primarySkills, ...profile.strongDomains];
-	const peripheralSkills = [...profile.secondarySkills, ...profile.adjacentDomains];
+	const coreSkills = [...primarySkillNames(profile), ...strongDomainNames(profile)];
+	const peripheralSkills = [...secondarySkillNames(profile), ...adjacentDomainNames(profile)];
 	const coreHit = coreSkills.some((skill) => skill.trim() !== "" && phraseMatches(input.postingText, skill));
-	const adjacentHit = input.profile.adjacentDomains.some(
+	const adjacentHit = adjacentDomainNames(input.profile).some(
 		(domain) => domain.trim() !== "" && phraseMatches(input.postingText, domain),
 	);
 	const transferring = !coreHit && adjacentHit;
@@ -726,12 +729,14 @@ export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 		.slice(0, 7);
 	// Pad short lists to 5 from profile skills (primaries, then secondary,
 	// then adjacent); never invent. Gaps stay out.
-	const padPool = [...profile.primarySkills, ...profile.secondarySkills, ...profile.adjacentDomains].filter(
-		(skill) => !matchedSkills.includes(skill),
-	);
+	const padPool = [
+		...primarySkillNames(profile),
+		...secondarySkillNames(profile),
+		...adjacentDomainNames(profile),
+	].filter((skill) => !matchedSkills.includes(skill));
 	const padded =
 		matchedSkills.length < 5 ? [...matchedSkills, ...padPool].slice(0, 7) : matchedSkills;
-	const corePhrases = [...profile.primarySkills, ...profile.strongDomains];
+	const corePhrases = [...primarySkillNames(profile), ...strongDomainNames(profile)];
 
 	const competencies: Competency[] = padded.map((skill) => {
 		const item = matched.find((entry) => entry.evidence === skill);
@@ -749,17 +754,18 @@ export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 		};
 	});
 
-	const topSkills = matchedSkills.filter((skill) => profile.primarySkills.includes(skill)).slice(0, 3);
-	const statementSkills = topSkills.length > 0 ? topSkills : profile.primarySkills.slice(0, 3);
+	const topSkills = matchedSkills.filter((skill) => primarySkillNames(profile).includes(skill)).slice(0, 3);
+	const statementSkills =
+		topSkills.length > 0 ? topSkills : primarySkillNames(profile).slice(0, 3);
 	const skillList =
 		statementSkills.length > 1
 			? `${statementSkills.slice(0, -1).join(", ")} and ${statementSkills[statementSkills.length - 1]}`
 			: (statementSkills[0] ?? "relevant skills");
 	const strongDomain = matched
 		.map((item) => item.evidence as string)
-		.find((evidence) => profile.strongDomains.includes(evidence));
-	const goal = profile.careerGoals[0];
-	const transferDomain = input.profile.adjacentDomains.find(
+		.find((evidence) => strongDomainNames(profile).includes(evidence));
+	const goal = profile.preferences?.targetRoles?.[0];
+	const transferDomain = adjacentDomainNames(input.profile).find(
 		(domain) => domain.trim() !== "" && phraseMatches(input.postingText, domain),
 	);
 	const statement = transferring && transferDomain
@@ -825,7 +831,10 @@ export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 		warnings.reframingWarning =
 			"Posting matches no primary skill or strong domain; extensive reframing would be needed. Confirm before submitting.";
 	}
-	const contactNote = contactWarning(input.contact);
+	const contactNote = contactWarning({
+		email: input.contact?.email || profile.email || undefined,
+		phone: input.contact?.phone || profile.phone || undefined,
+	});
 	if (contactNote) {
 		warnings.contactNote = contactNote;
 	}
@@ -846,7 +855,12 @@ export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 		warnings.roleTypeNote = roleTypeNote;
 	}
 	const [firstName, ...lastName] = profile.name.split(/\s+/);
-	const contact = input.contact ?? {};
+	const contact = {
+		email: input.contact?.email || profile.email || undefined,
+		phone: input.contact?.phone || profile.phone || undefined,
+		linkedin: input.contact?.linkedin || profile.linkedin || undefined,
+		github: input.contact?.github || profile.github || undefined,
+	};
 	const contactLines = [
 		`\\address{${escapeLatex(profile.location)}}{}{}`,
 		contact.phone ? `\\phone[mobile]{${escapeLatex(contact.phone)}}` : null,
@@ -1108,19 +1122,19 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 	const gaps = coverage.filter((item) => item.status === "gap").slice(0, 2);
 	const strongDomain = matched
 		.map((item) => item.evidence as string)
-		.find((evidence) => profile.strongDomains.includes(evidence));
-	const adjacentDomain = [...profile.adjacentDomains, ...profile.strongDomains].find((domain) =>
+		.find((evidence) => strongDomainNames(profile).includes(evidence));
+	const adjacentDomain = [...adjacentDomainNames(profile), ...strongDomainNames(profile)].find((domain) =>
 		input.postingText.toLowerCase().includes(domain.toLowerCase()),
 	);
 	const domain = strongDomain ?? adjacentDomain;
-	const goal = profile.careerGoals[0];
+	const goal = profile.preferences?.targetRoles?.[0];
 
 	const topSkills = matched
 		.map((item) => item.evidence as string)
-		.filter((evidence) => profile.primarySkills.includes(evidence))
+		.filter((evidence) => primarySkillNames(profile).includes(evidence))
 		.slice(0, 3);
 	const skillList =
-		(topSkills.length > 0 ? topSkills : profile.primarySkills.slice(0, 3)).join(", ") ||
+		(topSkills.length > 0 ? topSkills : primarySkillNames(profile).slice(0, 3)).join(", ") ||
 		"relevant skills";
 
 	const opening = [
@@ -1171,7 +1185,7 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 	const anchor =
 		pickBridgeAnchor(
 			gaps.map((gap) => gap.requirement).join(" "),
-			[...profile.secondarySkills, ...profile.adjacentDomains],
+			[...secondarySkillNames(profile), ...adjacentDomainNames(profile)],
 		) ?? "related work";
 	const bridge = gaps.length > 0
 		? `For ${joinAnd(gaps.map((gap) => gap.requirement))}, which ${gaps.length > 1 ? "are" : "is"} new to me, I bring ${anchor} experience and a plan to close the gap in the first month.`
@@ -1289,7 +1303,10 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 		warnings.wordCountNote =
 			`Letter is above the 250-300 word band (${wordCount} words); trim by restatement before submitting.`;
 	}
-	const contactNote = contactWarning(input.contact);
+	const contactNote = contactWarning({
+		email: input.contact?.email || profile.email || undefined,
+		phone: input.contact?.phone || profile.phone || undefined,
+	});
 	if (contactNote) {
 		warnings.contactNote = contactNote;
 	}
@@ -1300,7 +1317,12 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 			? `Dear ${input.team},`
 			: `Dear ${company},`;
 	const closing = CLOSINGS[(input.postingLanguage ?? "en").toLowerCase()] ?? CLOSINGS.en;
-	const contact = input.contact ?? {};
+	const contact = {
+		email: input.contact?.email || profile.email || undefined,
+		phone: input.contact?.phone || profile.phone || undefined,
+		linkedin: input.contact?.linkedin || profile.linkedin || undefined,
+		github: input.contact?.github || profile.github || undefined,
+	};
 	const headerContact = [contact.email, contact.phone, contact.linkedin ? "LinkedIn" : null]
 		.filter(Boolean)
 		.join(" | ");

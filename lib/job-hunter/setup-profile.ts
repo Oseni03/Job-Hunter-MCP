@@ -5,7 +5,7 @@
  * Prisma `Profile` table (mirror-first); storage never changes the result.
  */
 
-import { DEFAULT_PROFILE, ProfileSchema, type Profile } from "@/lib/job-hunter/profile.ts";
+import { DEFAULT_PROFILE, parseProfile, type Profile } from "@/lib/job-hunter/profile.ts";
 import { hashText } from "@/lib/db.ts";
 
 export interface SetupProfileInput {
@@ -40,9 +40,11 @@ export function placeholderFields(profile: Profile): string[] {
 	const missing: string[] = [];
 	if (profile.name.startsWith("[")) missing.push("name");
 	if (profile.location.startsWith("[")) missing.push("location");
-	if (profile.primarySkills.length === 0) missing.push("primarySkills");
-	if (profile.strongDomains.length === 0) missing.push("strongDomains");
-	if (profile.careerGoals.length === 0) missing.push("careerGoals");
+	if ((profile.skills ?? []).length === 0) missing.push("skills");
+	if ((profile.domains ?? []).length === 0) missing.push("domains");
+	if ((profile.preferences?.targetRoles ?? []).length === 0) missing.push("targetRoles");
+	if ((profile.experience ?? []).length === 0) missing.push("experience");
+	if (!profile.email) missing.push("email");
 	return missing;
 }
 
@@ -60,7 +62,7 @@ export function planSetupProfile(input: SetupProfileInput): SetupProfileOutcome 
 	}
 	let profile: Profile;
 	try {
-		profile = ProfileSchema.parse({ ...DEFAULT_PROFILE, ...override });
+		profile = parseProfile({ ...DEFAULT_PROFILE, ...override });
 	} catch {
 		return { ok: false, error: "profile override failed validation; nothing was stored." };
 	}

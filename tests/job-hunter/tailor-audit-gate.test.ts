@@ -15,17 +15,13 @@ import { planPortalFields } from "@/lib/job-hunter/fields.ts";
 const PROFILE = {
 	name: "Test Candidate",
 	location: "Test City",
-	primarySkills: ["Python", "SQL"],
-	secondarySkills: ["Docker"],
-	strongDomains: ["fraud detection"],
-	adjacentDomains: ["payments"],
-	careerGoals: ["ML Engineer"],
+	preferences: { targetRoles: ["ML Engineer"] },
+	skills: [{ name: "Python", category: "primary" as const }, { name: "SQL", category: "primary" as const }, { name: "Docker", category: "secondary" as const }],
+	domains: [{ name: "fraud detection", category: "strong" as const }, { name: "payments", category: "adjacent" as const }],
 	energizingTasks: ["model building"],
 	drainingTasks: ["manual reporting"],
 	languages: [{ language: "English", level: "C1" }],
-	constraints: "remote",
 	workCountry: "Testland",
-	citizenships: ["Testland"],
 	permitClasses: [],
 } as never;
 

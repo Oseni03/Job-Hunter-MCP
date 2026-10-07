@@ -19,7 +19,7 @@ describe("language gate coverage (review fixes)", () => {
 	});
 
 	it("does not mistake a skill for a language", () => {
-		const skilled: Profile = { ...BASE, primarySkills: ["Python"] };
+		const skilled: Profile = { ...BASE, skills: [{ name: "Python", category: "primary" }] };
 		const result = checkLanguage("Requirements: Python, SQL. Fluent English required.", skilled);
 		assert.equal(result.verdict, "PASS");
 	});

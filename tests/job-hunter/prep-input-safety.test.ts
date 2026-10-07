@@ -6,10 +6,9 @@ import { stripTexToProse } from "@/lib/job-hunter/verify.ts";
 
 const PROFILE = {
 	name: "Test Candidate",
-	primarySkills: ["Python", "SQL"],
-	secondarySkills: ["Docker"],
-	strongDomains: ["fraud detection"],
-	careerGoals: ["ML Engineer"],
+	preferences: { targetRoles: ["ML Engineer"] },
+	skills: [{ name: "Python", category: "primary" as const }, { name: "SQL", category: "primary" as const }, { name: "Docker", category: "secondary" as const }],
+	domains: [{ name: "fraud detection", category: "strong" as const }],
 	energizingTasks: ["model building"],
 	languages: [{ language: "English", level: "C1" }],
 };

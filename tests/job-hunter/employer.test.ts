@@ -15,10 +15,9 @@ import { DEFAULT_PROFILE } from "@/lib/job-hunter/profile.ts";
 const PROFILE: Profile = {
 	...DEFAULT_PROFILE,
 	name: "Test Candidate",
-	primarySkills: ["Python", "SQL"],
-	secondarySkills: ["Docker"],
-	strongDomains: ["fraud detection"],
-	careerGoals: ["ML Engineer"],
+	preferences: { targetRoles: ["ML Engineer"] },
+	skills: [{ name: "Python", category: "primary" as const }, { name: "SQL", category: "primary" as const }, { name: "Docker", category: "secondary" as const }],
+	domains: [{ name: "fraud detection", category: "strong" as const }],
 	energizingTasks: ["model building"],
 	drainingTasks: ["maintenance"],
 };

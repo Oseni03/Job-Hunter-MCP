@@ -288,9 +288,12 @@ export const SAMPLE_CALLS: Record<(typeof SAMPLE_TOOLS)[number], SampleCall> = {
 			profile: {
 				name: "Ada Example",
 				location: "Berlin",
-				primarySkills: ["Python", "APIs"],
-				strongDomains: ["backend"],
-				careerGoals: ["platform engineering"],
+				skills: [
+					{ name: "Python", category: "primary" },
+					{ name: "APIs", category: "primary" },
+				],
+				domains: [{ name: "backend", category: "strong" }],
+				preferences: { targetRoles: ["platform engineering"] },
 			},
 			resumeHash: "def456",
 			notes: ["Derived from the uploaded resume."],

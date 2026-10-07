@@ -1,5 +1,11 @@
 import { sanitizeQuote } from "@/lib/job-hunter/evaluate.ts";
 import type { Profile } from "@/lib/job-hunter/profile.ts";
+import {
+	primarySkillNames,
+	secondarySkillNames,
+	strongDomainNames,
+	weakSkillNames,
+} from "@/lib/job-hunter/profile.ts";
 
 /**
  * Host-led job research. Hosts (Claude, ChatGPT) search better than the
@@ -90,10 +96,10 @@ function fitEvidence(profile: Profile, haystack: string): string[] {
 			}
 		}
 	};
-	check(profile.primarySkills ?? [], "core strengths");
-	check(profile.secondarySkills ?? [], "secondary skills");
-	check(profile.strongDomains ?? [], "strong domains");
-	for (const weak of profile.weakSkills ?? []) {
+	check(primarySkillNames(profile), "core strengths");
+	check(secondarySkillNames(profile), "secondary skills");
+	check(strongDomainNames(profile), "strong domains");
+	for (const weak of weakSkillNames(profile)) {
 		const name = weak.trim();
 		if (name.length < 3 || seen.has(`watch:${name.toLowerCase()}`)) continue;
 		if (lower.includes(name.toLowerCase())) {

@@ -472,7 +472,10 @@ function mapJobResearch(args: Rec, structured: Rec, markdown?: string): Dashboar
 
 function mapProfile(structured: Rec, markdown?: string): DashboardData {
 	const profile = rec(structured["profile"]);
-	const skills = strings(profile["primarySkills"]);
+	const unified = list(profile["skills"])
+		.map((entry) => text(rec(entry)["name"]))
+		.filter((name) => name !== "");
+	const skills = unified.length > 0 ? unified : strings(profile["primarySkills"]);
 	return {
 		view: "overview",
 		title: "Profile setup",

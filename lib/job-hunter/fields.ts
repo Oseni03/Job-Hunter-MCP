@@ -2,6 +2,13 @@ import { auditClaim, checkSourceConsistency, englishOnlyNote, normalizeCompanySp
 import type { VerifiedSpecific } from "@/lib/job-hunter/tailor.ts";
 import { toAsciiDateRange } from "@/lib/job-hunter/latex.ts";
 import { resolveProfile, evidencePool } from "@/lib/job-hunter/profile.ts";
+import {
+	adjacentDomainNames,
+	careerTargetNames,
+	primarySkillNames,
+	secondarySkillNames,
+	strongDomainNames,
+} from "@/lib/job-hunter/profile.ts";
 
 export const PORTAL_FIELDS_FILE = "documents/portal-fields.md";
 
@@ -232,9 +239,9 @@ export function planPortalFields(input: FieldsInput): FieldsPlan {
 		);
 	}
 
-	const skillLine = [...profile.primarySkills, ...profile.secondarySkills].slice(0, 2).join(", ");
-	const domain = profile.strongDomains[0] ?? profile.adjacentDomains[0] ?? "";
-	const goal = profile.careerGoals[0] ?? "";
+	const skillLine = [...primarySkillNames(profile), ...secondarySkillNames(profile)].slice(0, 2).join(", ");
+	const domain = strongDomainNames(profile)[0] ?? adjacentDomainNames(profile)[0] ?? "";
+	const goal = careerTargetNames(profile)[0] ?? "";
 	const energizing = profile.energizingTasks[0] ?? "";
 
 	const selfIntros: SelfIntro[] = [];
@@ -245,7 +252,7 @@ export function planPortalFields(input: FieldsInput): FieldsPlan {
 			const second = [
 				...(goal ? [goal] : []),
 				...(energizing ? [energizing] : []),
-				...profile.secondarySkills,
+				...secondarySkillNames(profile),
 			];
 			if (second.length > 0) {
 				parts.push(`${second.join("; ")}.`);
@@ -298,15 +305,15 @@ export function planPortalFields(input: FieldsInput): FieldsPlan {
 		});
 	}
 
-	const skills = [...profile.primarySkills, ...profile.secondarySkills];
-	const domains = [...profile.strongDomains, ...profile.adjacentDomains];
+	const skills = [...primarySkillNames(profile), ...secondarySkillNames(profile)];
+	const domains = [...strongDomainNames(profile), ...adjacentDomainNames(profile)];
 	const candidates: string[] = [];
 	for (const skill of skills.slice(0, 3)) {
 		for (const item of domains.slice(0, 2)) {
 			candidates.push(`${skill} for ${item}.`);
 		}
 	}
-	for (const item of profile.careerGoals.slice(0, 2)) {
+	for (const item of careerTargetNames(profile).slice(0, 2)) {
 		for (const skill of skills.slice(0, 2)) {
 			candidates.push(`${item} — ${skill}.`);
 		}

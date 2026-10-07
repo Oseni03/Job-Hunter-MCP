@@ -2,6 +2,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { DEFAULT_PROFILE, type Profile } from "@/lib/job-hunter/profile.ts";
+import {
+	adjacentDomainNames,
+	careerTargetNames,
+	primarySkillNames,
+	secondarySkillNames,
+	strongDomainNames,
+} from "@/lib/job-hunter/profile.ts";
 import { RESEARCH_TTL_DAYS, normalizeCompany } from "@/lib/job-hunter/research-company.ts";
 
 /**
@@ -39,16 +46,15 @@ export function renderProfileResource(profile: Profile, stored: boolean): string
 		stored ? "# Candidate profile (stored for this caller)" : "# Candidate profile (server default v1)",
 		"",
 		`Name: ${profile.name}`,
-		`Location: ${profile.location} (${profile.constraints})`,
+		`Location: ${profile.location}`,
 		`Work country: ${profile.workCountry}`,
-		`Citizenships: ${profile.citizenships.join(", ") || "undeclared"}`,
 		`Permit classes: ${profile.permitClasses.join(", ") || "undeclared"}`,
 		`Languages: ${profile.languages.map((entry) => `${entry.language} (${entry.level})`).join(", ") || "undeclared"}`,
-		`Primary skills: ${profile.primarySkills.join(", ") || "unset; run setup-profile"}`,
-		`Secondary skills: ${profile.secondarySkills.join(", ") || "unset"}`,
-		`Strong domains: ${profile.strongDomains.join(", ") || "unset"}`,
-		`Adjacent domains: ${profile.adjacentDomains.join(", ") || "unset"}`,
-		`Career goals: ${profile.careerGoals.join(", ") || "unset"}`,
+		`Primary skills: ${primarySkillNames(profile).join(", ") || "unset; run setup-profile"}`,
+		`Secondary skills: ${secondarySkillNames(profile).join(", ") || "unset"}`,
+		`Strong domains: ${strongDomainNames(profile).join(", ") || "unset"}`,
+		`Adjacent domains: ${adjacentDomainNames(profile).join(", ") || "unset"}`,
+		`Target roles: ${careerTargetNames(profile).join(", ") || "unset"}`,
 		"",
 		stored
 			? "Stored profile for the authenticated caller; run setup-profile again to update it."
@@ -63,7 +69,7 @@ const RESOURCES: ResourceBody[] = [
 		name: "candidate-profile",
 		title: "Candidate profile",
 		description:
-			"Identity, skills, domains, goals, and constraints every tool grounds its output in. Serves the caller's stored profile; embedded defaults when none is stored.",
+			"Identity, skills, domains, and target roles every tool grounds its output in. Serves the caller's stored profile; embedded defaults when none is stored.",
 		version: 2,
 		mimeType: "text/markdown",
 		text: profileText(),

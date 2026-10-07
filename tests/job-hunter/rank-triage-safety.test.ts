@@ -12,17 +12,12 @@ import { planInterviewPrep } from "@/lib/job-hunter/prep.ts";
 const PROFILE = {
 	name: "Test Candidate",
 	location: "Test City, Test Country",
-	constraints: "none",
 	workCountry: "Test Country",
-	citizenships: [],
 	permitClasses: [],
 	languages: [{ language: "English", level: "C1" }],
-	primarySkills: ["Python", "SQL"],
-	secondarySkills: ["Docker"],
-	weakSkills: [],
-	strongDomains: ["fraud detection"],
-	adjacentDomains: ["credit risk"],
-	careerGoals: ["ML Engineer"],
+	preferences: { targetRoles: ["ML Engineer"] },
+	skills: [{ name: "Python", category: "primary" as const }, { name: "SQL", category: "primary" as const }, { name: "Docker", category: "secondary" as const }],
+	domains: [{ name: "fraud detection", category: "strong" as const }, { name: "credit risk", category: "adjacent" as const }],
 	energizingTasks: ["model building"],
 	drainingTasks: [],
 };
@@ -161,7 +156,13 @@ describe("rank terminal states (issue 15)", () => {
 		assert.equal(same.eligibleCount, 0, "same hash rests");
 
 		const changed = await planRank({
-			profile: { ...PROFILE, primarySkills: ["Python", "Go"] },
+			profile: {
+				...PROFILE,
+				skills: [
+					{ name: "Python", category: "primary" },
+					{ name: "Go", category: "primary" },
+				],
+			},
 			items: [item({ key: "acme_exc", status: "excluded", lastProfileHash: hash })],
 			now: new Date("2026-09-29T00:00:00Z"),
 		});

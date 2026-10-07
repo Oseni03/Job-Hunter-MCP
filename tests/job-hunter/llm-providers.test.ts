@@ -10,7 +10,7 @@ import { DEFAULT_PROFILE } from "@/lib/job-hunter/profile.ts";
 const PROFILE: Profile = {
 	...DEFAULT_PROFILE,
 	name: "Test Candidate",
-	primarySkills: ["Python"],
+	skills: [{ name: "Python", category: "primary" as const }],
 	languages: [{ language: "English", level: "C1" }],
 };
 

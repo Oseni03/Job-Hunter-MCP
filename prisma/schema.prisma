@@ -51,28 +51,38 @@ model User {
 }
 
 // Per-user profile upserted by setup-profile from the uploaded resume.
-// Mirrors ProfileSchema (lib/job-hunter/profile.ts) field for field; arrays are Json
-// (scalar lists are Postgres-only, as are the Oauth* scopes/resources
-// columns below). userId/resumeHash/updatedAt are storage columns, the rest
-// is the profile itself.
+// Resume-core (headline, contact, summary, experience, education, skills,
+// domains, projects, certifications, preferences) plus scoring supplements
+// (workCountry, permitClasses, languages, energizing/draining tasks).
+// Pruned columns (constraints, citizenships, primary/secondary/weakSkills,
+// strong/adjacentDomains, careerGoals) folded into skills/domains/
+// preferences.targetRoles by migration 0002; arrays are Json (scalar lists
+// are Postgres-only, as are the Oauth* scopes/resources columns below).
+// userId/resumeHash/updatedAt are storage columns, the rest is the profile.
 model Profile {
   userId          String   @id
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name            String
   location        String
-  constraints     String
   workCountry     String
-  citizenships    Json
   permitClasses   Json
   languages       Json
-  primarySkills   Json
-  secondarySkills Json
-  weakSkills      Json
-  strongDomains   Json
-  adjacentDomains Json
-  careerGoals     Json
   energizingTasks Json
   drainingTasks   Json
+  headline        String   @default("")
+  email           String   @default("")
+  phone           String   @default("")
+  website         String   @default("")
+  linkedin        String   @default("")
+  github          String   @default("")
+  summary         String   @default("")
+  experience      Json     @default("[]")
+  education       Json     @default("[]")
+  skills          Json     @default("[]")
+  domains         Json     @default("[]")
+  projects        Json     @default("[]")
+  certifications  Json     @default("[]")
+  preferences     Json     @default("{}")
   resumeHash      String?
   updatedAt       DateTime @updatedAt
 }

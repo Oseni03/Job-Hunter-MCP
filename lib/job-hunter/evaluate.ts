@@ -1,4 +1,12 @@
 import type { Profile } from "@/lib/job-hunter/profile.ts";
+import {
+	adjacentDomainNames,
+	careerTargetNames,
+	matchingPool,
+	primarySkillNames,
+	secondarySkillNames,
+	strongDomainNames,
+} from "@/lib/job-hunter/profile.ts";
 
 export type EligibilityVerdict = "PASS" | "FAIL" | "PROCEED_UNVERIFIED";
 export type LanguageVerdict = "PASS" | "FAIL" | "FLAG";
@@ -466,8 +474,8 @@ function coverage(posting: string, primary: string[], secondary: string[]): numb
  * Location is pass/fail and never weighted.
  */
 export function scoreDimensions(postingText: string, profile: Profile): DimensionScore[] {
-	const technical = coverage(postingText, profile.primarySkills, profile.secondarySkills);
-	const experience = coverage(postingText, profile.strongDomains, profile.adjacentDomains);
+	const technical = coverage(postingText, primarySkillNames(profile), secondarySkillNames(profile));
+	const experience = coverage(postingText, strongDomainNames(profile), adjacentDomainNames(profile));
 
 	let behavioral: number | null = null;
 	if (profile.energizingTasks.length > 0 || profile.drainingTasks.length > 0) {
@@ -476,17 +484,17 @@ export function scoreDimensions(postingText: string, profile: Profile): Dimensio
 		behavioral = Math.max(0, Math.min(100, 50 + 10 * energizing.length - 15 * draining.length));
 	}
 
+	const targets = careerTargetNames(profile);
 	const career =
-		profile.careerGoals.length > 0
+		targets.length > 0
 			? Math.round(
-					(100 *
-						profile.careerGoals.filter((g) => g !== "" && phraseMatches(postingText, g)).length) /
-						profile.careerGoals.length,
+					(100 * targets.filter((g) => g !== "" && phraseMatches(postingText, g)).length) /
+						targets.length,
 				)
 			: null;
 
 	let location: LocationStatus = "PASS";
-	let locationNotes = "Verify the commute against the candidate's constraints.";
+	let locationNotes = "Verify the commute against the candidate's location.";
 	if (/relocat/i.test(postingText)) {
 		location = "FAIL";
 		locationNotes = "Posting requires relocation (deal-breaker).";
@@ -498,6 +506,7 @@ export function scoreDimensions(postingText: string, profile: Profile): Dimensio
 	}
 
 	const setupNote = "Profile not set up yet; run /setup for a real score.";
+	const primaries = primarySkillNames(profile);
 	return [
 		{
 			dimension: "technical",
@@ -505,7 +514,7 @@ export function scoreDimensions(postingText: string, profile: Profile): Dimensio
 			notes:
 				technical === null
 					? setupNote
-					: `${profile.primarySkills.filter((p) => phraseMatches(postingText, p)).length}/${profile.primarySkills.length} primary skills mentioned.`,
+					: `${primaries.filter((p) => phraseMatches(postingText, p)).length}/${primaries.length} primary skills mentioned.`,
 		},
 		{
 			dimension: "experience",
@@ -524,7 +533,7 @@ export function scoreDimensions(postingText: string, profile: Profile): Dimensio
 		{
 			dimension: "career",
 			score: career ?? 50,
-			notes: career === null ? setupNote : "Coverage of stated career goals in the posting.",
+			notes: career === null ? setupNote : "Coverage of stated target roles in the posting.",
 		},
 	];
 }
@@ -599,16 +608,10 @@ export function verdictFor(score: number): Verdict {
 	return "Poor Fit";
 }
 
-/** Content vocabulary of the profile: words of length 2+ from skills, domains, and goals. */
+/** Content vocabulary of the profile: words of length 2+ from skills, domains, goals, and extracted Evidence (never energizers). */
 export function profileVocabulary(profile: Profile): Set<string> {
 	const words = new Set<string>();
-	for (const phrase of [
-		...profile.primarySkills,
-		...profile.secondarySkills,
-		...profile.strongDomains,
-		...profile.adjacentDomains,
-		...profile.careerGoals,
-	]) {
+	for (const phrase of matchingPool(profile)) {
 		for (const word of normalized(phrase).split(/[^a-z0-9+#]+/)) {
 			if (word.length >= 2) {
 				words.add(word);
@@ -621,7 +624,7 @@ export function profileVocabulary(profile: Profile): Set<string> {
 /** Profile skills and domains mentioned in the posting (max 5). */
 export function extractStrengths(postingText: string, profile: Profile): string[] {
 	const strengths: string[] = [];
-	for (const skill of [...profile.primarySkills, ...profile.strongDomains]) {
+	for (const skill of [...primarySkillNames(profile), ...strongDomainNames(profile)]) {
 		if (skill !== "" && phraseMatches(postingText, skill)) {
 			strengths.push(sanitizeQuote(skill));
 		}

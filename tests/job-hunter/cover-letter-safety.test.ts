@@ -13,16 +13,12 @@ import { planPortalFields } from "@/lib/job-hunter/fields.ts";
 const PROFILE = {
 	name: "Test Candidate",
 	location: "Copenhagen, Denmark",
-	constraints: "No relocation",
 	workCountry: "Denmark",
-	citizenships: [],
 	permitClasses: [],
 	languages: [{ language: "English", level: "C1" }],
-	primarySkills: ["Python", "SQL", "Machine Learning"],
-	secondarySkills: ["Docker", "Fraud Analytics"],
-	strongDomains: ["fraud detection"],
-	adjacentDomains: ["credit risk"],
-	careerGoals: ["ML Engineer"],
+	preferences: { targetRoles: ["ML Engineer"] },
+	skills: [{ name: "Python", category: "primary" as const }, { name: "SQL", category: "primary" as const }, { name: "Machine Learning", category: "primary" as const }, { name: "Docker", category: "secondary" as const }, { name: "Fraud Analytics", category: "secondary" as const }],
+	domains: [{ name: "fraud detection", category: "strong" as const }, { name: "credit risk", category: "adjacent" as const }],
 	energizingTasks: ["model building"],
 	drainingTasks: ["maintenance"],
 } as never;
@@ -109,7 +105,13 @@ describe("bridges stop making promises", () => {
 			postingText: posting,
 			company: "Acme",
 			role: "ML Engineer",
-			profile: { ...(PROFILE as unknown as Record<string, unknown>), secondarySkills: ["Docker", "Fraud Models"] } as never,
+			profile: {
+				...(PROFILE as unknown as Record<string, unknown>),
+				skills: [
+					{ name: "Docker", category: "secondary" },
+					{ name: "Fraud Models", category: "secondary" },
+				],
+			} as never,
 			evaluation: PASS_SUMMARY,
 		});
 		assert.equal(result.ok, true);
@@ -234,7 +236,7 @@ describe("bullet escape round trip", () => {
 	it("emits labels and bodies after exactly one escape pass", () => {
 		const profile = {
 			...(PROFILE as Record<string, unknown>),
-			primarySkills: ["C++", "R&D", "A}B"],
+	skills: [{ name: "C++", category: "primary" as const }, { name: "R&D", category: "primary" as const }, { name: "A}B", category: "primary" as const }],
 		} as never;
 		const posting = ["ML Engineer at Acme.", "Requirements: C++, R&D, A}B."].join("\n");
 		const result = buildCoverLetter({

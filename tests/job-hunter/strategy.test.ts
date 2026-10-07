@@ -5,11 +5,9 @@ import { planCareerStrategy } from "@/lib/job-hunter/strategy.ts";
 
 const PROFILE = {
 	name: "Test Candidate",
-	primarySkills: ["Python", "SQL"],
-	secondarySkills: ["Docker"],
-	strongDomains: ["fraud detection"],
-	adjacentDomains: ["credit risk"],
-	careerGoals: ["ML Engineer"],
+	preferences: { targetRoles: ["ML Engineer"] },
+	skills: [{ name: "Python", category: "primary" as const }, { name: "SQL", category: "primary" as const }, { name: "Docker", category: "secondary" as const }],
+	domains: [{ name: "fraud detection", category: "strong" as const }, { name: "credit risk", category: "adjacent" as const }],
 	energizingTasks: ["model building"],
 	drainingTasks: ["on-call maintenance"],
 	languages: [{ language: "English", level: "C1" }],

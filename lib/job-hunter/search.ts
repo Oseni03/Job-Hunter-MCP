@@ -16,6 +16,7 @@ import {
 } from "@/lib/job-hunter/evaluate.ts";
 import { isCanonical, makeKey } from "@/lib/job-key.ts";
 import type { Profile } from "@/lib/job-hunter/profile.ts";
+import { primarySkillNames, strongDomainNames } from "@/lib/job-hunter/profile.ts";
 
 /**
  * Job discovery planner over injected-fetcher scraper results: the server
@@ -109,17 +110,17 @@ export function buildAutoQueries(profile: Profile): AutoQuery[] {
 	const languages =
 		profile.languages.length > 0 ? profile.languages.map((entry) => entry.language) : ["English"];
 	const categories: string[] = [];
-	for (const goal of profile.careerGoals) {
+	for (const goal of profile.preferences?.targetRoles ?? []) {
 		if (goal.trim().length >= 2 && !categories.includes(goal.trim())) {
 			categories.push(goal.trim());
 		}
 	}
-	for (const domain of profile.strongDomains) {
+	for (const domain of strongDomainNames(profile)) {
 		if (domain.trim().length >= 2 && !categories.includes(domain.trim())) {
 			categories.push(domain.trim());
 		}
 	}
-	const skillGroup = profile.primarySkills.map((skill) => skill.trim()).filter((skill) => skill.length >= 2);
+	const skillGroup = primarySkillNames(profile).map((skill) => skill.trim()).filter((skill) => skill.length >= 2);
 	if (skillGroup.length > 0) {
 		categories.push(skillGroup.slice(0, 3).join(" "));
 	}

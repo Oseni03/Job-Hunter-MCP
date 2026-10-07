@@ -26,7 +26,14 @@ function registered(): { name: string; handler: unknown }[] {
 	return captured;
 }
 
-const PROFILE = { ...DEFAULT_PROFILE, primarySkills: ["Python", "PostgreSQL"], weakSkills: ["Kubernetes"] };
+const PROFILE = {
+	...DEFAULT_PROFILE,
+	skills: [
+		{ name: "Python", category: "primary" as const },
+		{ name: "PostgreSQL", category: "primary" as const },
+		{ name: "Kubernetes", category: "weak" as const },
+	],
+};
 
 describe("planJobResearch", () => {
 	it("returns brief mode with suggested queries when no findings arrive", () => {
