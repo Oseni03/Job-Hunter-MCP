@@ -190,7 +190,7 @@ describe("visible cuts", () => {
 						overBudget: false,
 						shapingNotes: [],
 					},
-					latexSafety: { passed: true, checks: [] },
+					renderSafety: { passed: true, checks: [] },
 					layout: { degraded: false, note: null, problems: [] },
 				},
 			}),
@@ -203,8 +203,8 @@ describe("visible cuts", () => {
 	});
 });
 
-describe("compile-command hardening", () => {
-	it("ships --no-shell-escape on the stock commands", () => {
+describe("fixed document renderers", () => {
+	it("uses fixed Puppeteer templates for both documents", () => {
 		const cv = buildTailoredCv({
 			postingText: POSTING,
 			company: "Acme",
@@ -214,7 +214,7 @@ describe("compile-command hardening", () => {
 		});
 		assert.equal(cv.ok, true);
 		if (!cv.ok) return;
-		assert.ok(cv.compileCommand.includes("--no-shell-escape"), `CV hardened, got ${cv.compileCommand}`);
+		assert.equal(cv.template, "modern-fixed-v1");
 		const letter = buildCoverLetter({
 			postingText: POSTING,
 			company: "Acme",
@@ -224,27 +224,21 @@ describe("compile-command hardening", () => {
 		});
 		assert.equal(letter.ok, true);
 		if (!letter.ok) return;
-		assert.ok(letter.compileCommand.includes("--no-shell-escape"), `letter hardened, got ${letter.compileCommand}`);
+		assert.equal(letter.template, "letter-modern-fixed-v1");
 	});
 
-	it("keeps custom commands caller-owned with a warning and escapes hostile posting text", () => {
+	it("escapes hostile HTML input without executable markup", () => {
 		const result = buildCoverLetter({
 			postingText: POSTING,
 			company: "Acme \\directlua {x}",
 			role: "Engineer % lead",
 			profile: PROFILE,
 			evaluation: PASS_SUMMARY,
-			template: { name: "custom", compileCommand: "cd cover_letters && xelatex cover_<file>.tex" },
 		});
 		assert.equal(result.ok, true);
 		if (!result.ok) return;
-		assert.ok(!result.tex.includes("\\directlua"), "hostile command escaped");
-		assert.ok(result.tex.includes("\\textbackslash{}directlua"), "backslash escaped");
-		assert.ok(result.tex.includes("\\%"), "percent escaped");
-		assert.ok(
-			result.warnings.templateNote?.includes("--no-shell-escape"),
-			"custom command gets a shell-escape warning",
-		);
+		assert.ok(result.html.includes("Acme \\directlua {x}"));
+		assert.ok(!result.html.includes("<script"));
 	});
 });
 

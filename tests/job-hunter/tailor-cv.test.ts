@@ -67,14 +67,13 @@ describe("buildTailoredCv", () => {
 			return;
 		}
 		assert.equal(result.slug, "acme_senior-ml-engineer");
-		assert.equal(result.filePath, "cv/main_acme_senior-ml-engineer.tex");
+		assert.equal(result.filePath, "cv/main_acme_senior-ml-engineer.html");
+		assert.equal(result.template, "modern-fixed-v1");
 		assert.equal(result.archiveDir, "documents/applications/acme_senior-ml-engineer");
 		assert.equal(result.pageLimit, 2);
-		assert.ok(result.compileCommand.includes("lualatex"));
-		assert.ok(result.compileCommand.includes("main_acme_senior-ml-engineer.tex"));
 	});
 
-	it("emits LaTeX-safe output with ASCII date ranges", () => {
+	it("emits escaped HTML output with ASCII date ranges", () => {
 		const result = buildTailoredCv({
 			postingText: POSTING,
 			company: "Acme",
@@ -87,10 +86,10 @@ describe("buildTailoredCv", () => {
 		if (!result.ok) {
 			return;
 		}
-		assert.ok(result.tex.includes("R\\&D Corp"));
-		assert.ok(result.tex.includes("2020-2024"));
-		assert.ok(!result.tex.includes("2020--2024"));
-		assert.ok(result.tex.includes("In progress, expected June 2026."));
+		assert.ok(result.html.includes("R&amp;D Corp"));
+		assert.ok(result.html.includes("2020-2024"));
+		assert.ok(!result.html.includes("2020--2024"));
+		assert.ok(result.html.includes("In progress, expected June 2026."));
 	});
 
 	it("orders technical CVs as competencies, experience, then education", () => {
@@ -106,8 +105,8 @@ describe("buildTailoredCv", () => {
 		if (!result.ok) {
 			return;
 		}
-		const experienceAt = result.tex.indexOf("Professional Experience");
-		const educationAt = result.tex.indexOf("Education");
+		const experienceAt = result.html.indexOf("Professional Experience");
+		const educationAt = result.html.indexOf("Education");
 		assert.ok(experienceAt > 0 && educationAt > experienceAt);
 	});
 
@@ -125,8 +124,8 @@ describe("buildTailoredCv", () => {
 		if (!result.ok) {
 			return;
 		}
-		const experienceAt = result.tex.indexOf("Professional Experience");
-		const educationAt = result.tex.indexOf("Education");
+		const experienceAt = result.html.indexOf("Professional Experience");
+		const educationAt = result.html.indexOf("Education");
 		assert.ok(educationAt > 0 && educationAt < experienceAt);
 	});
 
@@ -143,10 +142,11 @@ describe("buildTailoredCv", () => {
 		if (!result.ok) {
 			return;
 		}
-		assert.equal(result.tex.match(/\\textbf\{/g)?.length ?? 0, 5);
-		assert.ok(result.tex.includes("\\textbf{Python}"));
-		assert.ok(result.tex.includes("\\textbf{Docker}"));
-		assert.ok(!result.tex.includes("Kubernetes"));
+		const competencyHtml = result.html.match(/<ul class="competencies">[\s\S]*?<\/ul>/)?.[0] ?? "";
+		assert.equal(competencyHtml.match(/<strong>/g)?.length ?? 0, 5);
+		assert.ok(competencyHtml.includes("<strong>Python</strong>"));
+		assert.ok(competencyHtml.includes("<strong>Docker</strong>"));
+		assert.ok(!result.html.includes(">Kubernetes</strong>"));
 	});
 
 	it("relevance-orders bullets, keeps measurable outcomes, and caps the role at 5", () => {
@@ -162,11 +162,11 @@ describe("buildTailoredCv", () => {
 		if (!result.ok) {
 			return;
 		}
-		const cutAt = result.tex.indexOf("Cut losses by 12");
-		const pipelinesAt = result.tex.indexOf("Built SQL pipelines.");
-		const adminAt = result.tex.indexOf("Did admin work.");
+		const cutAt = result.html.indexOf("Cut losses by 12");
+		const pipelinesAt = result.html.indexOf("Built SQL pipelines.");
+		const adminAt = result.html.indexOf("Did admin work.");
 		assert.ok(cutAt > 0 && cutAt < pipelinesAt && pipelinesAt < adminAt);
-		assert.ok(!result.tex.includes("Helped interns."));
+		assert.ok(!result.html.includes("Helped interns."));
 	});
 
 	it("pads short competency lists to 5 from profile skills, never inventing", () => {
@@ -180,8 +180,9 @@ describe("buildTailoredCv", () => {
 		if (!result.ok) {
 			return;
 		}
-		assert.equal(result.tex.match(/\\textbf\{/g)?.length ?? 0, 5);
-		assert.ok(result.tex.includes("\\textbf{Python}"));
+		const competencyHtml = result.html.match(/<ul class="competencies">[\s\S]*?<\/ul>/)?.[0] ?? "";
+		assert.equal(competencyHtml.match(/<strong>/g)?.length ?? 0, 5);
+		assert.ok(competencyHtml.includes("<strong>Python</strong>"));
 	});
 
 	it("leads with the domain-transfer argument when changing fields", () => {
@@ -195,7 +196,7 @@ describe("buildTailoredCv", () => {
 		if (!result.ok) {
 			return;
 		}
-		assert.ok(result.tex.includes("Moving from credit risk"));
+		assert.ok(result.html.includes("Moving from credit risk"));
 	});
 
 	it("flags secondary-skill bullets as keep/soften/drop stretches", () => {
@@ -247,35 +248,28 @@ describe("buildTailoredCv", () => {
 		assert.deepEqual(result.warnings.profileConsistency, []);
 	});
 
-	it("honors an active custom template override over stock guidance", () => {
+	it("uses the fixed modern template and ignores custom template input", () => {
 		const result = buildTailoredCv({
 			postingText: POSTING,
 			company: "Acme",
 			role: "Senior ML Engineer",
 			profile: PROFILE,
-			template: {
-				name: "typst-clean",
-				sourceExtension: ".typ",
-				compileCommand: "typst compile <file>.typ <file>.pdf",
-				pageLimit: 2,
-			},
 		});
 		assert.equal(result.ok, true);
 		if (!result.ok) {
 			return;
 		}
-		assert.equal(result.filePath, "cv/main_acme_senior-ml-engineer.typ");
-		assert.ok(result.compileCommand.includes("typst compile"));
-		assert.ok(result.warnings.templateNote);
+		assert.equal(result.filePath, "cv/main_acme_senior-ml-engineer.html");
+		assert.equal(result.template, "modern-fixed-v1");
 	});
 
-	it("returns the EMPTY_SLUG hard error with no TeX when nothing identifies the posting", () => {
+	it("returns the EMPTY_SLUG hard error with no document when nothing identifies the posting", () => {
 		const result = buildTailoredCv({ postingText: "Requirements: Python.", profile: PROFILE });
 		assert.equal(result.ok, false);
 		if (result.ok) {
 			return;
 		}
 		assert.ok(result.error.includes("EMPTY_SLUG"));
-		assert.ok(!("tex" in result));
+		assert.ok(!("html" in result));
 	});
 });

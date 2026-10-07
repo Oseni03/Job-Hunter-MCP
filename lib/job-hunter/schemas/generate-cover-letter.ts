@@ -6,7 +6,6 @@ import {
 	DocumentSignalsSchema,
 	EvaluationGateInput,
 	ExperienceInput,
-	TemplateOverrideInput,
 	VerifiedSpecificInput,
 } from "@/lib/job-hunter/schemas/common.ts";
 
@@ -33,7 +32,6 @@ export const CoverInput = z
 		evaluation: EvaluationGateInput.optional().describe(
 			"analyze-job summary (verdict plus gate results); refused on FAIL, warned when missing",
 		),
-		template: TemplateOverrideInput.optional().describe("Active custom template; wins over stock guidance"),
 	})
 	.strict();
 
@@ -41,8 +39,10 @@ export const CoverOutput = z
 	.object({
 		slug: z.string(),
 		filePath: z.string(),
-		tex: z.string(),
-		compileCommand: z.string(),
+		pdfPath: z.string(),
+		html: z.string(),
+		pdfBase64: z.string(),
+		template: z.string(),
 		pageLimit: z.number(),
 		archiveDir: z.string(),
 		wordCount: z.number(),
@@ -64,8 +64,9 @@ export const CoverOutput = z
 			evaluationNote: z.string().optional(),
 			languageNote: z.string().optional(),
 			provenanceNote: z.string().optional(),
+			pageCountNote: z.string().optional(),
 		}),
 		banViolations: z.array(z.string()),
-		signals: DocumentSignalsSchema.describe("Page-budget, LaTeX-safety, and layout signals; the host owns compilation"),
+		signals: DocumentSignalsSchema.describe("Page-budget, HTML render-safety, and layout signals"),
 	})
 	.strict();

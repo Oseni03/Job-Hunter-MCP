@@ -124,7 +124,7 @@ model ResumeVersion {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   jobKey    String
-  tex       String
+  html      String
   markdown  String   @default("")
   verification Json?
   createdAt DateTime @default(now())

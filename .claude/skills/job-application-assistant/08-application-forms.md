@@ -16,7 +16,7 @@ framework_version: 1.0.0
 
 ## The rule that governs everything here
 
-**Every claim must already be defensible from the union of `01-candidate-profile.md`, the master CV (`cv/main_example.tex`), and `CLAUDE.md`'s Candidate Profile section**, grounded if ANY of the three supports it. Select from what is already true; never introduce new claims. All accuracy rules from `05-cv-templates.md` and `03-writing-style.md` apply unchanged.
+**Every claim must already be defensible from the union of `01-candidate-profile.md`, the caller-supplied master CV HTML/text, and `CLAUDE.md`'s Candidate Profile section**, grounded if ANY of the three supports it. Select from what is already true; never introduce new claims. All accuracy rules from `05-cv-templates.md` and `03-writing-style.md` apply unchanged.
 
 ## Field type: self-introduction paragraph
 

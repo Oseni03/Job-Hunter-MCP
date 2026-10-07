@@ -8,7 +8,7 @@ Preps for a real, scheduled interview on a tracked application. Wires `07-interv
 
 ## Step 1: Load the Application Context
 
-1. Archive via `documents/README.md` Subfolder naming → `documents/applications/<company>_<role>/`: `job_posting.md`, `cv_draft.tex` + `cover_letter.tex` (what the interviewer read — all talking points must match), `outcome.md` (stage + prior feedback = top input for next stage).
+1. Archive via `documents/README.md` Subfolder naming → `documents/applications/<company>_<role>/`: `job_posting.md`, `cv_draft.html` + `cover_letter.html` (what the interviewer read — all talking points must match), `outcome.md` (stage + prior feedback = top input for next stage).
 2. Fallbacks (pre-`/outcome` apps): posting via tracker `source` WebFetch or pasted text; CV/letter via `cv/main_<company>_<role>.*` + `cover_letters/cover_<company>_<role>.*` (never company-only globs); state gaps plainly, suggest `/outcome` for next time.
 3. Ask what's missing from `outcome.md`: stage, date, format, interviewer names/titles.
 4. Read once: `07`, `01`, `02`, `04` (no re-reads later).

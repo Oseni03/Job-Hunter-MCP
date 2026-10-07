@@ -1,8 +1,8 @@
 /**
  * Ticket 02: ResumeVersion persistence (recompilable source of truth).
  *
- * The stored version holds the recompilable `tex` source plus review
- * `markdown` (prose derived from the TeX, never a second Profile) plus
+ * The stored version holds the renderable `html` source plus review
+ * `markdown` (prose derived from the HTML, never a second Profile) plus
  * the `verification` payload. New tailoring always appends; history
  * answers "what did I send?". Persistence degrades gracefully like
  * request-profile: no database means { persisted: false }, never a
@@ -10,12 +10,12 @@
  */
 
 import { hashText, loadPrismaClient, redactPii, type PrismaClient } from "@/lib/db.ts";
-import { stripTexToProse } from "@/lib/job-hunter/verify.ts";
+import { stripHtmlToProse } from "@/lib/job-hunter/verify.ts";
 import type { Prisma } from "@/generated/prisma/client.ts";
 
 /** Stored alongside the source: server-side proof the draft is tailored. */
 export interface ResumeVerification {
-	/** Server safety pass (host confirms with the real compile in ticket 04). */
+	/** Server render-safety pass for the fixed Puppeteer document. */
 	compiles: boolean;
 	/** Share of posting requirements matched with Profile evidence (0-1). */
 	keywordOverlap: number;
@@ -27,7 +27,7 @@ export interface ResumeVerification {
 export interface ResumeVersionRecord {
 	userId: string;
 	jobKey: string;
-	tex: string;
+	html: string;
 	markdown: string;
 	verification: ResumeVerification | null;
 }
@@ -35,7 +35,7 @@ export interface ResumeVersionRecord {
 /** Stored row as re-fetched: source plus review text plus verification payload. */
 export interface StoredResumeVersion {
 	id: number;
-	tex: string;
+	html: string;
 	markdown: string;
 	verification: Prisma.JsonValue | null;
 }
@@ -44,13 +44,13 @@ export type ResumeVersionBuild =
 	| { ok: true; record: ResumeVersionRecord }
 	| { ok: false; error: string };
 
-export const EMPTY_TEX_ERROR = "EMPTY_TEX: no tailored source to store. No ResumeVersion was written.";
+export const EMPTY_HTML_ERROR = "EMPTY_HTML: no tailored source to store. No ResumeVersion was written.";
 export const EMPTY_VERSION_KEY_ERROR =
 	"EMPTY_VERSION_KEY: user and posting key are required. No ResumeVersion was written.";
 
-/** Review text for the draft: TeX commands stripped, prose kept. */
-export function toReviewMarkdown(tex: string): string {
-	return stripTexToProse(tex);
+/** Review text for the draft: HTML markup stripped, prose kept. */
+export function toReviewMarkdown(html: string): string {
+	return stripHtmlToProse(html);
 }
 
 /**
@@ -60,22 +60,22 @@ export function toReviewMarkdown(tex: string): string {
 export function buildResumeVersionRecord(input: {
 	userId: string;
 	jobKey: string;
-	tex: string;
+	html: string;
 	verification?: ResumeVerification | null;
 }): ResumeVersionBuild {
 	if (!input.userId.trim() || !input.jobKey.trim()) {
 		return { ok: false, error: EMPTY_VERSION_KEY_ERROR };
 	}
-	if (!input.tex.trim()) {
-		return { ok: false, error: EMPTY_TEX_ERROR };
+	if (!input.html.trim()) {
+		return { ok: false, error: EMPTY_HTML_ERROR };
 	}
 	return {
 		ok: true,
 		record: {
 			userId: input.userId,
 			jobKey: input.jobKey,
-			tex: input.tex,
-			markdown: toReviewMarkdown(input.tex),
+			html: input.html,
+			markdown: toReviewMarkdown(input.html),
 			verification: input.verification ?? null,
 		},
 	};
@@ -107,7 +107,7 @@ export async function saveResumeVersion(
 			data: {
 				userId: record.userId,
 				jobKey: record.jobKey,
-				tex: record.tex,
+				html: record.html,
 				markdown: record.markdown,
 				verification: toJsonInput(record.verification),
 			},
@@ -122,7 +122,7 @@ export async function saveResumeVersion(
 export async function storeActiveResumeVersion(input: {
 	userId: string;
 	jobKey: string;
-	tex: string;
+	html: string;
 	verification?: ResumeVerification | null;
 }): Promise<SaveResult & { buildError?: string }> {
 	const built = buildResumeVersionRecord(input);
@@ -145,7 +145,7 @@ export async function fetchResumeVersions(
 		return await client.resumeVersion.findMany({
 			where: { userId, jobKey },
 			orderBy: { id: "asc" },
-			select: { id: true, tex: true, markdown: true, verification: true },
+			select: { id: true, html: true, markdown: true, verification: true },
 		});
 	} catch {
 		return [];
@@ -165,7 +165,7 @@ export async function fetchLatestResumeVersion(
 		return await client.resumeVersion.findFirst({
 			where: { userId, jobKey },
 			orderBy: { id: "desc" },
-			select: { id: true, tex: true, markdown: true, verification: true },
+			select: { id: true, html: true, markdown: true, verification: true },
 		});
 	} catch {
 		return null;
@@ -178,20 +178,20 @@ export async function fetchLatestResumeVersion(
 
 /**
  * Builds the stored-and-returned verification from the tailor output.
- * `compiles` is the server LaTeX-safety pass (the host confirms with
- * the real compile); `keywordOverlap` is matched requirements over all
+ * `compiles` is retained as a compatibility field and means the server
+ * render-safety pass; `keywordOverlap` is matched requirements over all
  * requirements; `noNewEmployers` is true only when the drift audit is
  * empty, so invented employers fail loudly instead of shipping silent.
  */
 export function buildResumeVerification(input: {
 	coverage: Array<{ status: string }>;
 	draftDrift: string[];
-	latexSafetyPassed: boolean;
+	renderSafetyPassed: boolean;
 }): ResumeVerification {
 	const total = input.coverage.length;
 	const matched = input.coverage.filter((item) => item.status === "matched").length;
 	return {
-		compiles: input.latexSafetyPassed,
+		compiles: input.renderSafetyPassed,
 		keywordOverlap: total === 0 ? 0 : Math.round((matched / total) * 100) / 100,
 		noNewEmployers: input.draftDrift.length === 0,
 	};
@@ -260,28 +260,27 @@ export async function logTailorEvent(
 }
 
 /* ------------------------------------------------------------------ */
-/* Ticket 04: ephemeral PDF recompile cache                            */
+/* Ticket 04: ephemeral PDF render cache                               */
 /* ------------------------------------------------------------------ */
 
 /**
- * Host-side recompile contract: the server never compiles and never
- * stores PDF bytes (see verify.ts). The host recompiles a stored `tex`
- * source with the stock lualatex toolchain and caches the PDF under
- * `generated/` keyed by version id. No Obsidian, no vault folders.
+ * Host-side render contract: the server stores HTML and PDF bytes remain
+ * ephemeral. The host renders stored HTML with the fixed Puppeteer renderer
+ * and caches the PDF under `generated/` keyed by version id.
  */
 
-export const EMPTY_RECOMPILE_SOURCE_ERROR =
-	"EMPTY_RECOMPILE_SOURCE: no tailored source for this version. No PDF was emitted.";
+export const EMPTY_RENDER_SOURCE_ERROR =
+	"EMPTY_RENDER_SOURCE: no tailored source for this version. No PDF was emitted.";
 export const BAD_VERSION_ID_ERROR =
 	"BAD_VERSION_ID: version id must be a positive integer. No PDF was emitted.";
 
 export interface RecompilePlan {
-	/** Stored version the PDF recompiles from. */
+	/** Stored version the PDF renders from. */
 	versionId: number;
-	/** Where the host writes the stored source before compiling. */
-	texPath: string;
-	/** Stock toolchain command the host runs (mirrors the tailor output). */
-	compileCommand: string;
+	/** Where the host writes the stored HTML before rendering. */
+	htmlPath: string;
+	/** Renderer selected by the fixed CV contract. */
+	renderer: "puppeteer";
 	/** Ephemeral cache location for the compiled PDF, keyed by version. */
 	cachePath: string;
 }
@@ -302,13 +301,13 @@ export function pdfCachePathFor(
 export function recompilePlanFor(version: {
 	id: number;
 	jobKey: string;
-	tex: string;
+	html: string;
 }): RecompilePlanResult {
 	if (!version.jobKey.trim()) {
 		return { ok: false, error: EMPTY_VERSION_KEY_ERROR };
 	}
-	if (!version.tex.trim()) {
-		return { ok: false, error: EMPTY_RECOMPILE_SOURCE_ERROR };
+	if (!version.html.trim()) {
+		return { ok: false, error: EMPTY_RENDER_SOURCE_ERROR };
 	}
 	const cached = pdfCachePathFor(version.id);
 	if (!cached.ok) {
@@ -319,8 +318,8 @@ export function recompilePlanFor(version: {
 		ok: true,
 		plan: {
 			versionId: version.id,
-			texPath: `cv/${stem}.tex`,
-			compileCommand: `cd cv && lualatex --no-shell-escape -interaction=nonstopmode ${stem}.tex`,
+			htmlPath: `cv/${stem}.html`,
+			renderer: "puppeteer",
 			cachePath: cached.cachePath,
 		},
 	};

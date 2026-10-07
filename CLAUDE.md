@@ -5,8 +5,8 @@
 ## Role
 This repo is a job application workspace. Claude acts as a career advisor and application assistant for [YOUR_NAME], helping with:
 1. **Job fit evaluation** - Assess job postings against your profile
-2. **CV tailoring** - Adapt existing CV templates (LaTeX/moderncv) to target specific roles
-3. **Cover letter writing** - Draft targeted cover letters using existing templates (LaTeX)
+2. **CV tailoring** - Adapt the fixed HTML CV template to target specific roles
+3. **Cover letter writing** - Draft targeted cover letters using the fixed HTML template
 4. **Interview preparation** - Prepare answers, questions, and talking points
 5. **Career strategy** - Advise on positioning and personal branding
 
@@ -69,15 +69,15 @@ This repo is a job application workspace. Claude acts as a career advisor and ap
 - [DEALBREAKER_2]
 
 ## Repo Structure
-- `cv/` - LaTeX CV variants (moderncv template, banking style)
-- `cover_letters/` - LaTeX cover letters (custom cover.cls template)
+- `lib/job-hunter/render-tailored-cv.ts` - Fixed CV HTML template and Puppeteer renderer
+- `lib/job-hunter/render-tailored-cover-letter.ts` - Fixed cover-letter HTML template and Puppeteer renderer
 - `.claude/skills/` - AI skill definitions for the application workflow
 - `.agents/skills/` - Job search CLI tools
 
 ## Workflow for New Job Applications
 1. User provides a job posting (URL or text)
 2. **Always evaluate fit first** before proceeding
-3. If good fit: create targeted CV (`cv/main_<company>_<role>.tex`) and cover letter (`cover_letters/cover_<company>_<role>.tex`)
+3. If good fit: create targeted HTML CV and cover letter, then render both with Puppeteer
 4. **Verify both documents** (see Verification Checklist below)
 5. Prepare interview talking points based on the role requirements and your strengths
 
@@ -109,7 +109,7 @@ Report pass/fail for each item before presenting to the user.
 - [ ] CV section headings match the CV's language
 
 ### Compiled PDF verification (MANDATORY - never skip)
-- [ ] CV compiled with **lualatex** (cover letter with **xelatex**; custom template uses its declared command)
+- [ ] CV and cover letter rendered with Puppeteer
 - [ ] **CV exactly 2 pages; cover letter exactly 1 page**
 - [ ] **No orphaned `\cventry` titles** (`\needspace`, `\enlargethispage` as needed)
 - [ ] Cover letter bullet font matches body font

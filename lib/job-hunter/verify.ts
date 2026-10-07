@@ -1,13 +1,12 @@
-import { checkWritingBans, sectionHeadings } from "@/lib/job-hunter/latex.ts";
+import { checkWritingBans, sectionHeadings } from "@/lib/job-hunter/document.ts";
 
 /**
- * Server-side document safety signals (ticket 06). Pure checks over the
- * generated TeX: page budgets enforced by content shaping, LaTeX safety
- * signals, and layout signals mirroring tools/verify_layout.py. The
- * server never compiles; the host owns compilation and visual inspection.
+ * Server-side document safety signals (ticket 06). Pure checks over
+ * generated HTML: page budgets enforced by content shaping,
+ * render/safety signals, and layout signals mirroring tools/verify_layout.py.
  */
 
-export type DocumentKind = "cv" | "letter";
+export type DocumentKind = "cv-html" | "letter-html";
 
 export interface PageBudget {
 	kind: DocumentKind;
@@ -32,20 +31,20 @@ const CV_CUTTING_ORDER = [
 ];
 
 /**
- * Prose text of a TeX source: commands stripped, braces dropped, newlines
- * kept (same shape the word count uses; shared with the prep probeable
- * pass so generated CVs read as prose, not markup).
+ * Prose text of a generated HTML document, with markup removed.
  */
-export function stripTexToProse(tex: string): string {
-	return tex
-		.replace(/\\[a-zA-Z]+\*?/g, " ")
-		.replace(/[{}[\]%]/g, " ")
+/** Visible prose from generated HTML, with style/script content removed. */
+export function stripHtmlToProse(html: string): string {
+	return html
+		.replace(/<(style|script)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+		.replace(/<[^>]+>/g, " ")
+		.replace(/&(?:amp|lt|gt|quot|#39);/g, " ")
 		.replace(/[^A-Za-z0-9+#'\s-]/g, " ");
 }
 
 /** Words of text content: commands stripped, braces dropped, whitespace split. */
-export function countTexWords(tex: string): number {
-	return stripTexToProse(tex)
+export function countDocumentWords(document: string): number {
+	return stripHtmlToProse(document)
 		.split(/\s+/)
 		.filter((word) => word.length > 0).length;
 }
@@ -55,9 +54,12 @@ export function countTexWords(tex: string): number {
  * budget. Overruns report content cuts in cutting order; geometry is
  * never squeezed to fit.
  */
-export function pageBudget(kind: DocumentKind, tex: string): PageBudget {
-	const wordCount = countTexWords(tex);
-	if (kind === "cv") {
+export function pageBudget(kind: DocumentKind, document: string): PageBudget {
+	const visibleDocument = kind === "cv-html"
+		? stripHtmlToProse(document)
+		: document;
+	const wordCount = countDocumentWords(visibleDocument);
+	if (kind === "cv-html") {
 		const overBudget = wordCount > CV_WORD_LIMIT;
 		return {
 			kind,
@@ -99,89 +101,24 @@ export interface SafetyCheck {
 	detail: string;
 }
 
-export interface LatexSafety {
+export interface RenderSafety {
 	passed: boolean;
 	checks: SafetyCheck[];
 }
 
-function lineOf(tex: string, index: number): number {
-	return tex.slice(0, index).split("\n").length;
-}
-
-/**
- * LaTeX safety signals: writing bans, bracket bracing, ASCII date
- * ranges, and translated headings. Reported alongside the TeX; the
- * host compiles.
- */
-export function latexSafety(
-	tex: string,
-	options: { language?: string; sections?: string[] } = {},
-): LatexSafety {
-	const language = options.language ?? "en";
-	const sections = options.sections ?? Object.values(sectionHeadings(language));
-	const checks: SafetyCheck[] = [];
-
-	const bans = checkWritingBans(tex);
-	checks.push({
-		name: "writing-bans",
-		pass: bans.length === 0,
-		detail: bans.length === 0 ? "No em-dashes, cliches, or apologetic hedging." : bans.join(" | "),
-	});
-
-	const unbraced: number[] = [];
-	const itemPattern = /\\item\s*\[/g;
-	let itemMatch: RegExpExecArray | null;
-	while ((itemMatch = itemPattern.exec(tex)) !== null) {
-		unbraced.push(lineOf(tex, itemMatch.index));
-	}
-	checks.push({
-		name: "bracket-bracing",
-		pass: unbraced.length === 0,
-		detail:
-			unbraced.length === 0
-				? "No itemize bullet begins with an unbraced bracket."
-				: `Unbraced \\item [ on line(s) ${unbraced.join(", ")}; wrap the bullet in braces.`,
-	});
-
-	const badDates: number[] = [];
-	const entryPattern = /\\cventry(\[[^\]]*\])?\{([^{}]*)\}/g;
-	let entryMatch: RegExpExecArray | null;
-	while ((entryMatch = entryPattern.exec(tex)) !== null) {
-		if (/--|–|—/.test(entryMatch[2])) {
-			badDates.push(lineOf(tex, entryMatch.index));
-		}
-	}
-	checks.push({
-		name: "ascii-date-ranges",
-		pass: badDates.length === 0,
-		detail:
-			badDates.length === 0
-				? "Cventry date arguments use single-hyphen ASCII ranges."
-				: `Non-ASCII date range on line(s) ${badDates.join(", ")}; use a single hyphen (breaks ATS range splitting otherwise).`,
-	});
-
-	const missing = sections.filter((heading) => !tex.includes(heading));
-	const knownLanguages = ["en", "es", "de", "fr", "da"];
-	const targetSet = new Set(Object.values(sectionHeadings(language)));
-	const foreign = knownLanguages
-		.filter((other) => other !== language)
-		.flatMap((other) =>
-			Object.values(sectionHeadings(other)).filter(
-				(heading) => heading.length >= 4 && !targetSet.has(heading) && tex.includes(heading),
-			),
-		);
-	const headingsPass = foreign.length === 0 && (sections.length === 0 || missing.length < sections.length);
-	checks.push({
-		name: "translated-headings",
-		pass: headingsPass,
-		detail:
-			foreign.length > 0
-				? `Wrong-language headings present: ${[...new Set(foreign)].join(" | ")}.`
-				: missing.length === sections.length && sections.length > 0
-					? `Missing headings: ${missing.join(" | ")}.`
-					: `Section headings match the CV language (${language}).`,
-	});
-
+export function htmlSafety(html: string): RenderSafety {
+	const checks: SafetyCheck[] = [
+		{
+			name: "html-document",
+			pass: /<!doctype html>/i.test(html) && /<body[\s>]/i.test(html),
+			detail: "Document has an HTML doctype and body.",
+		},
+		{
+			name: "script-free",
+			pass: !/<script\b/i.test(html),
+			detail: "Generated document contains no executable script tags.",
+		},
+	];
 	return { passed: checks.every((check) => check.pass), checks };
 }
 
@@ -303,19 +240,19 @@ export function layoutSignals(bboxes?: BBoxPage[]): LayoutSignals {
 
 export interface DocumentSignals {
 	pageBudget: PageBudget;
-	latexSafety: LatexSafety;
+	renderSafety: RenderSafety;
 	layout: LayoutSignals;
 }
 
 /** Bundles every server-side signal for one generated document. */
 export function documentSignals(
 	kind: DocumentKind,
-	tex: string,
+	document: string,
 	options: { language?: string; sections?: string[]; bboxes?: BBoxPage[] } = {},
 ): DocumentSignals {
 	return {
-		pageBudget: pageBudget(kind, tex),
-		latexSafety: latexSafety(tex, options),
+		pageBudget: pageBudget(kind, document),
+		renderSafety: htmlSafety(document),
 		layout: layoutSignals(options.bboxes),
 	};
 }

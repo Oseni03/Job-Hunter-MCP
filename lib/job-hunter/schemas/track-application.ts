@@ -17,8 +17,8 @@ export const RecordApplicationInput = z
 			.max(100)
 			.nullable()
 			.describe("Bare 0-100 fit score; null when unscored"),
-		cvFile: z.string().min(1).describe("Tailored CV path, e.g. cv/main_<slug>.tex"),
-		coverLetterFile: z.string().min(1).describe("Cover letter path, e.g. cover_letters/cover_<slug>.tex"),
+		cvFile: z.string().min(1).describe("Tailored CV path, e.g. cv/main_<slug>.html"),
+		coverLetterFile: z.string().min(1).describe("Cover letter path, e.g. cover_letters/cover_<slug>.html"),
 		postingUrl: z.string().url().optional().describe("Posting URL; empty source for pasted text"),
 		deadline: z
 			.string()

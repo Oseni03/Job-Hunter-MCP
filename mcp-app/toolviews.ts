@@ -284,7 +284,7 @@ function mapTailoredCv(structured: Rec, markdown?: string): DashboardData {
 		title: `Tailored CV (${text(structured["slug"], "draft")})`,
 		summary: [
 			`${matched} matched · ${bridged} bridged · ${gaps} gaps`,
-			`${text(structured["compileCommand"], "lualatex")} to exactly ${num(structured["pageLimit"]) ?? 2} pages`,
+			`Puppeteer A4 render, target ${num(structured["pageLimit"]) ?? 2} pages`,
 		].join(" · "),
 		items: coverageItems(coverage),
 		markdown,
@@ -297,7 +297,7 @@ function mapCoverLetter(structured: Rec, markdown?: string): DashboardData {
 		view: "overview",
 		title: `Cover letter (${text(structured["slug"], "draft")})`,
 		summary: [
-			`${num(structured["wordCount"]) ?? "?"} words (band 250-300)`,
+			`${num(structured["wordCount"]) ?? "?"} words (band 250-300), Puppeteer A4 render`,
 			`${text(structured["compileCommand"], "xelatex")} to exactly 1 page`,
 		].join(" · "),
 		items: coverageItems(structured["coverage"]),

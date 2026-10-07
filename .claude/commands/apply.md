@@ -18,9 +18,9 @@ Read `04-job-evaluation.md` + `01-candidate-profile.md`. Optional salary lookup 
 
 ## Step 2: DRAFTER - Draft CV + Cover Letter
 
-Do not re-read Step 1 files. Read `03`, `05`, `06`. Resolve ACTIVE-TEMPLATE (`<CV_EXT>`/`<CV_COMPILE>`, `<COVER_EXT>`/`<COVER_COMPILE>`; defaults `.tex`, lualatex, xelatex). Read one existing `cv/main_*` + one `cover_letters/cover_*` for structure only (never as fact sources; truth = `01` + `cv/main_example.tex` + `CLAUDE.md` profile).
+Do not re-read Step 1 files. Read `03`, `05`, `06`. Use the fixed `modern-fixed-v1` CV and `letter-modern-fixed-v1` cover-letter renderers. Read returned HTML only for structure; truth = `01` + `CLAUDE.md` profile.
 
-Requirement coverage: every stated requirement matched or honestly bridged, nice-to-haves by name with posting terms, logistics/prerequisites/reference ID/languages addressed. Filenames `cv/main_<company>_<role><CV_EXT>`, `cover_letters/cover_<company>_<role><COVER_EXT>` via `documents/README.md` Subfolder naming. CV in profile CV language (default English); moderncv/banking, 2 pages, pre-write grounding audit. Letter in posting language; `cover.cls`, ~1 page; agentic/AI tooling references name **Claude Code**. Keep both drafts in memory for Steps 3-4.
+Requirement coverage: every stated requirement matched or honestly bridged, nice-to-haves by name with posting terms, logistics/prerequisites/reference ID/languages addressed. Filenames `cv/main_<company>_<role>.html` and `cover_letters/cover_<company>_<role>.html` via `documents/README.md` Subfolder naming. CV in profile CV language (default English), target 2 pages, pre-write grounding audit. Letter in posting language, target 1 page and 250-300 words; agentic/AI tooling references name **Claude Code**. Keep both drafts in memory for Steps 3-4.
 
 ## Step 3: REVIEWER - Research & Critique
 
@@ -32,7 +32,7 @@ Apply Part A via Edit (skip fabricating edits; no re-reads unless an edit fails)
 
 ## Step 5: DRAFTER - Compile & Inspect PDFs (MANDATORY)
 
-Compile with `<CV_COMPILE>`/`<COVER_COMPILE>` (stock: `cv: lualatex`, letters: `xelatex`); fix until clean. Measure then look: `node host/job-hunter/workflow/verify-pdf.ts --pages` (CV 2, letter 1, or ACTIVE-TEMPLATE limit) + the tailor/cover tools' layout warnings (hole >100pt, non-final >25% early end, footer collision, final >35% empty, stranded headings) + visual Read (no orphaned `\cventry`, no isolated headings/whitespace; letter signature fits, bullet font matches). Fixes: `\needspace` before orphaning `\cventry` only, `\enlargethispage` for near-miss trailing sections, relevance-weighted cutting otherwise, letter itemize-outside-`\lettercontent{}` + Raleway wrapper, trim by restatement-first order. Then CV-only ATS check: `node host/job-hunter/workflow/verify-pdf.ts --ascii-dates --dump-text` (fix Unicode-dash dates to ASCII hyphen, re-run 5a-5c), parseability (clean extraction, literal contacts, reading order, ASCIIJoined start+end dates), keyword table (covered / synonym-only / missing-have-it → add to bullets + re-run / missing-gap → leave, never stuff), delete `.txt`. Clean build artifacts (keep source + PDF).
+Render with Puppeteer; fix until the CV is two pages and the letter is one page. Measure the returned PDFs plus layout warnings, then visually inspect for overflow, stranded headings, whitespace, and contact rendering. Cut content by relevance when needed; never apply unreadable automatic scaling. Verify extracted PDF text, literal contacts, reading order, and honest keyword coverage, then clean temporary artifacts.
 
 ## Step 6: Present Final Output
 

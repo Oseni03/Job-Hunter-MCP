@@ -3,7 +3,7 @@ import type { EvaluationSummary } from "@/lib/job-hunter/tailor.ts";
 import { CONTENT_STOPWORDS } from "@/lib/job-hunter/tailor.ts";
 import { sanitizeQuote, QUOTE_MAX_LENGTH, contentWords } from "@/lib/job-hunter/evaluate.ts";
 import { EMPTY_SLUG_ERROR, makeJobSlug } from "@/lib/job-key.ts";
-import { stripTexToProse } from "@/lib/job-hunter/verify.ts";
+import { stripHtmlToProse } from "@/lib/job-hunter/verify.ts";
 import { resolveProfile, evidencePool } from "@/lib/job-hunter/profile.ts";
 import {
 	adjacentDomainNames,
@@ -48,9 +48,9 @@ export interface PrepInput {
 	stage?: string;
 	/** Exact archived posting text; absent means an explicit fallback, never a guess. */
 	postingText?: string;
-	/** Submitted CV text for probeable-claim extraction (TeX or plain; markup stripped first). */
+	/** Submitted CV HTML or plain text for probeable-claim extraction. */
 	cvText?: string;
-	/** Submitted cover letter text for probeable-claim extraction (TeX or plain; markup stripped first). */
+	/** Submitted cover-letter HTML or plain text for probeable-claim extraction. */
 	coverText?: string;
 	/** Recorded feedback from earlier stages (tracker notes); never sibling-role history. */
 	stageHistoryText?: string;
@@ -113,7 +113,7 @@ export interface PrepPlan {
 
 const CLAIM_PATTERN = /\d/;
 
-/** Lines carrying TeX markup take the cleaned-prose emission path. */
+/** Lines carrying document markup take the cleaned-prose emission path. */
 const MARKUP_HINT = /[\\{}]/;
 
 const STAGE_BANKS: Record<string, { likely: string[]; ask: string[] }> = {
@@ -447,7 +447,7 @@ export function planInterviewPrep(input: PrepInput): PrepPlan {
 	const probeableClaims: string[] = [];
 	const pool = evidencePool(profile);
 	for (const text of submitted as string[]) {
-		// Submitted documents are usually the generated TeX: run detection
+		// Submitted documents are usually generated HTML: run detection
 		// over markup-stripped prose so \cventry lines read as content, but
 		// emit the verbatim line for plain text and cleaned prose only when
 		// markup was actually present.
@@ -456,7 +456,7 @@ export function planInterviewPrep(input: PrepInput): PrepPlan {
 			if (trimmed.length === 0) {
 				continue;
 			}
-			const prose = stripTexToProse(trimmed).replace(/\s+/g, " ").trim();
+			const prose = stripHtmlToProse(trimmed).replace(/\s+/g, " ").trim();
 			const quantified = CLAIM_PATTERN.test(prose);
 			const checkable = pool.some((phrase) => prose.toLowerCase().includes(phrase.toLowerCase()));
 			if (quantified || checkable) {

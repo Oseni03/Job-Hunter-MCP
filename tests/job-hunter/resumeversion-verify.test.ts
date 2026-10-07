@@ -34,7 +34,7 @@ describe("resumeversion verification (ticket 03)", () => {
 		const verification = buildResumeVerification({
 			coverage: [{ status: "matched" }, { status: "matched" }, { status: "gap" }],
 			draftDrift: [],
-			latexSafetyPassed: true,
+			renderSafetyPassed: true,
 		});
 		assert.deepEqual(verification, { compiles: true, keywordOverlap: 0.67, noNewEmployers: true });
 	});

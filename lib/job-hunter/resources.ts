@@ -105,7 +105,7 @@ const RESOURCES: ResourceBody[] = [
 			"- No apologetic hedging (I think I could, I hope to, ...).",
 			"- Active first-person voice throughout.",
 			"- No unverified company claims; caller-verified specifics only.",
-			"- LaTeX safety: escape specials, brace leading-bracket bullets, ASCII date ranges.",
+			"- HTML safety: escape every profile and posting-derived value; generated documents contain no executable markup.",
 		].join("\n"),
 	},
 	{
@@ -128,32 +128,32 @@ const RESOURCES: ResourceBody[] = [
 		uri: "job-hunter://templates/cv",
 		name: "cv-template",
 		title: "CV template guidance",
-		description: "Stock moderncv banking contract: two pages, translated headings, lualatex toolchain.",
+		description: "Fixed modern HTML CV contract: two pages, translated headings, Puppeteer A4 rendering.",
 		version: 1,
 		mimeType: "text/markdown",
 		text: [
 			"# CV template guidance (server default v1)",
 			"",
-			"- Stock template: moderncv banking, compiled by the host with lualatex to exactly 2 pages.",
+			"- Stock template: modern-fixed-v1, rendered by Puppeteer to an A4 PDF targeting exactly 2 pages.",
 			"- Section headings follow the CV language; every non-English CV swaps each one.",
-			"- No orphaned \\cventry titles: \\needspace before long entries, \\enlargethispage sparingly.",
-			"- An active custom template override (source extension, compile command, page limit, style rules) wins over this guidance.",
+			"- Experience entries avoid page breaks; rendered page count is checked after PDF generation.",
+			"- The template is fixed and cannot be overridden by a request.",
 		].join("\n"),
 	},
 	{
 		uri: "job-hunter://templates/cover-letter",
 		name: "cover-template",
 		title: "Cover letter template guidance",
-		description: "Stock cover.cls contract: one page, 250-300 words, xelatex toolchain.",
+		description: "Fixed modern HTML cover-letter contract: one page, 250-300 words, Puppeteer A4 rendering.",
 		version: 1,
 		mimeType: "text/markdown",
 		text: [
 			"# Cover letter template guidance (server default v1)",
 			"",
-			"- Stock template: cover.cls, compiled by the host with xelatex to exactly 1 page.",
+			"- Stock template: letter-modern-fixed-v1, rendered by Puppeteer to an A4 PDF targeting exactly 1 page.",
 			"- Forward-looking task-solving: opening plus bullets plus company connection plus fit plus close, 250-300 words.",
 			"- Salutation and structure follow the posting language.",
-			"- An active custom template override wins over this guidance.",
+			"- The template is fixed and cannot be overridden by a request.",
 		].join("\n"),
 	},
 	{
@@ -169,23 +169,23 @@ const RESOURCES: ResourceBody[] = [
 			"- The master CV joins the factual-audit union with the candidate profile and workspace profile; every generated claim traces to at least one member.",
 			"- Caller-supplied masterCvText wins over any server copy; generation never depends on server disk.",
 			"- Structure only: competencies, experience, education. Never invent dates, titles, or outcomes.",
-			"- Template version: stock moderncv banking v1 (lualatex, exactly 2 pages); framework version: evaluation v1.",
+			"- Template version: modern-fixed-v1 (Puppeteer, exactly 2 pages target); framework version: evaluation v1.",
 		].join("\n"),
 	},
 	{
 		uri: "job-hunter://reference/cover-example",
 		name: "cover-example",
 		title: "Cover letter structural example",
-		description: "Structural reference for cover.cls letters plus the one-page compile contract.",
+		description: "Structural reference for fixed HTML cover letters plus the one-page render contract.",
 		version: 1,
 		mimeType: "text/markdown",
 		text: [
 			"# Cover example (server default v1)",
 			"",
-			"- Host file: cover_letters/cover_example.tex (structural reference only, never a fact source).",
-			"- Pattern: itemize sits OUTSIDE \\lettercontent{} and is wrapped in Raleway-Medium so the bullet font matches the body.",
-			"- Contract: xelatex to exactly 1 page, 250-300 words; signature fits without orphaned lines.",
-			"- Template version: cover.cls v1; framework version: evaluation v1.",
+			"- Host file: cover_letters/cover_<slug>.html (structural reference only, never a fact source).",
+			"- Pattern: fixed semantic paragraphs and a structured bullet list, rendered with the same document font.",
+			"- Contract: Puppeteer A4 PDF targeting exactly 1 page and 250-300 words.",
+			"- Template version: letter-modern-fixed-v1; framework version: evaluation v1.",
 		].join("\n"),
 	},
 	{
@@ -215,10 +215,9 @@ const RESOURCES: ResourceBody[] = [
 		text: [
 			"# Base CV variants (server default v1)",
 			"",
-			"- moderncv-banking: stock banking preamble for English CVs (lualatex, 2 pages).",
-			"- moderncv-classic: classic preamble alternative (lualatex, 2 pages).",
+			"- modern-fixed-v1: fixed HTML template for all CVs (Puppeteer, 2 pages target).",
 			"- Fetch one variant with getCvVariant(name); pass caller base content via resolveBaseContent so tailoring never depends on server disk.",
-			"- Template version: moderncv stock v1.",
+			"- Template version: modern-fixed-v1.",
 		].join("\n"),
 	},
 	{
@@ -340,23 +339,9 @@ export interface CvVariantDescriptor {
 }
 
 const CV_VARIANTS: Record<string, { description: string; content: string }> = {
-	"moderncv-banking": {
-		description: "Stock moderncv banking preamble for English CVs (lualatex, 2 pages).",
-		content: [
-			"\\documentclass[11pt,a4paper]{moderncv}",
-			"\\moderncvstyle{banking}",
-			"\\moderncvcolor{blue}",
-			"% Host compiles with lualatex to exactly 2 pages.",
-		].join("\n"),
-	},
-	"moderncv-classic": {
-		description: "Stock moderncv classic preamble as a base variant alternative.",
-		content: [
-			"\\documentclass[11pt,a4paper]{moderncv}",
-			"\\moderncvstyle{classic}",
-			"\\moderncvcolor{blue}",
-			"% Host compiles with lualatex to exactly 2 pages.",
-		].join("\n"),
+	"modern-fixed-v1": {
+		description: "Fixed HTML CV template rendered by Puppeteer to an A4 PDF (2 pages target).",
+		content: "The active CV template is fixed modern-fixed-v1; requests cannot select a different renderer.",
 	},
 };
 
@@ -515,7 +500,7 @@ const PROMPTS: PromptBody[] = [
 			"4. Draft with requirement coverage and grounding audit: tailor the CV and cover letter per section rules; every requirement matched or honestly bridged, nice-to-haves by name; every claim traces to the profile union (no drift); agentic tooling names Claude Code.",
 			"5. Reviewer critique in two parts: cache-first company research, then Part A grounding edits as JSON file/old_string/new_string/reason plus Part B missed keywords, company angles, reframing, and tone notes.",
 			"6. Revise: apply Part A via edit (skip fabricating edits), apply Part B with judgment using verified company specifics only.",
-			"7. Mandatory compile and inspect: host compiles the CV with lualatex to exactly 2 pages and the letter with xelatex to exactly 1 page; fix until clean and visually inspect for orphaned headings and font mismatches.",
+			"7. Mandatory render and inspect: host writes the returned HTML and PDF, confirms the CV target is 2 pages and the letter target is 1 page, then visually inspects both documents.",
 			"8. Text-layer and keyword verification: extract the text layer (ASCII dates, literal contacts, reading order) and check posting-keyword coverage; add covered terms honestly, never stuff gaps.",
 			"9. Single verification pass plus record plus optional form fields: run the factual/targeting/consistency/quality/PDF/ATS checklist once, then track-application (pass the user's local day as today, host writes the tracker verbatim only if the file still matches the returned tracker hash, and archives the posting), then offer 08 form fields by name only.",
 		].join("\n"),
@@ -574,7 +559,7 @@ const PROMPTS: PromptBody[] = [
 		text: [
 			"# Tailor-flow workflow (v2)",
 			"",
-			"1. Resolve active template override: stock CV is moderncv banking via lualatex to exactly 2 pages and stock letter is cover.cls via xelatex to exactly 1 page; an active custom template override (extension, compile command, page limit, style rules) wins over stock guidance.",
+			"1. Use the fixed document templates: modern-fixed-v1 for CVs and letter-modern-fixed-v1 for cover letters; requests cannot override the renderer.",
 			"2. Read one structural reference each: read one existing CV plus one existing cover letter for structure only; truth stays the profile union of candidate profile, master CV, and workspace profile.",
 			"3. Tailor per section rules with page budgets and cutting order: profile statement with domain-transfer lead when pivoting, 5-7 competencies with posting terms as labels, relevance-ordered measurable bullets, correct section order per role type; cover letter forward-looking task-solving in 250-300 words; shape content to the page budget (CV cutting oldest bullets first, then publications, competencies, profile; letter weakest bullet first) and never squeeze geometry.",
 			"4. Compile and verify before presenting: host compiles with the declared toolchain, then text-layer, ATS, and keyword verification; fix orphans with needspace and near-miss overflow with enlargethispage; present tailoring decisions, files, and stretch choices for keep, soften, or drop.",

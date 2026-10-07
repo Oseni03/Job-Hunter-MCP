@@ -2,8 +2,7 @@
 // fixture posting. Run with:
 //   node --import ./scripts/alias-loader.mjs scripts/golden-check.mjs
 // Exit 0 when every check passes or skips; exit 1 on any failure.
-// The cover-compile check skips explicitly when the TeX toolchain is
-// absent instead of inventing a page count.
+// Rendering checks use the fixed Puppeteer document contracts.
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -12,7 +11,7 @@ import { join } from "node:path";
 import { verifyBearerToken } from "@/lib/auth.ts";
 import { oauthConfigFromEnv, oauthResourceMetadata } from "@/lib/oauth.ts";
 import { buildCoverLetter, buildTailoredCv } from "@/lib/job-hunter/tailor.ts";
-import { checkWritingBans, sectionHeadings } from "@/lib/job-hunter/latex.ts";
+import { checkWritingBans, sectionHeadings } from "@/lib/job-hunter/document.ts";
 import { isCanonical, makeKey } from "@/lib/job-key.ts";
 import { TRACKER_HEADER, planRecordApplication } from "@/lib/job-hunter/record.ts";
 import { SEARCH_LIMIT_MAX, SEARCH_RECENCY_DAYS, planSearch } from "@/lib/job-hunter/search.ts";
@@ -84,14 +83,13 @@ const cv = buildTailoredCv({
 });
 check("cv builds on the fixture posting", cv.ok === true);
 if (cv.ok) {
-	check("tailored TeX contains posting keywords", cv.tex.includes("Python") && cv.tex.includes("fraud"));
-	check("tailored TeX honors writing bans", checkWritingBans(cv.tex).length === 0);
-	const dates = [...cv.tex.matchAll(/\\cventry(\[[^\]]*\])?\{([^{}]*)\}/g)].map((m) => m[2]);
-	check("tailored TeX preserves ASCII date ranges", dates.every((d) => !/--|–|—/.test(d)));
+	check("tailored HTML contains posting keywords", cv.html.includes("Python") && cv.html.includes("fraud"));
+	check("tailored HTML honors writing bans", checkWritingBans(cv.html).length === 0);
+	check("tailored HTML preserves ASCII date ranges", !/2020--2024|2020–2024|2020—2024/.test(cv.html));
 	const headings = Object.values(sectionHeadings("en"));
 	check(
-		"tailored TeX preserves translated headings",
-		headings.some((h) => cv.tex.includes(h)) && !cv.tex.includes("Experiencia Profesional"),
+		"tailored HTML preserves translated headings",
+		headings.some((h) => cv.html.includes(h)) && !cv.html.includes("Experiencia Profesional"),
 	);
 	check("canonical key stays stable", cv.slug === "acme_senior-ml-engineer" && isCanonical(cv.slug));
 }
@@ -107,8 +105,8 @@ const letter = buildCoverLetter({
 });
 check("cover letter builds on the fixture posting", letter.ok === true);
 if (letter.ok) {
-	check("letter TeX contains posting keywords", letter.tex.includes("Python"));
-	check("letter TeX honors writing bans", checkWritingBans(letter.tex).length === 0);
+	check("letter HTML contains posting keywords", letter.html.includes("Python"));
+	check("letter HTML honors writing bans", checkWritingBans(letter.html).length === 0);
 }
 
 check("tracker header matches exactly", TRACKER_HEADER.includes("deadline"));
@@ -116,8 +114,8 @@ const recorded = planRecordApplication({
 	company: "Acme",
 	role: "Senior ML Engineer",
 	fitScore: 84,
-	cvFile: "cv/main_acme_senior-ml-engineer.tex",
-	coverLetterFile: "cover_letters/cover_acme_senior-ml-engineer.tex",
+	cvFile: "cv/main_acme_senior-ml-engineer.html",
+	coverLetterFile: "cover_letters/cover_acme_senior-ml-engineer.html",
 	postingUrl: "https://example.com/jobs/1",
 	deadline: "2026-04-01",
 	postingText: POSTING,

@@ -3,7 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 
 import { loadPrismaClient } from "@/lib/db.ts";
-import { sectionHeadings } from "@/lib/job-hunter/latex.ts";
+import { sectionHeadings } from "@/lib/job-hunter/document.ts";
 import { loadActiveProfile, userIdFromRequest } from "@/lib/job-hunter/request-profile.ts";
 import {
 	buildResumeVerification,
@@ -14,6 +14,7 @@ import {
 	tailorInputHash,
 } from "@/lib/job-hunter/resume-version.ts";
 import { buildTailoredCv } from "@/lib/job-hunter/tailor.ts";
+import { countPdfPages, renderHtmlToPdf } from "@/lib/job-hunter/render-tailored-cv.ts";
 import { documentSignals } from "@/lib/job-hunter/verify.ts";
 import { TailorCvInput, TailorCvOutput } from "@/lib/job-hunter/schemas/tailor-resume.ts";
 
@@ -23,7 +24,7 @@ export function registerTailorResume(server: McpServer): void {
 		{
 			title: "Tailor resume",
 			description:
-				"Tailors the moderncv banking CV to one posting: profile statement, 5-7 competencies, relevance-ordered bullets, role-type section order. Returns LaTeX source plus file path; the host owns file writes and the lualatex compile (exactly 2 pages). EMPTY_SLUG hard error with no TeX when nothing identifies the posting.",
+				"Tailors a resume to one posting using the predefined modern HTML template. Returns HTML and a Puppeteer-rendered A4 PDF. EMPTY_SLUG is a hard error with no document output.",
 			inputSchema: TailorCvInput,
 			outputSchema: TailorCvOutput,
 			...jobHunterAppMeta(),
@@ -47,18 +48,29 @@ export function registerTailorResume(server: McpServer): void {
 					content: [{ type: "text" as const, text: result.error }],
 				};
 			}
+			const pdf = await renderHtmlToPdf(result.html);
+			const renderedPageCount = await countPdfPages(pdf);
+			if (renderedPageCount > result.pageLimit) {
+				result.warnings.pageCountNote = `Rendered document uses ${renderedPageCount} pages; target is ${result.pageLimit} pages.`;
+			}
 			const { ok: _cvOk, ...cvStructured } = result;
 			const language = input.cvLanguage ?? "en";
-			const signals = documentSignals("cv", result.tex, {
+			const signals = documentSignals("cv-html", result.html, {
 				language,
 				sections: Object.values(sectionHeadings(language)),
 			});
 			const verification = buildResumeVerification({
 				coverage: result.coverage,
 				draftDrift: result.warnings.draftDrift,
-				latexSafetyPassed: signals.latexSafety.passed,
+				renderSafetyPassed: signals.renderSafety.passed,
 			});
-			const payload: Record<string, unknown> = { ...cvStructured, signals, verification };
+			const payload: Record<string, unknown> = {
+				...cvStructured,
+				pdfPath: `cv/main_${result.slug}.pdf`,
+				pdfBase64: Buffer.from(pdf).toString("base64"),
+				signals,
+				verification,
+			};
 			// Best-effort observability (ticket 03): store the version and
 			// leave a redacted EventLog entry. Anonymous callers and
 			// database-less hosts skip silently; observability never fails
@@ -70,7 +82,7 @@ export function registerTailorResume(server: McpServer): void {
 					const built = buildResumeVersionRecord({
 						userId,
 						jobKey: result.slug,
-						tex: result.tex,
+						html: result.html,
 						verification,
 					});
 					const stored = built.ok

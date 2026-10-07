@@ -1,23 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { documentSignals, latexSafety, layoutSignals, pageBudget } from "@/lib/job-hunter/verify.ts";
+import { documentSignals, htmlSafety, layoutSignals, pageBudget } from "@/lib/job-hunter/verify.ts";
 import type { BBoxPage } from "@/lib/job-hunter/verify.ts";
 
-const CLEAN_CV = [
-	"\\section{Professional Experience}",
-	"\\cventry{2020-2024}{ML Engineer}{Acme}{Berlin}{}{Built a fraud model.}",
-	"\\begin{itemize}",
-	"\\item Shipped a Python pipeline.",
-	"\\end{itemize}",
-	"\\section{Education}",
-	"\\section{Languages}",
-	"\\section{Publications}",
-	"\\section{Honors and Awards}",
-	"\\section{References}",
-	"More references are available upon request.",
-	"\\section{Core Competencies}",
-].join("\n");
+const CLEAN_HTML = "<!doctype html><html><body><h2>Professional Experience</h2><p>Built a fraud model.</p></body></html>";
 
 function line(top: number, text: string, height = 12, left = 72): BBoxPage["lines"][number] {
 	return { top, bottom: top + height, left, height, text };
@@ -29,7 +16,7 @@ function page(height: number, lines: BBoxPage["lines"]): BBoxPage {
 
 describe("pageBudget", () => {
 	it("declares the CV two-page budget with content-shaping notes, never geometry squeezing", () => {
-		const budget = pageBudget("cv", CLEAN_CV);
+		const budget = pageBudget("cv-html", CLEAN_HTML);
 		assert.equal(budget.pageLimit, 2);
 		assert.ok(budget.wordCount > 0, "words measured");
 		assert.ok(
@@ -39,53 +26,28 @@ describe("pageBudget", () => {
 	});
 
 	it("flags an over-long CV with a cutting order", () => {
-		const long = `${CLEAN_CV}\n${"Filler sentence about work. ".repeat(400)}`;
-		const budget = pageBudget("cv", long);
+		const long = `${CLEAN_HTML}\n${"Filler sentence about work. ".repeat(400)}`;
+		const budget = pageBudget("cv-html", long);
 		assert.equal(budget.overBudget, true);
 		assert.ok(budget.shapingNotes.length > 0, "cutting guidance reported");
 	});
 
 	it("enforces the cover letter one-page word budget", () => {
 		const short = "I built models. ".repeat(20);
-		const budget = pageBudget("letter", short);
+		const budget = pageBudget("letter-html", short);
 		assert.equal(budget.pageLimit, 1);
 		assert.equal(budget.wordBudgetMin, 250);
 		assert.equal(budget.wordBudgetMax, 300);
 		assert.equal(budget.overBudget, false);
 		const long = "I built models for fraud detection work. ".repeat(60);
-		assert.equal(pageBudget("letter", long).overBudget, true);
+		assert.equal(pageBudget("letter-html", long).overBudget, true);
 	});
 });
 
-describe("latexSafety", () => {
-	it("passes clean TeX with translated headings present", () => {
-		const safety = latexSafety(CLEAN_CV, { language: "en" });
-		assert.equal(safety.passed, true);
-		assert.ok(safety.checks.every((check) => check.pass), "every signal green");
-	});
-
-	it("flags unbraced itemize brackets", () => {
-		const safety = latexSafety("\\begin{itemize}\n\\item [2024] Shipped X.\n\\end{itemize}");
-		assert.equal(safety.passed, false);
-		assert.ok(safety.checks.some((check) => check.name === "bracket-bracing" && !check.pass));
-	});
-
-	it("flags non-ASCII date ranges in cventry arguments", () => {
-		const safety = latexSafety("\\cventry{2020--2024}{ML Engineer}{Acme}{Berlin}{}{Did work.}");
-		assert.equal(safety.passed, false);
-		assert.ok(safety.checks.some((check) => check.name === "ascii-date-ranges" && !check.pass));
-	});
-
-	it("flags missing translated headings", () => {
-		const safety = latexSafety("Nada que ver.", { language: "es" });
-		assert.equal(safety.passed, false);
-		const headings = safety.checks.find((check) => check.name === "translated-headings");
-		assert.ok(headings && !headings.pass && headings.detail.includes("Experiencia Profesional"));
-	});
-
-	it("surfaces writing bans as a safety signal", () => {
-		const safety = latexSafety("I am passionate about ML \u2014 truly.");
-		assert.ok(safety.checks.some((check) => check.name === "writing-bans" && !check.pass));
+describe("htmlSafety", () => {
+	it("accepts a document and rejects executable markup", () => {
+		assert.equal(htmlSafety(CLEAN_HTML).passed, true);
+		assert.equal(htmlSafety("<!doctype html><body><script>alert(1)</script></body>").passed, false);
 	});
 });
 
@@ -144,9 +106,9 @@ describe("layoutSignals", () => {
 
 describe("documentSignals", () => {
 	it("bundles page, safety, and degraded-layout signals for a document", () => {
-		const signals = documentSignals("cv", CLEAN_CV, { language: "en" });
+		const signals = documentSignals("cv-html", CLEAN_HTML, { language: "en" });
 		assert.equal(signals.pageBudget.pageLimit, 2);
-		assert.equal(signals.latexSafety.passed, true);
+		assert.equal(signals.renderSafety.passed, true);
 		assert.equal(signals.layout.degraded, true);
 	});
 });

@@ -60,9 +60,9 @@ describe("letter logistics honesty", () => {
 		});
 		assert.equal(result.ok, true);
 		if (!result.ok) return;
-		assert.ok(!result.tex.includes("15 March 2026"), "no deadline printed to the employer");
-		assert.ok(!result.tex.includes("2026-03-15"), "no ISO deadline either");
-		assert.ok(result.tex.includes("ACME-123"), "reference ID kept");
+		assert.ok(!result.html.includes("15 March 2026"), "no deadline printed to the employer");
+		assert.ok(!result.html.includes("2026-03-15"), "no ISO deadline either");
+		assert.ok(result.html.includes("ACME-123"), "reference ID kept");
 	});
 
 	it("reports Onsite for mixed remote-culture plus onsite-commitment text", () => {
@@ -94,7 +94,7 @@ describe("letter logistics honesty", () => {
 		assert.equal(result.ok, true);
 		if (!result.ok) return;
 		assert.equal(result.logistics.workMode, "Onsite");
-		assert.ok(result.tex.includes("Onsite arrangement"), "letter states the onsite arrangement");
+		assert.ok(result.html.includes("Onsite arrangement"), "letter states the onsite arrangement");
 	});
 });
 
@@ -117,11 +117,11 @@ describe("bridges stop making promises", () => {
 		assert.equal(result.ok, true);
 		if (!result.ok) return;
 		assert.ok(
-			result.tex.includes("Fraud Models"),
+			result.html.includes("Fraud Models"),
 			"bridge anchors on the overlapping skill, not the first secondary",
 		);
 		assert.ok(
-			!result.tex.includes("I bring Docker experience"),
+			!result.html.includes("I bring Docker experience"),
 			"the unrelated first secondary is not named",
 		);
 		const stretch = result.warnings.stretchChoices[0];
@@ -143,8 +143,8 @@ describe("bridges stop making promises", () => {
 		});
 		assert.equal(result.ok, true);
 		if (!result.ok) return;
-		assert.ok(!result.tex.includes("I bring Docker experience"), "unrelated anchor not named");
-		assert.ok(result.tex.includes("related work"), "honest fallback without a false claim");
+		assert.ok(!result.html.includes("I bring Docker experience"), "unrelated anchor not named");
+		assert.ok(result.html.includes("related work"), "honest fallback without a false claim");
 	});
 });
 
@@ -164,9 +164,9 @@ describe("companySpecifics provenance", () => {
 		});
 		assert.equal(result.ok, true);
 		if (!result.ok) return;
-		assert.ok(!result.tex.includes("Acme is great"), "URL-less string refused");
-		assert.ok(!result.tex.includes("No URL here"), "URL-less object refused");
-		assert.ok(result.tex.includes("https://acme.example/about"), "sourced claim kept with its URL");
+		assert.ok(!result.html.includes("Acme is great"), "URL-less string refused");
+		assert.ok(!result.html.includes("No URL here"), "URL-less object refused");
+		assert.ok(result.html.includes("https://acme.example/about"), "sourced claim kept with its URL");
 		assert.ok(
 			result.warnings.provenanceNote?.includes("Refused 2"),
 			`refusal counted, got ${result.warnings.provenanceNote}`,
@@ -206,7 +206,7 @@ describe("companySpecifics provenance", () => {
 		for (const claim of fetched) {
 			const quoted = claim.text.trim().replace(/[.]+$/, "");
 			assert.ok(
-				result.tex.includes(`"${quoted}" (${claim.sourceUrl})`),
+				result.html.includes(`"${quoted}" (${claim.sourceUrl})`),
 				"quote-and-link phrasing cites each fetched sentence",
 			);
 		}
@@ -248,9 +248,7 @@ describe("bullet escape round trip", () => {
 		});
 		assert.equal(result.ok, true);
 		if (!result.ok) return;
-		assert.ok(result.tex.includes("\\textbf{R\\&D}"), "ampersand escaped exactly once");
-		assert.ok(!result.tex.includes("R\\\\&D"), "no double escape");
-		assert.ok(result.tex.includes("A\\}B"), "brace in label escaped, split intact");
-		assert.ok(!result.tex.includes("\\textbf{A}B}"), "no corrupted bold command from the } label");
+		assert.ok(result.html.includes("<strong>R&amp;D</strong>"), "ampersand escaped in HTML");
+		assert.ok(result.html.includes("<strong>A}B</strong>"), "brace remains text in HTML");
 	});
 });

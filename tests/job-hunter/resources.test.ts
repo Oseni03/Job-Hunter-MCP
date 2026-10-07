@@ -75,7 +75,7 @@ describe("CV variants", () => {
 	});
 
 	it("passes caller-supplied base content straight through", () => {
-		const result = resolveBaseContent("moderncv-banking", "\\documentclass{moderncv} % caller master");
+		const result = resolveBaseContent("modern-fixed-v1", "<html><!-- caller master --></html>");
 		assert.equal(result.ok, true);
 		assert.ok(result.ok && result.text.includes("caller master"), "caller content wins over server disk");
 		assert.ok(result.ok && result.fromCaller, "passthrough flagged");

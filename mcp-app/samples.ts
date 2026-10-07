@@ -58,8 +58,9 @@ export const SAMPLE_CALLS: Record<(typeof SAMPLE_TOOLS)[number], SampleCall> = {
 		args: { company: "Acme Corp", role: "Backend Engineer", postingText: "Build Python APIs." },
 		structured: {
 			slug: "acme-corp_backend-engineer",
-			filePath: "cv/main_acme-corp_backend-engineer.tex",
-			compileCommand: "lualatex",
+			filePath: "cv/main_acme-corp_backend-engineer.html",
+			pdfPath: "cv/main_acme-corp_backend-engineer.pdf",
+			template: "modern-fixed-v1",
 			pageLimit: 2,
 			coverage: [
 				{ requirement: "Python APIs", kind: "essential", status: "matched", evidence: "Shipped billing API" },
@@ -73,14 +74,15 @@ export const SAMPLE_CALLS: Record<(typeof SAMPLE_TOOLS)[number], SampleCall> = {
 			},
 			banViolations: [],
 		},
-		text: '{"slug": "acme-corp_backend-engineer", "filePath": "cv/main_acme-corp_backend-engineer.tex", "compileCommand": "lualatex", "pageLimit": 2}',
+		text: '{"slug": "acme-corp_backend-engineer", "filePath": "cv/main_acme-corp_backend-engineer.html", "pdfPath": "cv/main_acme-corp_backend-engineer.pdf", "template": "modern-fixed-v1", "pageLimit": 2}',
 	},
 	"generate-cover-letter": {
 		args: { company: "Acme Corp", role: "Backend Engineer", postingText: "Build Python APIs." },
 		structured: {
 			slug: "acme-corp_backend-engineer",
-			filePath: "cover_letters/cover_acme-corp_backend-engineer.tex",
-			compileCommand: "xelatex",
+			filePath: "cover_letters/cover_acme-corp_backend-engineer.html",
+			pdfPath: "cover_letters/cover_acme-corp_backend-engineer.pdf",
+			template: "letter-modern-fixed-v1",
 			pageLimit: 1,
 			wordCount: 278,
 			coverage: [
@@ -90,7 +92,7 @@ export const SAMPLE_CALLS: Record<(typeof SAMPLE_TOOLS)[number], SampleCall> = {
 			warnings: { profileConsistency: [], draftDrift: [], stretchChoices: [] },
 			banViolations: [],
 		},
-		text: '{"slug": "acme-corp_backend-engineer", "filePath": "cover_letters/cover_acme-corp_backend-engineer.tex", "compileCommand": "xelatex", "pageLimit": 1, "wordCount": 278}',
+		text: '{"slug": "acme-corp_backend-engineer", "filePath": "cover_letters/cover_acme-corp_backend-engineer.html", "pdfPath": "cover_letters/cover_acme-corp_backend-engineer.pdf", "template": "letter-modern-fixed-v1", "pageLimit": 1, "wordCount": 278}',
 	},
 	"track-application": {
 		args: { company: "Acme Corp", role: "Backend Engineer" },

@@ -6,17 +6,6 @@ import { z } from "zod";
  * directory (analyze-job.ts, tailor-resume.ts, ...).
  */
 
-export const TemplateOverrideInput = z
-	.object({
-		name: z.string().min(1).optional(),
-		sourceExtension: z.string().min(1).optional(),
-		compileCommand: z.string().min(1).optional(),
-		pageLimit: z.number().int().positive().optional(),
-		styleRules: z.string().optional(),
-		engine: z.string().optional(),
-	})
-	.strict();
-
 export const ExperienceInput = z
 	.object({
 		title: z.string().min(1),
@@ -70,10 +59,6 @@ export const SafetyCheckSchema = z
 	.object({ name: z.string(), pass: z.boolean(), detail: z.string() })
 	.strict();
 
-export const LatexSafetySchema = z
-	.object({ passed: z.boolean(), checks: z.array(SafetyCheckSchema) })
-	.strict();
-
 export const LayoutSignalsSchema = z
 	.object({ degraded: z.boolean(), note: z.string().nullable(), problems: z.array(z.string()) })
 	.strict();
@@ -81,7 +66,7 @@ export const LayoutSignalsSchema = z
 export const DocumentSignalsSchema = z
 	.object({
 		pageBudget: PageBudgetSchema,
-		latexSafety: LatexSafetySchema,
+		renderSafety: z.object({ passed: z.boolean(), checks: z.array(SafetyCheckSchema) }).strict(),
 		layout: LayoutSignalsSchema,
 	})
 	.strict();

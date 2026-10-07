@@ -44,7 +44,7 @@ export function hashText(text: string): string {
 	return createHash("sha1").update(text, "utf-8").digest("hex");
 }
 
-/** Redacts emails/phones for EventLog notes; stored ResumeVersion.tex keeps full text. */
+/** Redacts emails/phones for EventLog notes; stored ResumeVersion.html keeps full text. */
 export function redactPii(text: string): string {
 	return text
 		.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted-email]")

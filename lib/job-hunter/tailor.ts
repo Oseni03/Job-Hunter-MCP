@@ -1,14 +1,9 @@
 import { extractDeadline, phraseMatches, profileVocabulary } from "@/lib/job-hunter/evaluate.ts";
-import {
-	braceItem,
-	checkWritingBans,
-	escapeLatex,
-	sectionHeadings,
-	toAsciiDateRange,
-} from "@/lib/job-hunter/latex.ts";
-import type { SectionHeadings } from "@/lib/job-hunter/latex.ts";
+import { checkWritingBans, sectionHeadings } from "@/lib/job-hunter/document.ts";
 import { EMPTY_SLUG_ERROR, makeJobSlug } from "@/lib/job-key.ts";
 import type { Profile } from "@/lib/job-hunter/profile.ts";
+import { ACTIVE_TEMPLATE, buildTailoredCvHtml } from "@/lib/job-hunter/render-tailored-cv.ts";
+import { ACTIVE_COVER_TEMPLATE, buildTailoredCoverLetterHtml } from "@/lib/job-hunter/render-tailored-cover-letter.ts";
 import {
 	adjacentDomainNames,
 	matchingPool,
@@ -20,7 +15,7 @@ import {
 /**
  * Slice A: requirement coverage, logistics extraction, and factual
  * auditing for the two document tools. Pure functions over the posting
- * text and the profile; LaTeX builders arrive in slices B and C.
+ * text and the profile; document rendering is handled by each builder.
  */
 
 export interface RequirementMatch {
@@ -384,15 +379,6 @@ export function checkSourceConsistency(
 /* ------------------------------------------------------------------ */
 
 /** Active custom template override (from /add-template); wins over stock guidance when present. */
-export interface TemplateOverride {
-	name?: string;
-	sourceExtension?: string;
-	compileCommand?: string;
-	pageLimit?: number;
-	styleRules?: string;
-	engine?: string;
-}
-
 export interface ExperienceEntry {
 	title: string;
 	company: string;
@@ -439,6 +425,8 @@ export interface DraftWarnings {
 	evaluationNote?: string;
 	/** Posting-language vs CV-language mismatch and English-only limits. */
 	languageNote?: string;
+	/** Actual rendered page count when it exceeds the target. */
+	pageCountNote?: string;
 }
 
 export interface DroppedBullet {
@@ -463,24 +451,23 @@ export interface TailorCvInput {
 	/** Optional analyze-job summary; refused on FAIL, warned when missing. */
 	evaluation?: EvaluationSummary;
 	roleType?: RoleType;
-	template?: TemplateOverride;
 }
 
 export type TailorCvResult =
 	| {
-			ok: true;
-			slug: string;
-			filePath: string;
-			tex: string;
-			compileCommand: string;
-			pageLimit: number;
-			archiveDir: string;
-			coverage: RequirementMatch[];
-			/** Bullets cut by the relevance caps, with their role, so the host can show what was left out. */
-			droppedBullets: DroppedBullet[];
-			warnings: DraftWarnings;
-			banViolations: string[];
-	  }
+		ok: true;
+		slug: string;
+		filePath: string;
+		html: string;
+		template: string;
+		pageLimit: number;
+		archiveDir: string;
+		coverage: RequirementMatch[];
+		/** Bullets cut by the relevance caps, with their role, so the host can show what was left out. */
+		droppedBullets: DroppedBullet[];
+		warnings: DraftWarnings;
+		banViolations: string[];
+	}
 	| { ok: false; error: string };
 
 /**
@@ -570,42 +557,7 @@ export const BUILDER_LEXICON = [
 ];
 
 /** Shared file contract for both document tools: slug dir, stock compile, override wins. */
-export function resolveTemplateFile(
-	slug: string,
-	dir: "cv" | "cover_letters",
-	stemPrefix: "main" | "cover",
-	template: TemplateOverride | undefined,
-	stockCompile: string,
-	stockPageLimit: number,
-): { filePath: string; compileCommand: string; pageLimit: number } {
-	const extension = template?.sourceExtension ?? ".tex";
-	const stem = `${stemPrefix}_${slug}`;
-	return {
-		filePath: `${dir}/${stem}${extension}`,
-		compileCommand: template?.compileCommand?.replace("<file>", stem) ?? stockCompile,
-		pageLimit: template?.pageLimit ?? stockPageLimit,
-	};
-}
-
 /** Surfaces an active custom template override (name, engine, style rules) in warnings. */
-export function templateWarning(template: TemplateOverride | undefined): string | undefined {
-	if (!template) {
-		return undefined;
-	}
-	const extras = [
-		template.engine ? `engine ${template.engine}` : null,
-		template.styleRules ? `style rules: ${template.styleRules}` : null,
-	].filter(Boolean);
-	const shellNote = template.compileCommand
-		? " Custom compile commands are caller-owned: verify they pass --no-shell-escape before compiling untrusted content."
-		: "";
-	return (
-		`Active template '${template.name ?? "custom"}' overrides stock guidance` +
-		`${extras.length > 0 ? ` (${extras.join("; ")})` : ""}: ` +
-		`port this content into its skeleton and compile with the template command before submitting.${shellNote}`
-	);
-}
-
 /** Warns when no contact details were provided for the document header. */
 export function contactWarning(contact: ContactDetails | undefined): string | undefined {
 	if (contact?.email || contact?.phone) {
@@ -706,11 +658,9 @@ interface Competency {
 }
 
 /**
- * Builds the tailored CV as LaTeX source. Returns the EMPTY_SLUG hard
- * error with no TeX when neither company, role, nor URL identifies the
- * posting. Heuristic v0: deterministic tailoring over the profile, so
- * results are stable and testable; the host owns file writes and the
- * lualatex compile-and-inspect loop.
+ * Builds the tailored CV as deterministic HTML. Returns the EMPTY_SLUG hard
+ * error with no document when neither company, role, nor URL identifies the
+ * posting. The host owns file writes and PDF rendering.
  */
 export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 	const slug = makeJobSlug(input.company, input.role, input.postingUrl);
@@ -864,113 +814,38 @@ export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 	if (roleTypeNote) {
 		warnings.roleTypeNote = roleTypeNote;
 	}
-	const [firstName, ...lastName] = profile.name.split(/\s+/);
 	const contact = {
 		email: input.contact?.email || profile.email || undefined,
 		phone: input.contact?.phone || profile.phone || undefined,
 		linkedin: input.contact?.linkedin || profile.linkedin || undefined,
 		github: input.contact?.github || profile.github || undefined,
 	};
-	const contactLines = [
-		`\\address{${escapeLatex(profile.location)}}{}{}`,
-		contact.phone ? `\\phone[mobile]{${escapeLatex(contact.phone)}}` : null,
-		contact.email ? `\\email{${escapeLatex(contact.email)}}` : null,
-		contact.linkedin || contact.github
-			? `\\extrainfo{${[contact.linkedin ? `\\href{${contact.linkedin}}{LinkedIn}` : null, contact.github ? `\\href{${contact.github}}{GitHub}` : null].filter(Boolean).join(", ")}}`
-			: null,
-	].filter(Boolean) as string[];
-
-	const competencyItems = competencies
-		.map((competency) => `    \\item \\textbf{${escapeLatex(competency.label)}}: ${escapeLatex(competency.body)}`)
-		.join("\n");
-	const experienceBlocks = tailoredExperience
-		.map(
-			(entry) =>
-				`\\cventry{${toAsciiDateRange(escapeLatex(entry.period))}}{${escapeLatex(entry.title)}}{${escapeLatex(entry.company)}}{}{}{\\begin{itemize}\n${entry.bullets.map((bullet) => `    \\item ${braceItem(escapeLatex(bullet))}`).join("\n")}\n\\end{itemize}}`,
-		)
-		.join("\n\\vspace{3pt}\n");
-	const educationBlocks = (input.education ?? [])
-		.map(
-			(entry) =>
-				`\\cventry{${toAsciiDateRange(escapeLatex(entry.period))}}{${escapeLatex(entry.degree)}}{${escapeLatex(entry.institution)}}{}{}{${entry.inProgress ? `In progress, expected ${escapeLatex(entry.expectedDate ?? "date to agree")}.` : ""}}`,
-		)
-		.join("\n\\vspace{3pt}\n");
-	const languageItems = profile.languages
-		.map((entry) => `\\cvitem{${escapeLatex(entry.language)}}{${escapeLatex(entry.level)}}`)
-		.join("\n");
-
-	const experienceSection = `\\section{${headings.experience}}\n\\vspace{1pt}\n${experienceBlocks || "% No experience entries provided."}`;
-	const educationSection = `\\section{${headings.education}}\n\\vspace{1pt}\n${educationBlocks || "% No education entries provided."}`;
-	const orderedSections =
-		roleType === "technical"
-			? `${experienceSection}\n\n${educationSection}`
-			: `${educationSection}\n\n${experienceSection}`;
-
-	const tex = [
-		"\\documentclass[11pt,a4paper,sans]{moderncv}",
-		"\\moderncvstyle{banking}",
-		"\\moderncvcolor{blue}",
-		"",
-		"\\renewcommand*{\\namefont}{\\fontsize{34}{36}\\bfseries\\upshape}",
-		"\\colorlet{firstnamecolor}{color1}",
-		"\\colorlet{lastnamecolor}{color1}",
-		"\\colorlet{namecolor}{color1}",
-		"\\renewcommand*{\\sectionstyle}[1]{{\\sectionfont\\color{color1}#1}}",
-		"",
-		"\\usepackage[utf8]{inputenc}",
-		"\\ifpdftex\\usepackage[T1]{fontenc}\\fi",
-		"\\usepackage[scale=0.77]{geometry}",
-		"\\usepackage{import}",
-		"",
-		"% Personal data",
-		`\\name{${escapeLatex(firstName ?? profile.name)}}{${escapeLatex(lastName.join(" "))}}`,
-		...contactLines,
-		"",
-		"\\begin{document}",
-		"\\makecvtitle",
-		"",
-		escapeLatex(statement),
-		"",
-		`\\section{${headings.competencies}}`,
-		"\\vspace{1pt}",
-		"\\begin{itemize}",
-		competencyItems,
-		"\\end{itemize}",
-		"",
-		orderedSections,
-		"",
-		`\\section{${headings.languages}}`,
-		"\\vspace{1pt}",
-		languageItems || "% No languages declared.",
-		"",
-		`\\section{${headings.references}}`,
-		escapeLatex(headings.referencesNote),
-		"",
-		"\\end{document}",
-	].join("\n");
+	const html = buildTailoredCvHtml({
+		name: profile.name,
+		headline: input.role ?? profile.headline,
+		location: profile.location,
+		email: contact.email,
+		phone: contact.phone,
+		linkedin: contact.linkedin,
+		github: contact.github,
+		statement,
+		competencies,
+		experience: tailoredExperience,
+		education: input.education ?? [],
+		languages: profile.languages,
+		headings,
+		experienceFirst: roleType === "technical",
+	});
 
 	const banViolations = checkWritingBans([statement, ...competencies.map((c) => c.body)].join(" "));
-
-	const files = resolveTemplateFile(
-		slug,
-		"cv",
-		"main",
-		input.template,
-		`cd cv && lualatex --no-shell-escape -interaction=nonstopmode main_${slug}.tex`,
-		2,
-	);
-	const templateNote = templateWarning(input.template);
-	if (templateNote) {
-		warnings.templateNote = templateNote;
-	}
 
 	return {
 		ok: true,
 		slug,
-		filePath: files.filePath,
-		tex,
-		compileCommand: files.compileCommand,
-		pageLimit: files.pageLimit,
+		filePath: `cv/main_${slug}.html`,
+		html,
+		template: ACTIVE_TEMPLATE,
+		pageLimit: 2,
 		archiveDir: archiveDirFor(slug),
 		coverage,
 		droppedBullets,
@@ -1002,7 +877,6 @@ export interface CoverInput {
 	contact?: ContactDetails;
 	/** Optional analyze-job summary; refused on FAIL, warned when missing. */
 	evaluation?: EvaluationSummary;
-	template?: TemplateOverride;
 }
 
 /** A caller-verified company fact with its fetched source URL. */
@@ -1065,23 +939,24 @@ export interface CoverWarnings {
 	languageNote?: string;
 	/** URL-less company specifics refused for lack of provenance. */
 	provenanceNote?: string;
+	pageCountNote?: string;
 }
 
 export type CoverResult =
 	| {
-			ok: true;
-			slug: string;
-			filePath: string;
-			tex: string;
-			compileCommand: string;
-			pageLimit: number;
-			archiveDir: string;
-			wordCount: number;
-			coverage: RequirementMatch[];
-			logistics: Logistics;
-			warnings: CoverWarnings;
-			banViolations: string[];
-	  }
+		ok: true;
+		slug: string;
+		filePath: string;
+		html: string;
+		template: string;
+		pageLimit: number;
+		archiveDir: string;
+		wordCount: number;
+		coverage: RequirementMatch[];
+		logistics: Logistics;
+		warnings: CoverWarnings;
+		banViolations: string[];
+	}
 	| { ok: false; error: string };
 
 const CLOSINGS: Record<string, string> = {
@@ -1107,7 +982,7 @@ function joinAnd(parts: string[]): string {
 }
 
 /**
- * Builds the cover letter as LaTeX source for the cover.cls template:
+ * Builds the cover letter as deterministic HTML for the fixed Puppeteer template:
  * forward-looking and task-solving, motivated only by verified company
  * specifics (or posting-derived focus when none are given), with every
  * requirement matched or honestly bridged. Returns the EMPTY_SLUG hard
@@ -1177,9 +1052,9 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 	const bullets = matched.map((item, index) => {
 		const label = postingSurfaceForm(item.evidence as string, input.postingText);
 		if (item.kind === "nice-to-have") {
-			return `\\textbf{${label}}: I will bring ${label} to ${goal ?? "team"} work as a stated nice-to-have.`;
+			return { label, text: `I will bring ${label} to ${goal ?? "team"} work as a stated nice-to-have.` };
 		}
-		return `\\textbf{${label}}: ${bulletPatterns[index % bulletPatterns.length](label)}`;
+		return { label, text: bulletPatterns[index % bulletPatterns.length](label) };
 	});
 
 	const examples = [...(input.highlights ?? []).slice(0, 2)].map((example) =>
@@ -1208,8 +1083,9 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 			...specifics.kept.slice(1).map((specific) => `"${specific.text}" (${specific.sourceUrl}).`),
 			goal
 				? `I want to contribute ${goal} work to that effort.`
-				: `I want to contribute to that effort.`,
-		].join(" ")
+				: "I want to contribute to that effort.",
+		]
+		.join(" ")
 		: `What draws me to ${company} is your stated focus on ${domain ?? "this field"}.`;
 
 	const essentials = coverage
@@ -1245,7 +1121,7 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 	const bodyParts = [
 		opening,
 		intro,
-		...bullets.map((bullet) => bullet.replace(/^\\textbf\{(.*?)\}: /, "$1: ")),
+		...bullets.map((bullet) => `${bullet.label}: ${bullet.text}`),
 		...(results ? [results] : []),
 		...(bridge ? [bridge] : []),
 		companyPara,
@@ -1337,83 +1213,36 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 		.filter(Boolean)
 		.join(" | ");
 
-	const bulletItems = bullets
-		.map((bullet) => {
-			const match = /^\\textbf\{(.*?)\}: (.*)$/.exec(bullet);
-			if (!match) {
-				return `    \\item ${braceItem(escapeLatex(bullet))}`;
-			}
-			return `    \\item \\textbf{${escapeLatex(match[1])}}: ${braceItem(escapeLatex(match[2]))}`;
-		})
-		.join("\n");
-	const letterParagraph = (text: string | null) =>
-		text ? `\\lettercontent{${escapeLatex(text)}}\n` : "";
-
-	const tex = [
-		"\\documentclass[]{cover}",
-		"\\usepackage{fancyhdr}",
-		"",
-		"\\pagestyle{fancy}",
-		"\\fancyhf{}",
-		"",
-		"\\rfoot{Page \\thepage \\hspace{0pt}}",
-		"\\thispagestyle{empty}",
-		"\\renewcommand{\\headrulewidth}{0pt}",
-		"\\begin{document}",
-		"",
-		`\\namesection{}{\\Huge{${escapeLatex(profile.name)}}}{${escapeLatex(headerContact)}}`,
-		"",
-		"\\currentdate{\\today}",
-		`\\lettercontent{${escapeLatex(salutation)}}`,
-		"",
-		letterParagraph(opening),
-		letterParagraph(intro),
-		"{\\raggedright\\fontspec[Path = OpenFonts/fonts/raleway/]{Raleway-Medium}\\fontsize{11pt}{13pt}\\selectfont",
-		"\\begin{itemize}",
-		bulletItems,
-		"\\end{itemize}\\par}",
-		"\\vspace{6pt}",
-		"",
-		letterParagraph(results),
-		letterParagraph(bridge),
-		letterParagraph(companyPara),
-		letterParagraph(focus),
-		letterParagraph(fit),
-		letterParagraph(logisticsLine),
-		"\\lettercontent{I look forward to hearing from you.}",
-		"",
-		"\\begin{flushright}",
-		`\\closing{${closing}}`,
-		"",
-		`\\signature{${escapeLatex(profile.name)}}`,
-		"\\end{flushright}",
-		"\\end{document}",
-	]
-		.filter((line) => line !== "")
-		.join("\n");
+	const html = buildTailoredCoverLetterHtml({
+		name: profile.name,
+		headline: profile.headline,
+		location: profile.location,
+		email: contact.email,
+		phone: contact.phone,
+		linkedin: contact.linkedin,
+		github: contact.github,
+		salutation,
+		opening,
+		intro,
+		bullets,
+		results: results ?? undefined,
+		bridge: bridge ?? undefined,
+		companyParagraph: companyPara,
+		focus: focus ?? undefined,
+		fit,
+		logistics: logisticsLine ?? undefined,
+		closing,
+	});
 
 	const banViolations = checkWritingBans(bodyParts.join(" "));
-
-	const files = resolveTemplateFile(
-		slug,
-		"cover_letters",
-		"cover",
-		input.template,
-		`cd cover_letters && xelatex --no-shell-escape -interaction=nonstopmode cover_${slug}.tex`,
-		1,
-	);
-	const templateNote = templateWarning(input.template);
-	if (templateNote) {
-		warnings.templateNote = templateNote;
-	}
 
 	return {
 		ok: true,
 		slug,
-		filePath: files.filePath,
-		tex,
-		compileCommand: files.compileCommand,
-		pageLimit: files.pageLimit,
+		filePath: `cover_letters/cover_${slug}.html`,
+		html,
+		template: ACTIVE_COVER_TEMPLATE,
+		pageLimit: 1,
 		archiveDir: archiveDirFor(slug),
 		wordCount,
 		coverage,

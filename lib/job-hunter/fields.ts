@@ -1,6 +1,6 @@
 import { auditClaim, checkSourceConsistency, englishOnlyNote, normalizeCompanySpecifics } from "@/lib/job-hunter/tailor.ts";
 import type { VerifiedSpecific } from "@/lib/job-hunter/tailor.ts";
-import { toAsciiDateRange } from "@/lib/job-hunter/latex.ts";
+import { normalizeDateRange } from "@/lib/job-hunter/document.ts";
 import { resolveProfile, evidencePool } from "@/lib/job-hunter/profile.ts";
 import {
 	adjacentDomainNames,
@@ -171,7 +171,7 @@ const PITCH_SEED_NOTE = "Expansion seeds — expand into full sentences before s
 const DATE_VOCAB = /^\d{4}(?:\s*-\s*(?:\d{4}|present|current|now))?$/i;
 
 function dateVocabNote(raw: string): string | null {
-	const normalized = toAsciiDateRange(raw).trim();
+	const normalized = normalizeDateRange(raw).trim();
 	return DATE_VOCAB.test(normalized)
 		? null
 		: `Dates '${raw}' don't match YYYY, YYYY-YYYY, or YYYY-present; kept verbatim in the reference — normalize before submitting.`;
@@ -235,7 +235,7 @@ export function planPortalFields(input: FieldsInput): FieldsPlan {
 	if (droppedRoleTypes.length > 0) {
 		warnings.push(
 			`Ignored unknown role type${droppedRoleTypes.length === 1 ? "" : "s"} '${droppedRoleTypes.join("', '")}'; ` +
-				`drafting '${effectiveRoles.join("', '")}' instead.`,
+			`drafting '${effectiveRoles.join("', '")}' instead.`,
 		);
 	}
 
@@ -408,34 +408,34 @@ function renderCopyPaste(plan: {
 		"## Self-introductions (strongest evidence first)",
 		...(plan.selfIntros.length > 0
 			? plan.selfIntros.flatMap((intro) => [
-					`### ${intro.roleType} (${intro.wordCount} words${intro.targetWords !== null ? `, target ${intro.targetWords}` : ""})`,
-					intro.text,
-					...(intro.trimNote ? [`_${intro.trimNote}_`] : []),
-					"",
-				])
+				`### ${intro.roleType} (${intro.wordCount} words${intro.targetWords !== null ? `, target ${intro.targetWords}` : ""})`,
+				intro.text,
+				...(intro.trimNote ? [`_${intro.trimNote}_`] : []),
+				"",
+			])
 			: ["- None drafted.", ""]),
 		"## Project entries",
 		...(plan.projectEntries.length > 0
 			? plan.projectEntries.flatMap((entry) => [
-					`### ${entry.name} (${entry.wordCount} words; short ${entry.shortWordCount} words)`,
-					entry.text,
-					"",
-					`Short (60 words max): ${entry.short}`,
-					"",
-					`- ${entry.scopeNote}`,
-					...(entry.inProgressNote ? [`- ${entry.inProgressNote}`] : []),
-					...(entry.lengthNote ? [`- _${entry.lengthNote}_`] : []),
-					...(entry.shortNote ? [`- _${entry.shortNote}_`] : []),
-					"",
-				])
+				`### ${entry.name} (${entry.wordCount} words; short ${entry.shortWordCount} words)`,
+				entry.text,
+				"",
+				`Short (60 words max): ${entry.short}`,
+				"",
+				`- ${entry.scopeNote}`,
+				...(entry.inProgressNote ? [`- ${entry.inProgressNote}`] : []),
+				...(entry.lengthNote ? [`- _${entry.lengthNote}_`] : []),
+				...(entry.shortNote ? [`- _${entry.shortNote}_`] : []),
+				"",
+			])
 			: ["- None held.", ""]),
 		"## Character pitches",
 		`_${PITCH_SEED_NOTE}_`,
 		...(plan.pitches.length > 0
 			? plan.pitches.map(
-					(pitch) =>
-						`- ${pitch.text} (${pitch.charCount} characters) — ${pitch.context}${pitch.recommended ? " — recommended" : ""}`,
-				)
+				(pitch) =>
+					`- ${pitch.text} (${pitch.charCount} characters) — ${pitch.context}${pitch.recommended ? " — recommended" : ""}`,
+			)
 			: ["- None drafted."]),
 		"",
 		"## Dates reference",

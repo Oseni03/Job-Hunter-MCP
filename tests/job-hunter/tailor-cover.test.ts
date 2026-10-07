@@ -59,10 +59,10 @@ describe("buildCoverLetter", () => {
 			return;
 		}
 		assert.equal(result.slug, "acme_senior-ml-engineer");
-		assert.equal(result.filePath, "cover_letters/cover_acme_senior-ml-engineer.tex");
+		assert.equal(result.filePath, "cover_letters/cover_acme_senior-ml-engineer.html");
+		assert.equal(result.template, "letter-modern-fixed-v1");
 		assert.equal(result.archiveDir, "documents/applications/acme_senior-ml-engineer");
 		assert.equal(result.pageLimit, 1);
-		assert.ok(result.compileCommand.includes("xelatex"));
 	});
 
 	it("lands in the 250-300 word band on rich inputs", () => {
@@ -78,17 +78,15 @@ describe("buildCoverLetter", () => {
 		assert.equal(result.warnings.wordCountNote, undefined);
 	});
 
-	it("addresses the hiring manager by name and keeps bullets outside lettercontent", () => {
+	it("addresses the hiring manager and renders structured HTML bullets", () => {
 		const result = buildCoverLetter(RICH);
 		assert.equal(result.ok, true);
 		if (!result.ok) {
 			return;
 		}
-		assert.ok(result.tex.includes("\\lettercontent{Dear Jane Smith,}"));
-		assert.ok(result.tex.includes("Raleway-Medium"));
-		for (const line of result.tex.split("\n")) {
-			assert.ok(!(line.includes("\\lettercontent") && line.includes("\\item")));
-		}
+		assert.ok(result.html.includes("Dear Jane Smith,"));
+		assert.ok(result.html.includes("<ul>"));
+		assert.ok(result.html.includes("<strong>Python</strong>"));
 	});
 
 	it("is motivated by verified specifics and addresses logistics", () => {
@@ -97,12 +95,12 @@ describe("buildCoverLetter", () => {
 		if (!result.ok) {
 			return;
 		}
-		assert.ok(result.tex.includes("payments across Europe"));
-		assert.ok(result.tex.includes("https://acme.example/about"), "quote-and-link carries the source URL");
-		assert.ok(result.tex.includes("ACME-123"), "reference ID kept");
-		assert.ok(result.tex.includes("Remote"));
+		assert.ok(result.html.includes("payments across Europe"));
+		assert.ok(result.html.includes("https://acme.example/about"), "quote-and-link carries the source URL");
+		assert.ok(result.html.includes("ACME-123"), "reference ID kept");
+		assert.ok(result.html.includes("Remote"));
 		assert.ok(
-			!result.tex.includes("15 March 2026"),
+			!result.html.includes("15 March 2026"),
 			"the deadline never prints in employer-facing text",
 		);
 	});
@@ -113,9 +111,9 @@ describe("buildCoverLetter", () => {
 		if (!result.ok) {
 			return;
 		}
-		assert.ok(result.tex.includes("\\textbf{Docker}"));
-		assert.ok(result.tex.includes("Kubernetes"));
-		assert.ok(!result.tex.includes("\\textbf{Kubernetes}"));
+		assert.ok(result.html.includes("<strong>Docker</strong>"));
+		assert.ok(result.html.includes("Kubernetes"));
+		assert.ok(!result.html.includes("<strong>Kubernetes</strong>"));
 		const stretch = result.warnings.stretchChoices.find((choice) => choice.bullet === "Kubernetes");
 		assert.ok(stretch);
 		assert.deepEqual(stretch.options, ["keep", "soften", "drop"]);
@@ -146,7 +144,7 @@ describe("buildCoverLetter", () => {
 		if (!result.ok) {
 			return;
 		}
-		assert.ok(result.tex.includes("\\lettercontent{Dear Acme,}"));
+		assert.ok(result.html.includes("Dear Acme,"));
 		assert.ok(result.wordCount < 250);
 		assert.ok(result.warnings.wordCountNote?.includes("below"));
 	});
@@ -163,37 +161,31 @@ describe("buildCoverLetter", () => {
 		if (!result.ok) {
 			return;
 		}
-		assert.ok(result.tex.includes("Med venlig hilsen,"));
+		assert.ok(result.html.includes("Med venlig hilsen,"));
 	});
 
-	it("honors an active custom template override over stock guidance", () => {
+	it("uses the fixed cover template", () => {
 		const result = buildCoverLetter({
 			postingText: POSTING,
 			company: "Acme",
 			role: "Senior ML Engineer",
 			profile: PROFILE,
-			template: {
-				name: "typst-clean",
-				sourceExtension: ".typ",
-				compileCommand: "typst compile <file>.typ <file>.pdf",
-				pageLimit: 1,
-			},
 		});
 		assert.equal(result.ok, true);
 		if (!result.ok) {
 			return;
 		}
-		assert.equal(result.filePath, "cover_letters/cover_acme_senior-ml-engineer.typ");
-		assert.ok(result.warnings.templateNote);
+		assert.equal(result.filePath, "cover_letters/cover_acme_senior-ml-engineer.html");
+		assert.equal(result.template, "letter-modern-fixed-v1");
 	});
 
-	it("returns the EMPTY_SLUG hard error with no TeX when nothing identifies the posting", () => {
+	it("returns the EMPTY_SLUG hard error with no document when nothing identifies the posting", () => {
 		const result = buildCoverLetter({ postingText: "Requirements: Python.", profile: PROFILE });
 		assert.equal(result.ok, false);
 		if (result.ok) {
 			return;
 		}
 		assert.ok(result.error.includes("EMPTY_SLUG"));
-		assert.ok(!("tex" in result));
+		assert.ok(!("html" in result));
 	});
 });

@@ -41,7 +41,7 @@ const POSTING = [
 ].join("\n");
 
 describe("tailor-resume signals", () => {
-	it("carries page-budget, LaTeX-safety, and layout signals with the TeX", async () => {
+	it("carries page-budget, HTML render-safety, and layout signals with the HTML", async () => {
 		const result = await toolHandler(registerTailorResume)(
 			{
 				postingText: POSTING,
@@ -62,7 +62,7 @@ describe("tailor-resume signals", () => {
 		assert.equal(result.isError, undefined);
 		const signals = (result.structuredContent as Record<string, unknown>)["signals"] as Record<string, unknown>;
 		assert.equal((signals["pageBudget"] as { pageLimit: number }).pageLimit, 2);
-		assert.equal(typeof (signals["latexSafety"] as { passed: boolean }).passed, "boolean");
+		assert.equal(typeof (signals["renderSafety"] as { passed: boolean }).passed, "boolean");
 		assert.equal((signals["layout"] as { degraded: boolean }).degraded, true);
 		assert.deepEqual(
 			JSON.parse(result.content[0].text),
@@ -98,7 +98,7 @@ describe("registered resources and prompts", () => {
 		const resources: { name: string; uri: string }[] = [];
 		const prompts: string[] = [];
 		const server = {
-			registerTool() {},
+			registerTool() { },
 			registerResource(name: string, uri: string) {
 				resources.push({ name, uri: typeof uri === "string" ? uri : String(uri) });
 			},
