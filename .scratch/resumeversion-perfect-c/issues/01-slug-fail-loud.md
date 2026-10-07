@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** done (versionKeyFor + cross-tool slug test, type-check clean, 2/2 node:test green)
 
 - [ ] Same slug reused for tailored CV, archive location, and version key end-to-end
 - [ ] Empty slug returns hard error with no tailored source emitted

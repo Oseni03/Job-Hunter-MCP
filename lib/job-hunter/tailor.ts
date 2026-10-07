@@ -619,6 +619,16 @@ export function archiveDirFor(slug: string): string {
 	return `documents/applications/${slug}`;
 }
 
+/**
+ * The ResumeVersion/Application job key: the same slug every document
+ * tool shares for CV, letter, and archive path. Empty when nothing
+ * identifies the posting; callers treat that as a hard error and emit
+ * no TeX (see EMPTY_SLUG_ERROR).
+ */
+export function versionKeyFor(company?: string, role?: string, postingUrl = ""): string {
+	return makeJobSlug(company, role, postingUrl);
+}
+
 /** Technical roles lead with experience; specialist roles lead with education. */
 const TECHNICAL_ROLE_KEYWORDS =
 	/python|\bjava\b|typescript|framework|machine learning|\bmodels?\b|pipeline|dataset|code\b|software|algorithm/i;
