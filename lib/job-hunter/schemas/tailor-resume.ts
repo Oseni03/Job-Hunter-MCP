@@ -9,6 +9,7 @@ import {
 	EvaluationGateInput,
 	ExperienceInput,
 	TemplateOverrideInput,
+	VerificationSchema,
 } from "@/lib/job-hunter/schemas/common.ts";
 
 /** Input/output contract for the tailor-resume tool. */
@@ -59,5 +60,9 @@ export const TailorCvOutput = z
 		}),
 		banViolations: z.array(z.string()),
 		signals: DocumentSignalsSchema.describe("Page-budget, LaTeX-safety, and layout signals; the host owns compilation"),
+		verification: VerificationSchema.optional().describe(
+			"Stored-and-returned proof the draft is tailored: safety pass, requirement overlap, no invented employers",
+		),
+		versionId: z.number().int().optional().describe("Stored ResumeVersion id for ephemeral PDF recompile; absent when no database"),
 	})
 	.strict();

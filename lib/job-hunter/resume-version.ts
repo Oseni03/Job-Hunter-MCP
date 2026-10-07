@@ -9,7 +9,7 @@
  * thrown error, so pure builders stay testable without a database.
  */
 
-import { loadPrismaClient, type PrismaClient } from "@/lib/db.ts";
+import { hashText, loadPrismaClient, redactPii, type PrismaClient } from "@/lib/db.ts";
 import { stripTexToProse } from "@/lib/job-hunter/verify.ts";
 import type { Prisma } from "@/generated/prisma/client.ts";
 
@@ -161,5 +161,92 @@ export async function fetchLatestResumeVersion(
 		});
 	} catch {
 		return null;
+	}
+}
+
+/* ------------------------------------------------------------------ */
+/* Ticket 03: verification proof plus EventLog trace                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Builds the stored-and-returned verification from the tailor output.
+ * `compiles` is the server LaTeX-safety pass (the host confirms with
+ * the real compile); `keywordOverlap` is matched requirements over all
+ * requirements; `noNewEmployers` is true only when the drift audit is
+ * empty, so invented employers fail loudly instead of shipping silent.
+ */
+export function buildResumeVerification(input: {
+	coverage: Array<{ status: string }>;
+	draftDrift: string[];
+	latexSafetyPassed: boolean;
+}): ResumeVerification {
+	const total = input.coverage.length;
+	const matched = input.coverage.filter((item) => item.status === "matched").length;
+	return {
+		compiles: input.latexSafetyPassed,
+		keywordOverlap: total === 0 ? 0 : Math.round((matched / total) * 100) / 100,
+		noNewEmployers: input.draftDrift.length === 0,
+	};
+}
+
+/**
+ * Short EventLog note for a tailoring: slugs and counts only, so no
+ * contact text ever enters the log. Passed through redactPii anyway.
+ */
+export function buildTailorEventNote(input: {
+	slug: string;
+	verification: ResumeVerification;
+	driftCount: number;
+	stretchCount: number;
+	stored: boolean;
+}): string {
+	return redactPii(
+		[
+			`tailor-resume ${input.slug}`,
+			`compiles=${input.verification.compiles ? "pass" : "FAIL"}`,
+			`overlap=${input.verification.keywordOverlap}`,
+			`noNewEmployers=${input.verification.noNewEmployers ? "yes" : "NO"}`,
+			`drift=${input.driftCount}`,
+			`stretch=${input.stretchCount}`,
+			`stored=${input.stored ? "yes" : "no"}`,
+		].join(" "),
+	);
+}
+
+/** SHA-1 of the posting text for the log; the text itself is never logged. */
+export function tailorInputHash(postingText: string): string {
+	return hashText(postingText);
+}
+
+/** Best-effort EventLog write. Null client or missing user row degrades to { logged: false }. */
+export async function logTailorEvent(
+	client: PrismaClient | null,
+	entry: {
+		userId: string;
+		ok: boolean;
+		ms?: number;
+		note: string;
+		inputHash?: string;
+		outputRef?: string;
+	},
+): Promise<{ logged: boolean; reason: string }> {
+	if (!client) {
+		return { logged: false, reason: "no-database" };
+	}
+	try {
+		await client.eventLog.create({
+			data: {
+				userId: entry.userId,
+				tool: "tailor-resume",
+				ms: entry.ms,
+				ok: entry.ok,
+				note: entry.note,
+				inputHash: entry.inputHash,
+				outputRef: entry.outputRef,
+			},
+		});
+		return { logged: true, reason: "logged" };
+	} catch (error) {
+		return { logged: false, reason: error instanceof Error ? error.message : "write-failed" };
 	}
 }

@@ -86,6 +86,14 @@ export const DocumentSignalsSchema = z
 	})
 	.strict();
 
+export const VerificationSchema = z
+	.object({
+		compiles: z.boolean(),
+		keywordOverlap: z.number(),
+		noNewEmployers: z.boolean(),
+	})
+	.strict();
+
 export const EvaluationGateInput = z
 	.object({
 		verdict: z.string().nullable().optional().describe("analyze-job verdict; null when a gate failed"),
