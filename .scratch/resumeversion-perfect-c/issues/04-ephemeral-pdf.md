@@ -4,7 +4,7 @@
 
 **Blocked by:** 02-persist-resumeversion
 
-**Status:** ready-for-agent
+**Status:** done (host recompile plan + per-version cache path, type-check clean, 4/4 node:test green)
 
 - [ ] Request by version recompiles the stored source to PDF and caches it under generated keyed by version
 - [ ] No PDF bytes stored in the database; source remains the single truth for recompile

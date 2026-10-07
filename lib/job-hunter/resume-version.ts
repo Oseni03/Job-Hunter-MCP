@@ -250,3 +250,70 @@ export async function logTailorEvent(
 		return { logged: false, reason: error instanceof Error ? error.message : "write-failed" };
 	}
 }
+
+/* ------------------------------------------------------------------ */
+/* Ticket 04: ephemeral PDF recompile cache                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Host-side recompile contract: the server never compiles and never
+ * stores PDF bytes (see verify.ts). The host recompiles a stored `tex`
+ * source with the stock lualatex toolchain and caches the PDF under
+ * `generated/` keyed by version id. No Obsidian, no vault folders.
+ */
+
+export const EMPTY_RECOMPILE_SOURCE_ERROR =
+	"EMPTY_RECOMPILE_SOURCE: no tailored source for this version. No PDF was emitted.";
+export const BAD_VERSION_ID_ERROR =
+	"BAD_VERSION_ID: version id must be a positive integer. No PDF was emitted.";
+
+export interface RecompilePlan {
+	/** Stored version the PDF recompiles from. */
+	versionId: number;
+	/** Where the host writes the stored source before compiling. */
+	texPath: string;
+	/** Stock toolchain command the host runs (mirrors the tailor output). */
+	compileCommand: string;
+	/** Ephemeral cache location for the compiled PDF, keyed by version. */
+	cachePath: string;
+}
+
+export type RecompilePlanResult = { ok: true; plan: RecompilePlan } | { ok: false; error: string };
+
+/** Ephemeral cache location for one version's PDF. Fails loudly on bad ids. */
+export function pdfCachePathFor(
+	versionId: number,
+): { ok: true; cachePath: string } | { ok: false; error: string } {
+	if (!Number.isInteger(versionId) || versionId <= 0) {
+		return { ok: false, error: BAD_VERSION_ID_ERROR };
+	}
+	return { ok: true, cachePath: `generated/resume/${versionId}.pdf` };
+}
+
+/** Full host recompile plan for one stored version, or a loud refusal. */
+export function recompilePlanFor(version: {
+	id: number;
+	jobKey: string;
+	tex: string;
+}): RecompilePlanResult {
+	if (!version.jobKey.trim()) {
+		return { ok: false, error: EMPTY_VERSION_KEY_ERROR };
+	}
+	if (!version.tex.trim()) {
+		return { ok: false, error: EMPTY_RECOMPILE_SOURCE_ERROR };
+	}
+	const cached = pdfCachePathFor(version.id);
+	if (!cached.ok) {
+		return cached;
+	}
+	const stem = `main_${version.jobKey}`;
+	return {
+		ok: true,
+		plan: {
+			versionId: version.id,
+			texPath: `cv/${stem}.tex`,
+			compileCommand: `cd cv && lualatex --no-shell-escape -interaction=nonstopmode ${stem}.tex`,
+			cachePath: cached.cachePath,
+		},
+	};
+}
