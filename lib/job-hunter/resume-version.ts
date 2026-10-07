@@ -32,6 +32,14 @@ export interface ResumeVersionRecord {
 	verification: ResumeVerification | null;
 }
 
+/** Stored row as re-fetched: source plus review text plus verification payload. */
+export interface StoredResumeVersion {
+	id: number;
+	tex: string;
+	markdown: string;
+	verification: Prisma.JsonValue | null;
+}
+
 export type ResumeVersionBuild =
 	| { ok: true; record: ResumeVersionRecord }
 	| { ok: false; error: string };
@@ -129,7 +137,7 @@ export async function fetchResumeVersions(
 	client: PrismaClient | null,
 	userId: string,
 	jobKey: string,
-): Promise<Array<{ id: number; tex: string; markdown: string }> > {
+): Promise<StoredResumeVersion[]> {
 	if (!client) {
 		return [];
 	}
@@ -137,7 +145,7 @@ export async function fetchResumeVersions(
 		return await client.resumeVersion.findMany({
 			where: { userId, jobKey },
 			orderBy: { id: "asc" },
-			select: { id: true, tex: true, markdown: true },
+			select: { id: true, tex: true, markdown: true, verification: true },
 		});
 	} catch {
 		return [];
@@ -149,7 +157,7 @@ export async function fetchLatestResumeVersion(
 	client: PrismaClient | null,
 	userId: string,
 	jobKey: string,
-): Promise<{ id: number; tex: string; markdown: string } | null> {
+): Promise<StoredResumeVersion | null> {
 	if (!client) {
 		return null;
 	}
@@ -157,7 +165,7 @@ export async function fetchLatestResumeVersion(
 		return await client.resumeVersion.findFirst({
 			where: { userId, jobKey },
 			orderBy: { id: "desc" },
-			select: { id: true, tex: true, markdown: true },
+			select: { id: true, tex: true, markdown: true, verification: true },
 		});
 	} catch {
 		return null;
