@@ -52,6 +52,40 @@ describe("dashboard mappers", () => {
 		assert.ok((truncated.description?.length ?? 0) < 5000);
 		assert.ok(truncated.description?.includes("truncated"));
 
+		const profile = mapToolToDashboard(
+			"setup-profile",
+			{},
+			{
+				profile: {
+					name: "Ada Example",
+					projects: [{ name: "Risk engine", description: "Built a streaming fraud scoring service." }],
+				},
+			},
+			null,
+		);
+		assert.equal(profile.items?.[0].title, "Risk engine");
+		assert.equal(profile.items?.[0].note, "Built a streaming fraud scoring service.");
+
+		const profileWithExperience = mapToolToDashboard(
+			"setup-profile",
+			{},
+			{
+				profile: {
+					name: "Ada Example",
+					experience: [
+						{
+							position: "ML Engineer",
+							company: "Acme",
+							description: "Built fraud detection models for card payments.",
+						},
+					],
+				},
+			},
+			null,
+		);
+		assert.equal(profileWithExperience.items?.[0].title, "ML Engineer at Acme");
+		assert.equal(profileWithExperience.items?.[0].note, "Built fraud detection models for card payments.");
+
 		const linked = mapToolToDashboard(
 			"analyze-job",
 			{ postingUrl: "https://example.com/jobs/1" },

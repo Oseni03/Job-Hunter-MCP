@@ -476,13 +476,33 @@ function mapProfile(structured: Rec, markdown?: string): DashboardData {
 		.map((entry) => text(rec(entry)["name"]))
 		.filter((name) => name !== "");
 	const skills = unified.length > 0 ? unified : strings(profile["primarySkills"]);
+	const projects = list(profile["projects"]).flatMap((entry) => {
+		const project = rec(entry);
+		const name = text(project["name"]);
+		if (name === "") return [];
+		return [
+			{
+				title: name,
+				note: excerpt(project["description"], DESCRIPTION_EXCERPT_LIMIT),
+				url: text(project["url"]) || text(project["github"]) || undefined,
+			},
+		];
+	});
+	const experience = list(profile["experience"]).flatMap((entry) => {
+		const role = rec(entry);
+		const position = text(role["position"]);
+		const company = text(role["company"]);
+		const title = [position, company ? `at ${company}` : ""].filter((part) => part !== "").join(" ");
+		if (title === "") return [];
+		return [{ title, note: excerpt(role["description"], DESCRIPTION_EXCERPT_LIMIT) }];
+	});
 	return {
 		view: "overview",
 		title: "Profile setup",
 		summary: [text(profile["name"]) || "Profile", text(profile["location"]), skills.length > 0 ? skills.join(", ") : "no primary skills yet"]
 			.filter((part) => part !== "")
 			.join(" · "),
-		items: [],
+		items: [...experience, ...projects],
 		markdown,
 		actions: [],
 	};

@@ -1,7 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { DEFAULT_PROFILE, foldLegacyFields, parseProfile, resolveProfile } from "@/lib/job-hunter/profile.ts";
+import {
+	DEFAULT_PROFILE,
+	foldLegacyFields,
+	matchingPool,
+	parseProfile,
+	resolveProfile,
+	evidencePool,
+} from "@/lib/job-hunter/profile.ts";
 
 describe("resolveProfile", () => {
 	it("returns the embedded default when no override is given", () => {
@@ -86,5 +93,41 @@ describe("foldLegacyFields", () => {
 			["fraud detection"],
 		);
 		assert.deepEqual(profile.preferences?.targetRoles, ["ML Engineer"]);
+	});
+});
+
+describe("project descriptions", () => {
+	it("keeps project descriptions available for matching and evidence", () => {
+		const profile = parseProfile({
+			...DEFAULT_PROFILE,
+			projects: [
+				{
+					name: "Risk engine",
+					description: "Built a streaming fraud scoring service.",
+					technologies: ["Python"],
+				},
+			],
+		});
+
+		assert.ok(matchingPool(profile).includes("Built a streaming fraud scoring service."));
+		assert.ok(evidencePool(profile).includes("Built a streaming fraud scoring service."));
+	});
+});
+
+describe("experience descriptions", () => {
+	it("keeps experience descriptions available for matching and evidence", () => {
+		const profile = parseProfile({
+			...DEFAULT_PROFILE,
+			experience: [
+				{
+					company: "Acme",
+					position: "ML Engineer",
+					description: "Built fraud detection models for card payments.",
+				},
+			],
+		});
+
+		assert.ok(matchingPool(profile).includes("Built fraud detection models for card payments."));
+		assert.ok(evidencePool(profile).includes("Built fraud detection models for card payments."));
 	});
 });
