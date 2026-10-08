@@ -13,7 +13,7 @@
  * User row, so those callers share the embedded default.
  */
 
-import { loadPrismaClient } from "@/lib/db.ts";
+import { prisma } from "@/lib/db.ts";
 import { DEFAULT_PROFILE, rowToProfile, type Profile } from "@/lib/job-hunter/profile.ts";
 
 /** Non-user identities that by construction never own a User row. */
@@ -46,12 +46,11 @@ export async function resolveActiveProfile(extra: unknown): Promise<{ profile: P
 	if (!userId) {
 		return fallback;
 	}
-	const client = await loadPrismaClient();
-	if (!client) {
+	if (!prisma) {
 		return fallback;
 	}
 	try {
-		const user = await client.user.findUnique({ where: { id: userId }, include: { profile: true } });
+		const user = await prisma.user.findUnique({ where: { id: userId }, include: { profile: true } });
 		if (!user?.profile) {
 			return fallback;
 		}

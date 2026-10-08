@@ -3,7 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 import type { Prisma } from "@/generated/prisma/client.ts";
 
-import { loadPrismaClient } from "@/lib/db.ts";
+import { prisma } from "@/lib/db.ts";
 import { profileToRow, type Profile } from "@/lib/job-hunter/profile.ts";
 import { userIdFromRequest } from "@/lib/job-hunter/request-profile.ts";
 import { planSetupProfile } from "@/lib/job-hunter/setup-profile.ts";
@@ -18,8 +18,7 @@ const asJson = (value: unknown): Prisma.InputJsonValue => value as Prisma.InputJ
  * degrades to an honest note and the host keeps its mirror fallback.
  */
 async function persistProfile(userId: string, profile: Profile, resumeHash: string): Promise<string> {
-	const client = await loadPrismaClient();
-	if (!client) {
+	if (!prisma) {
 		return "Database not configured; host owns persistence (mirror the returned profile to the Prisma Profile row).";
 	}
 	try {
@@ -48,7 +47,7 @@ async function persistProfile(userId: string, profile: Profile, resumeHash: stri
 			preferences: asJson(row.preferences),
 			resumeHash: row.resumeHash,
 		};
-		await client.profile.upsert({ where: { userId }, create: { userId, ...data }, update: data });
+		await prisma.profile.upsert({ where: { userId }, create: { userId, ...data }, update: data });
 		return "Stored server-side for the authenticated caller (Prisma Profile row upserted).";
 	} catch {
 		return "Database write failed (no User row for this identity, or the database is unreachable); host owns persistence.";

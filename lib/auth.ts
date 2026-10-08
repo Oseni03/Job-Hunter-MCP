@@ -1,10 +1,9 @@
-import { PrismaPg } from "@prisma/adapter-pg";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { jwt } from "better-auth/plugins";
 import { mcp } from "@better-auth/mcp";
 
-import { PrismaClient } from "@/generated/prisma/client.ts";
+import { prisma, type PrismaClient } from "@/lib/db.ts";
 
 export interface BearerCheck {
 	authorized: boolean;
@@ -119,25 +118,17 @@ function resolveSecret(env: Record<string, string | undefined> = process.env): s
 	return "local-dev-secret-change-me-to-32-chars-minimum!!";
 }
 
-declare global {
-	var __authPrisma__: PrismaClient | undefined;
-}
-
+/**
+ * Shared singleton: Better Auth reuses the same Prisma client as the rest
+ * of the app (single pool, cached on globalThis in lib/db.ts). Callers
+ * check isBetterAuthEnabled() first; throwing here surfaces programmer
+ * error (including a non-Postgres DATABASE_URL that slipped past the gate).
+ */
 function createAuthPrismaClient(): PrismaClient {
-	if (globalThis.__authPrisma__) {
-		return globalThis.__authPrisma__;
-	}
-	// The Prisma schema provider is postgresql (Better Auth needs String[]
-	// scalar lists), so the driver adapter is always Postgres. Callers check
-	// isBetterAuthEnabled() first; throwing here surfaces programmer error
-	// (including a non-Postgres DATABASE_URL that slipped past the gate).
-	const url = (process.env["DATABASE_URL"] ?? "").trim();
-	if (!/^postgres(ql)?:\/\//i.test(url)) {
+	if (!prisma) {
 		throw new Error("DATABASE_URL must be a Postgres URL for Better Auth.");
 	}
-	const client = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
-	globalThis.__authPrisma__ = client;
-	return client;
+	return prisma;
 }
 
 /**

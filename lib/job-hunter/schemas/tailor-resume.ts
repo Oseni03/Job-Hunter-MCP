@@ -19,17 +19,17 @@ export const TailorCvInput = z
 		postingUrl: z.string().url().optional().describe("Posting URL (slug fallback, archive reference)"),
 		company: z.string().min(1).optional(),
 		role: z.string().min(1).optional(),
-		experience: z.array(ExperienceInput).optional(),
-		education: z.array(EducationInput).optional(),
-		masterCvText: z.string().optional().describe("Master CV text; joins the factual-audit union"),
-		workspaceProfileText: z.string().optional().describe("Workspace profile text; joins the audit union"),
-		contact: ContactInput.optional(),
-		cvLanguage: z.string().optional().describe("CV language for section headings (default en)"),
 		postingLanguage: z.string().optional().describe("Posting language for the language-fit warning"),
 		evaluation: EvaluationGateInput.optional().describe(
 			"analyze-job summary (verdict plus gate results); refused on FAIL, warned when missing",
 		),
-		roleType: z.enum(["technical", "specialist"]).optional().describe("Section-order override (default auto)"),
+		llm: z
+			.object({
+				model: z.string().min(1).optional().describe("Groq model override"),
+			})
+			.strict()
+			.optional()
+			.describe("LLM tailoring runs on Groq (GROQ_API_KEY); a missing provider is an honest error, never a silent fallback"),
 	})
 	.strict();
 

@@ -6,6 +6,8 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { registerTailorResume } from "@/lib/job-hunter/tools/tailor-resume.ts";
 import { registerGenerateCoverLetter } from "@/lib/job-hunter/tools/generate-cover-letter.ts";
 import { registerJobHunterResources } from "@/lib/job-hunter/server.ts";
+import { sectionHeadings } from "@/lib/job-hunter/document.ts";
+import type { FetchLike } from "@/lib/job-hunter/fetch-posting.ts";
 
 type ToolResult = {
 	content: { type: string; text: string }[];
@@ -40,25 +42,42 @@ const POSTING = [
 	"Domain: fraud detection.",
 ].join("\n");
 
+/** Canned model output; the tool test stubs Groq so no key or network is needed. */
+const RENDER = {
+	name: "Test Candidate",
+	statement: "Test Candidate brings Python and SQL to ML Engineer work in fraud detection.",
+	competencies: [{ label: "Python", body: "Direct match to a stated requirement." }],
+	headings: sectionHeadings("en"),
+};
+
+function stubFetch(data: unknown): FetchLike {
+	return async () => ({
+		status: 200,
+		body: JSON.stringify({ choices: [{ message: { content: JSON.stringify(data) } }] }),
+	});
+}
+
 describe("tailor-resume signals", () => {
 	it("carries page-budget, HTML render-safety, and layout signals with the HTML", async () => {
-		const result = await toolHandler(registerTailorResume)(
-			{
-				postingText: POSTING,
-				company: "Acme",
-				role: "Senior ML Engineer",
-				profile: PROFILE,
-				experience: [
-					{
-						title: "Data Analyst",
-						company: "R&D Corp",
-						period: "2020-2024",
-						bullets: ["Cut losses by 12% with Python models for fraud detection."],
-					},
-				],
-			},
-			{},
-		);
+		const hadKey = process.env["GROQ_API_KEY"];
+		process.env["GROQ_API_KEY"] = "test-key";
+		let result: ToolResult;
+		try {
+			result = await toolHandler((server) =>
+				registerTailorResume(server, { fetchImpl: stubFetch(RENDER) }),
+			)(
+				{
+					postingText: POSTING,
+					company: "Acme",
+					role: "Senior ML Engineer",
+					profile: PROFILE,
+				},
+				{},
+			);
+		} finally {
+			if (hadKey === undefined) delete process.env["GROQ_API_KEY"];
+			else process.env["GROQ_API_KEY"] = hadKey;
+		}
 		assert.equal(result.isError, undefined);
 		const signals = (result.structuredContent as Record<string, unknown>)["signals"] as Record<string, unknown>;
 		assert.equal((signals["pageBudget"] as { pageLimit: number }).pageLimit, 2);

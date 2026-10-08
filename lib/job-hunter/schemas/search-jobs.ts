@@ -6,25 +6,12 @@ export const SearchJobsInput = z
 	.object({
 		keywords: z.string().optional().describe("Explicit keyword query; absent derives from the profile"),
 		location: z.string().optional().describe("Explicit location; absent derives from the profile"),
-		scraperAdapters: z
-			.array(z.string())
-			.optional()
-			.describe(
-				"Local scraper adapters to run (registry names, or all). Defaults to [\"all\"]; pass [] to disable live scraping.",
-			),
 		remoteMode: z
 			.enum(["remote", "hybrid", "onsite"])
 			.optional()
 			.describe("Workplace filter for the scraper search"),
 		jobType: z.string().optional().describe("Job-type filter for the scraper search"),
 		limit: z.number().int().positive().optional().describe("Result cap; capped at 20 server-side"),
-		seenKeys: z
-			.array(z.string())
-			.optional()
-			.describe(
-				"Caller-held dedupe store keys. Delta-only: send only keys new since the last call to save context. The host owns the full store — a host that loses its store resends full state (correctness first, savings second).",
-			),
-		appliedPairs: z.array(z.string()).optional().describe("Caller-held applied company||title pairs"),
 		cursor: z
 			.string()
 			.optional()

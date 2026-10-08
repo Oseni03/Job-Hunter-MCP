@@ -1,8 +1,15 @@
 import { extractDeadline, phraseMatches, profileVocabulary } from "@/lib/job-hunter/evaluate.ts";
 import { checkWritingBans, sectionHeadings } from "@/lib/job-hunter/document.ts";
 import { EMPTY_SLUG_ERROR, makeJobSlug } from "@/lib/job-key.ts";
+import type { FetchLike } from "@/lib/job-hunter/fetch-posting.ts";
+import { buildTailorPrompt, groqTailor } from "@/lib/job-hunter/llm.ts";
 import type { Profile } from "@/lib/job-hunter/profile.ts";
-import { ACTIVE_TEMPLATE, buildTailoredCvHtml } from "@/lib/job-hunter/render-tailored-cv.ts";
+import {
+	ACTIVE_TEMPLATE,
+	buildTailoredCvHtml,
+	TailoredCvRenderSchema,
+	type TailoredCvRenderInput,
+} from "@/lib/job-hunter/render-tailored-cv.ts";
 import { ACTIVE_COVER_TEMPLATE, buildTailoredCoverLetterHtml } from "@/lib/job-hunter/render-tailored-cover-letter.ts";
 import {
 	adjacentDomainNames,
@@ -436,21 +443,26 @@ export interface DroppedBullet {
 
 export interface TailorCvInput {
 	postingText: string;
+	profile: Profile;
 	company?: string;
 	role?: string;
 	postingUrl?: string;
-	profile: Profile;
-	experience?: ExperienceEntry[];
-	education?: EducationEntry[];
-	masterCvText?: string;
-	workspaceProfileText?: string;
-	contact?: ContactDetails;
-	cvLanguage?: string;
 	/** Posting language for the language-fit warning (body stays profile-language). */
 	postingLanguage?: string;
+	/** CV language for headings and the language-fit warning. */
+	cvLanguage?: string;
 	/** Optional analyze-job summary; refused on FAIL, warned when missing. */
 	evaluation?: EvaluationSummary;
-	roleType?: RoleType;
+}
+
+/** Groq wiring for tailoring; the tool reads the key from env, tests stub fetchImpl. */
+export interface TailorOptions {
+	/** Groq API key; absent means no provider, which is an honest error. */
+	apiKey?: string;
+	/** Groq model override. */
+	model?: string;
+	/** Test seam following the repo convention; production uses the default fetch. */
+	fetchImpl?: FetchLike;
 }
 
 export type TailorCvResult =
@@ -632,37 +644,24 @@ function postingSurfaceForm(phrase: string, postingText: string): string {
 	return match ? match[0] : phrase;
 }
 
-const ROLE_BULLET_CAPS = [5, 3, 2];
-
-/** Relevance-orders bullets (posting-term hits, then measurable outcomes), stable, then caps. Dropped bullets are returned so the host can show the cuts. */
-function tailorBullets(
-	bullets: string[],
-	phrases: string[],
-	cap: number,
-): { kept: string[]; dropped: string[] } {
-	const scored = bullets.map((bullet, index) => {
-		const hits = phrases.filter((phrase) => phraseMatches(bullet, phrase)).length;
-		return { bullet, index, score: 2 * hits + (/\d/.test(bullet) ? 1 : 0) };
-	});
-	scored.sort((a, b) => b.score - a.score || a.index - b.index);
-	return {
-		kept: scored.slice(0, cap).map((entry) => entry.bullet),
-		dropped: scored.slice(cap).map((entry) => entry.bullet),
-	};
-}
-
-interface Competency {
-	label: string;
-	body: string;
-	evidence: string;
-}
+/** Error when tailoring is attempted without a Groq key: no silent fallback. */
+export const TAILOR_NO_LLM_ERROR =
+	"TAILOR_NO_LLM: GROQ_API_KEY is not set; tailoring needs Groq and never falls back silently.";
 
 /**
- * Builds the tailored CV as deterministic HTML. Returns the EMPTY_SLUG hard
- * error with no document when neither company, role, nor URL identifies the
- * posting. The host owns file writes and PDF rendering.
+ * Builds the tailored CV from LLM-structured data: the model fills the
+ * TailoredCvRenderInput shape over Groq, the shape is validated, and
+ * buildTailoredCvHtml renders it on the fixed template. EMPTY_SLUG and the
+ * analyze-job gate refuse before any model call; requirement coverage and
+ * the fabrication guardrails (unknown employers, ungrounded numbers) stay
+ * deterministic. The model owns bullet selection, so droppedBullets is
+ * always empty; a missing provider is an honest error, never a fallback.
+ * The host owns file writes and PDF rendering.
  */
-export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
+export async function buildTailoredCv(
+	input: TailorCvInput,
+	options: TailorOptions = {},
+): Promise<TailorCvResult> {
 	const slug = makeJobSlug(input.company, input.role, input.postingUrl);
 	if (!slug) {
 		return { ok: false, error: EMPTY_SLUG_ERROR };
@@ -671,119 +670,71 @@ export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 	if (gate.refused) {
 		return { ok: false, error: gate.refused };
 	}
-	const profile = input.profile;
-	const coverage = matchRequirements(input.postingText, profile);
-
-	const coreSkills = [...primarySkillNames(profile), ...strongDomainNames(profile)];
-	const peripheralSkills = [...secondarySkillNames(profile), ...adjacentDomainNames(profile)];
-	const coreHit = coreSkills.some((skill) => skill.trim() !== "" && phraseMatches(input.postingText, skill));
-	const adjacentHit = adjacentDomainNames(input.profile).some(
-		(domain) => domain.trim() !== "" && phraseMatches(input.postingText, domain),
-	);
-	const transferring = !coreHit && adjacentHit;
-
-	const matched = coverage.filter((item) => item.status === "matched");
-	const matchedSkills = matched
-		.map((item) => item.evidence as string)
-		.filter((evidence, index, all) => evidence && all.indexOf(evidence) === index)
-		.slice(0, 7);
-	// Pad short lists to 5 from profile skills (primaries, then secondary,
-	// then adjacent); never invent. Gaps stay out.
-	const padPool = [
-		...primarySkillNames(profile),
-		...secondarySkillNames(profile),
-		...adjacentDomainNames(profile),
-	].filter((skill) => !matchedSkills.includes(skill));
-	const padded =
-		matchedSkills.length < 5 ? [...matchedSkills, ...padPool].slice(0, 7) : matchedSkills;
-	const corePhrases = [...primarySkillNames(profile), ...strongDomainNames(profile)];
-
-	const competencies: Competency[] = padded.map((skill) => {
-		const item = matched.find((entry) => entry.evidence === skill);
-		return {
-			label: postingSurfaceForm(skill, input.postingText),
-			body:
-				item?.kind === "nice-to-have"
-					? "Direct match to a stated nice-to-have requirement."
-					: item
-						? "Direct match to a stated requirement."
-						: corePhrases.includes(skill)
-							? "Core strength for this role."
-							: "Adjacent strength, framed toward this role.",
-			evidence: skill,
-		};
+	if (!options.apiKey) {
+		return { ok: false, error: TAILOR_NO_LLM_ERROR };
+	}
+	const coverage = matchRequirements(input.postingText, input.profile);
+	const language = input.cvLanguage ?? "en";
+	const prompt = buildTailorPrompt(input.postingText, input.profile, {
+		company: input.company,
+		role: input.role,
+		headings: sectionHeadings(language),
 	});
 
-	const topSkills = matchedSkills.filter((skill) => primarySkillNames(profile).includes(skill)).slice(0, 3);
-	const statementSkills =
-		topSkills.length > 0 ? topSkills : primarySkillNames(profile).slice(0, 3);
-	const skillList =
-		statementSkills.length > 1
-			? `${statementSkills.slice(0, -1).join(", ")} and ${statementSkills[statementSkills.length - 1]}`
-			: (statementSkills[0] ?? "relevant skills");
-	const strongDomain = matched
-		.map((item) => item.evidence as string)
-		.find((evidence) => strongDomainNames(profile).includes(evidence));
-	const goal = profile.preferences?.targetRoles?.[0];
-	const transferDomain = adjacentDomainNames(input.profile).find(
-		(domain) => domain.trim() !== "" && phraseMatches(input.postingText, domain),
-	);
-	const statement = transferring && transferDomain
-		? `Moving from ${transferDomain} to ${input.role ?? "this role"}, ${profile.name} brings ${skillList} to ${goal ? `${goal} work` : "work"}.`
-		: strongDomain && goal
-			? `${profile.name} brings ${skillList} to ${goal} work in ${strongDomain}.`
-			: goal
-				? `${profile.name} brings ${skillList} to ${goal} work.`
-				: `${profile.name} brings ${skillList}.`;
-
-	const phrases = profilePhrases(profile);
-	const droppedBullets: DroppedBullet[] = [];
-	const tailoredExperience = (input.experience ?? []).map((entry, roleIndex) => {
-		const shaped = tailorBullets(
-			entry.bullets,
-			phrases,
-			ROLE_BULLET_CAPS[Math.min(roleIndex, ROLE_BULLET_CAPS.length - 1)],
-		);
-		const roleLabel = `${entry.title} at ${entry.company}`;
-		for (const bullet of shaped.dropped) {
-			droppedBullets.push({ role: roleLabel, bullet });
+	let data: TailoredCvRenderInput;
+	try {
+		const raw = await groqTailor(prompt, {
+			apiKey: options.apiKey,
+			model: options.model,
+			fetchImpl: options.fetchImpl,
+		});
+		const parsed = TailoredCvRenderSchema.safeParse(raw);
+		if (!parsed.success) {
+			return { ok: false, error: "TAILOR_INVALID: the model did not return valid tailored CV JSON; retry the call." };
 		}
-		return { ...entry, bullets: shaped.kept };
-	});
+		data = parsed.data;
+	} catch (error) {
+		return { ok: false, error: `TAILOR_LLM_FAILED: ${error instanceof Error ? error.message : String(error)}` };
+	}
+	const html = buildTailoredCvHtml(data);
 
-	const union = [
-		JSON.stringify(profile),
-		JSON.stringify(input.experience ?? []),
-		JSON.stringify(input.education ?? []),
-		input.masterCvText ?? "",
-		input.workspaceProfileText ?? "",
-		input.company ?? "",
-		input.role ?? "",
-		BUILDER_LEXICON.join(" "),
-	];
+	const profileCompanies = new Set(
+		(input.profile.experience ?? []).map((entry) => entry.company.toLowerCase()),
+	);
 	const draftDrift: string[] = [];
-	for (const prose of [statement, ...competencies.map((c) => c.body)]) {
-		const audit = auditClaim(prose, union);
-		if (!audit.grounded) {
-			draftDrift.push(`${prose} (missing: ${audit.missing.join(", ")})`);
+	for (const entry of data.experience) {
+		if (!profileCompanies.has(entry.company.toLowerCase())) {
+			draftDrift.push(
+				`Unknown employer '${entry.company}' is not in the profile; confirm or remove before submitting.`,
+			);
 		}
 	}
 
-	const stretchChoices: StretchChoice[] = competencies
-		.filter((competency) => peripheralSkills.includes(competency.evidence))
-		.map((competency) => ({
-			bullet: competency.label,
-			reason: `${competency.label} comes from secondary skills, so it reads as adjacent rather than core. Keep, soften, or drop?`,
-			options: ["keep", "soften", "drop"] as ["keep", "soften", "drop"],
-		}));
+	const sourceText = [JSON.stringify(input.profile), input.company ?? "", input.role ?? ""]
+		.join("\n")
+		.toLowerCase();
+	const prose = [
+		data.statement,
+		...data.competencies.map((item) => `${item.label} ${item.body}`),
+		...data.experience.flatMap((entry) => [...entry.bullets, entry.period]),
+	].join(" ");
+	for (const numeral of extractNumerals(prose)) {
+		// A range whose endpoints are all grounded is grounded ("2020-2024"
+		// matches one numeral but lives in the profile as two dates).
+		const parts = numeral.match(/\d+/g) ?? [];
+		const grounded =
+			sourceText.includes(numeral.toLowerCase()) ||
+			(parts.length > 0 && parts.every((part) => sourceText.includes(part)));
+		if (!grounded) {
+			draftDrift.push(
+				`Ungrounded number '${numeral}' appears in the draft but in no fact source; confirm or remove before submitting.`,
+			);
+		}
+	}
 
-	const matchedCount = matched.length;
+	const matchedCount = coverage.filter((item) => item.status === "matched").length;
 	const bridgedCount = coverage.filter((item) => item.status === "bridged").length;
-	const warnings: DraftWarnings = {
-		profileConsistency: checkSourceConsistency(profile, input.masterCvText, input.workspaceProfileText),
-		draftDrift,
-		stretchChoices,
-	};
+	const warnings: DraftWarnings = { profileConsistency: [], draftDrift, stretchChoices: [] };
 	if (gate.note) {
 		warnings.evaluationNote = gate.note;
 	}
@@ -791,16 +742,11 @@ export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 		warnings.reframingWarning =
 			"Posting matches no primary skill or strong domain; extensive reframing would be needed. Confirm before submitting.";
 	}
-	const contactNote = contactWarning({
-		email: input.contact?.email || profile.email || undefined,
-		phone: input.contact?.phone || profile.phone || undefined,
-	});
+
+	const contactNote = contactWarning({ email: data.email, phone: data.phone });
 	if (contactNote) {
 		warnings.contactNote = contactNote;
 	}
-
-	const language = input.cvLanguage ?? "en";
-	const headings = sectionHeadings(language);
 	if (input.postingLanguage && input.postingLanguage.toLowerCase() !== language.toLowerCase()) {
 		warnings.languageNote =
 			`Posting language '${input.postingLanguage}' differs from CV language '${language}'; ` +
@@ -809,35 +755,7 @@ export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 	} else if (input.postingLanguage && input.postingLanguage.toLowerCase() !== "en") {
 		warnings.languageNote = englishOnlyNote(input.postingLanguage);
 	}
-	const roleType = detectRoleType(input.postingText, input.roleType);
-	const roleTypeNote = roleTypeCaution(input.postingText, input.roleType);
-	if (roleTypeNote) {
-		warnings.roleTypeNote = roleTypeNote;
-	}
-	const contact = {
-		email: input.contact?.email || profile.email || undefined,
-		phone: input.contact?.phone || profile.phone || undefined,
-		linkedin: input.contact?.linkedin || profile.linkedin || undefined,
-		github: input.contact?.github || profile.github || undefined,
-	};
-	const html = buildTailoredCvHtml({
-		name: profile.name,
-		headline: input.role ?? profile.headline,
-		location: profile.location,
-		email: contact.email,
-		phone: contact.phone,
-		linkedin: contact.linkedin,
-		github: contact.github,
-		statement,
-		competencies,
-		experience: tailoredExperience,
-		education: input.education ?? [],
-		languages: profile.languages,
-		headings,
-		experienceFirst: roleType === "technical",
-	});
-
-	const banViolations = checkWritingBans([statement, ...competencies.map((c) => c.body)].join(" "));
+	const banViolations = checkWritingBans(prose);
 
 	return {
 		ok: true,
@@ -848,7 +766,7 @@ export function buildTailoredCv(input: TailorCvInput): TailorCvResult {
 		pageLimit: 2,
 		archiveDir: archiveDirFor(slug),
 		coverage,
-		droppedBullets,
+		droppedBullets: [],
 		warnings,
 		banViolations,
 	};
@@ -1085,7 +1003,7 @@ export function buildCoverLetter(input: CoverInput): CoverResult {
 				? `I want to contribute ${goal} work to that effort.`
 				: "I want to contribute to that effort.",
 		]
-		.join(" ")
+			.join(" ")
 		: `What draws me to ${company} is your stated focus on ${domain ?? "this field"}.`;
 
 	const essentials = coverage

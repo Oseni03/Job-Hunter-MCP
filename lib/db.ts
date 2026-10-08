@@ -12,14 +12,15 @@
  * - The generator uses `provider = "prisma-client"` with a required
  *   `output` (here `../generated/prisma`, i.e. `<root>/generated/prisma`).
  * - The connection string lives in prisma.config.ts, not schema.prisma.
- * - Every database needs a driver adapter: pg (Postgres). The adapter is
- *   picked from the DATABASE_URL scheme; `databaseKind()` still recognizes
- *   `file:` URLs so legacy/unset configs degrade to null instead of throwing.
+ * - Every database needs a driver adapter: pg (Postgres). `databaseKind()`
+ *   only accepts postgres URLs; legacy `file:` configs degrade to null.
+ * - Single shared client: `import { prisma } from "@/lib/db"` and use it
+ *   directly. Never `new PrismaClient()` at a call site, and never one
+ *   client per module (auth reuses this same instance).
  */
 
 import { createHash } from "node:crypto";
 
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client.ts";
 
@@ -56,17 +57,21 @@ export interface MirrorResult {
 	reason: string;
 }
 
-export type DatabaseKind = "sqlite" | "postgres";
+export type DatabaseKind = "postgres";
 
-/** Picks the driver adapter from the DATABASE_URL scheme; null when unset or unsupported. */
+/**
+ * Picks the driver adapter from the DATABASE_URL scheme; null when unset or
+ * unsupported. Postgres-only: the schema provider is postgresql (Better Auth
+ * needs String[] scalar lists), so legacy `file:` SQLite URLs degrade to
+ * null instead of constructing a client that can never query.
+ */
 export function databaseKind(url: string = process.env["DATABASE_URL"] ?? ""): DatabaseKind | null {
 	const value = url.trim();
-	if (value.startsWith("file:")) return "sqlite";
 	if (/^postgres(ql)?:\/\//i.test(value)) return "postgres";
 	return null;
 }
 
-/** True when DATABASE_URL names a supported database (sqlite file: or postgres). */
+/** True when DATABASE_URL names a supported database (postgres). */
 export function isDbConfigured(): boolean {
 	return databaseKind() !== null;
 }
@@ -75,24 +80,16 @@ declare global {
 	var __prisma__: PrismaClient | undefined;
 }
 
-function createClient(url: string, kind: DatabaseKind): PrismaClient {
-	const adapter = kind === "sqlite" ? new PrismaBetterSqlite3({ url }) : new PrismaPg({ connectionString: url });
-	return new PrismaClient({ adapter });
+function createClient(url: string): PrismaClient {
+	return new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
 }
 
-/**
- * Returns the shared Prisma 7 client, creating it on first use (cached on
- * globalThis so Next.js dev HMR never exhausts the pool). Returns null when
- * no supported DATABASE_URL is set so callers degrade gracefully.
- */
-export async function loadPrismaClient(): Promise<PrismaClient | null> {
-	const url = (process.env["DATABASE_URL"] ?? "").trim();
-	const kind = databaseKind(url);
-	if (!kind) return null;
+function initSharedClient(): PrismaClient | null {
 	if (globalThis.__prisma__) return globalThis.__prisma__;
+	const url = (process.env["DATABASE_URL"] ?? "").trim();
+	if (databaseKind(url) !== "postgres") return null;
 	try {
-		const client = createClient(url, kind);
-		await client.$connect();
+		const client = createClient(url);
 		globalThis.__prisma__ = client;
 		return client;
 	} catch {
@@ -100,11 +97,21 @@ export async function loadPrismaClient(): Promise<PrismaClient | null> {
 	}
 }
 
+/**
+ * Proper web-app singleton: the initiated client, imported as a value.
+ * Created once at module load and cached on globalThis (so Next.js dev
+ * HMR never exhausts the pool). Null when no Postgres DATABASE_URL is set,
+ * so callers degrade gracefully (`if (!prisma) ...`). Importing never
+ * touches the network: Prisma 7 connects lazily on first query (no
+ * explicit $connect).
+ */
+export const prisma: PrismaClient | null = initSharedClient();
+
 /** Closes the shared client (scripts/tests); safe to call when never connected. */
 export async function disconnectPrisma(): Promise<void> {
-	if (!globalThis.__prisma__) return;
-	const client = globalThis.__prisma__;
+	const client = globalThis.__prisma__ ?? prisma;
 	globalThis.__prisma__ = undefined;
+	if (!client) return;
 	try {
 		await client.$disconnect();
 	} catch {

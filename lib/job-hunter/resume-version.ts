@@ -9,7 +9,7 @@
  * thrown error, so pure builders stay testable without a database.
  */
 
-import { hashText, loadPrismaClient, redactPii, type PrismaClient } from "@/lib/db.ts";
+import { hashText, redactPii, type PrismaClient } from "@/lib/db.ts";
 import { stripHtmlToProse } from "@/lib/job-hunter/verify.ts";
 import type { Prisma } from "@/generated/prisma/client.ts";
 
@@ -53,34 +53,6 @@ export function toReviewMarkdown(html: string): string {
 	return stripHtmlToProse(html);
 }
 
-/**
- * Builds the storable version. Fails loudly on empty source or key with
- * no record emitted, mirroring the EMPTY_SLUG contract from ticket 01.
- */
-export function buildResumeVersionRecord(input: {
-	userId: string;
-	jobKey: string;
-	html: string;
-	verification?: ResumeVerification | null;
-}): ResumeVersionBuild {
-	if (!input.userId.trim() || !input.jobKey.trim()) {
-		return { ok: false, error: EMPTY_VERSION_KEY_ERROR };
-	}
-	if (!input.html.trim()) {
-		return { ok: false, error: EMPTY_HTML_ERROR };
-	}
-	return {
-		ok: true,
-		record: {
-			userId: input.userId,
-			jobKey: input.jobKey,
-			html: input.html,
-			markdown: toReviewMarkdown(input.html),
-			verification: input.verification ?? null,
-		},
-	};
-}
-
 function toJsonInput(verification: ResumeVerification | null): Prisma.InputJsonValue | undefined {
 	if (!verification) {
 		return undefined;
@@ -97,8 +69,31 @@ export interface SaveResult {
 /** Appends one immutable row; never updates. Null client degrades to { persisted: false }. */
 export async function saveResumeVersion(
 	client: PrismaClient | null,
-	record: ResumeVersionRecord,
+	input: {
+		userId: string;
+		jobKey: string;
+		html: string;
+		verification?: ResumeVerification | null;
+	},
 ): Promise<SaveResult> {
+	if (!input.userId.trim() || !input.jobKey.trim()) {
+		return {
+			persisted: false, reason: `${EMPTY_VERSION_KEY_ERROR}: invalid-record`
+		};
+	}
+	if (!input.html.trim()) {
+		return {
+			persisted: false, reason: `${EMPTY_HTML_ERROR}: invalid-record`
+		};
+	}
+	const record = {
+		userId: input.userId,
+		jobKey: input.jobKey,
+		html: input.html,
+		markdown: toReviewMarkdown(input.html),
+		verification: input.verification ?? null,
+	}
+
 	if (!client) {
 		return { persisted: false, reason: "no-database" };
 	}
@@ -116,20 +111,6 @@ export async function saveResumeVersion(
 	} catch (error) {
 		return { persisted: false, reason: error instanceof Error ? error.message : "write-failed" };
 	}
-}
-
-/** Builds then appends using the shared client (null when unconfigured). */
-export async function storeActiveResumeVersion(input: {
-	userId: string;
-	jobKey: string;
-	html: string;
-	verification?: ResumeVerification | null;
-}): Promise<SaveResult & { buildError?: string }> {
-	const built = buildResumeVersionRecord(input);
-	if (!built.ok) {
-		return { persisted: false, reason: "invalid-record", buildError: built.error };
-	}
-	return saveResumeVersion(await loadPrismaClient(), built.record);
 }
 
 /** Every stored version for one user and posting, oldest first. Empty when no database. */

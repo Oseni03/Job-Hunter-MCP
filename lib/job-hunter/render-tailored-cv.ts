@@ -1,27 +1,74 @@
 import puppeteer from "puppeteer";
 import { PDFDocument } from "pdf-lib";
+import { z } from "zod";
 
-import type { EducationEntry, ExperienceEntry } from "@/lib/job-hunter/tailor.ts";
 import type { SectionHeadings } from "@/lib/job-hunter/document.ts";
 
 export const ACTIVE_TEMPLATE = "modern-fixed-v1";
 
-export interface TailoredCvRenderInput {
-    name: string;
-    headline?: string;
-    location?: string;
-    email?: string;
-    phone?: string;
-    linkedin?: string;
-    github?: string;
-    statement: string;
-    competencies: Array<{ label: string; body: string }>;
-    experience: ExperienceEntry[];
-    education: EducationEntry[];
-    languages: Array<{ language: string; level: string }>;
-    headings: SectionHeadings;
-    experienceFirst?: boolean;
-}
+/**
+ * The LLM output contract for a tailored CV: everything
+ * buildTailoredCvHtml needs, nothing it doesn't. The model fills this
+ * shape; the builder validates it before rendering.
+ */
+export const TailoredCvRenderSchema = z
+	.object({
+		name: z.string().min(1),
+		headline: z.string().optional(),
+		location: z.string().optional(),
+		email: z.string().optional(),
+		phone: z.string().optional(),
+		linkedin: z.string().optional(),
+		github: z.string().optional(),
+		statement: z.string().min(1),
+		competencies: z
+			.array(z.object({ label: z.string().min(1), body: z.string().min(1) }).strict())
+			.min(1),
+		experience: z
+			.array(
+				z
+					.object({
+						title: z.string().min(1),
+						company: z.string().min(1),
+						period: z.string().min(1),
+						bullets: z.array(z.string()),
+					})
+					.strict(),
+			)
+			.default([]),
+		education: z
+			.array(
+				z
+					.object({
+						degree: z.string().min(1),
+						period: z.string().min(1),
+						institution: z.string().min(1),
+						inProgress: z.boolean().optional(),
+						expectedDate: z.string().optional(),
+					})
+					.strict(),
+			)
+			.default([]),
+		languages: z
+			.array(z.object({ language: z.string().min(1), level: z.string().min(1) }).strict())
+			.default([]),
+		headings: z
+			.object({
+				competencies: z.string().min(1),
+				experience: z.string().min(1),
+				education: z.string().min(1),
+				languages: z.string().min(1),
+				publications: z.string().min(1),
+				awards: z.string().min(1),
+				references: z.string().min(1),
+				referencesNote: z.string().min(1),
+			})
+			.strict(),
+		experienceFirst: z.boolean().optional(),
+	})
+	.strict();
+
+export type TailoredCvRenderInput = z.infer<typeof TailoredCvRenderSchema>;
 
 export function escapeHtml(value: string | undefined | null): string {
     return String(value ?? "")

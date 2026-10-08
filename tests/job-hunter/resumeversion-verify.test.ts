@@ -9,6 +9,8 @@ import {
 	logTailorEvent,
 } from "@/lib/job-hunter/resume-version.ts";
 import { registerTailorResume } from "@/lib/job-hunter/tools/tailor-resume.ts";
+import { sectionHeadings } from "@/lib/job-hunter/document.ts";
+import type { FetchLike } from "@/lib/job-hunter/fetch-posting.ts";
 
 type ToolResult = {
 	content: { type: string; text: string }[];
@@ -69,10 +71,28 @@ describe("resumeversion verification (ticket 03)", () => {
 	});
 
 	it("returns verification with the tailoring without failing anonymous callers", async () => {
-		const result = await toolHandler(registerTailorResume)(
-			{ postingText: POSTING, company: "Acme", role: "Senior ML Engineer" },
-			{},
-		);
+		const render = {
+			name: "Test Candidate",
+			statement: "Test Candidate brings Python and SQL to ML Engineer work.",
+			competencies: [{ label: "Python", body: "Direct match to a stated requirement." }],
+			headings: sectionHeadings("en"),
+		};
+		const fetchImpl: FetchLike = async () => ({
+			status: 200,
+			body: JSON.stringify({ choices: [{ message: { content: JSON.stringify(render) } }] }),
+		});
+		const hadKey = process.env["GROQ_API_KEY"];
+		process.env["GROQ_API_KEY"] = "test-key";
+		let result: ToolResult;
+		try {
+			result = await toolHandler((server) => registerTailorResume(server, { fetchImpl }))(
+				{ postingText: POSTING, company: "Acme", role: "Senior ML Engineer" },
+				{},
+			);
+		} finally {
+			if (hadKey === undefined) delete process.env["GROQ_API_KEY"];
+			else process.env["GROQ_API_KEY"] = hadKey;
+		}
 		assert.equal(result.isError, undefined);
 		const verification = (result.structuredContent as Record<string, unknown>)[
 			"verification"

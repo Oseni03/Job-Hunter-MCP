@@ -11,6 +11,8 @@ import {
 } from "@/lib/job-hunter/tailor.ts";
 import { planInterviewPrep } from "@/lib/job-hunter/prep.ts";
 import { planPortalFields } from "@/lib/job-hunter/fields.ts";
+import { sectionHeadings } from "@/lib/job-hunter/document.ts";
+import type { FetchLike } from "@/lib/job-hunter/fetch-posting.ts";
 
 const PROFILE = {
 	name: "Test Candidate",
@@ -43,6 +45,23 @@ const FAIL_SUMMARY = {
 	eligibility: { verdict: "FAIL" },
 	languageGate: { verdict: "PASS" },
 };
+
+/** Canned model output for the CV builder; stubbed Groq transport below. */
+const RENDER = {
+	name: "Test Candidate",
+	statement: "Test Candidate brings Python and SQL to ML Engineer work in fraud detection.",
+	competencies: [{ label: "Python", body: "Direct match to a stated requirement." }],
+	headings: sectionHeadings("en"),
+};
+
+function stubFetch(data: unknown): FetchLike {
+	return async () => ({
+		status: 200,
+		body: JSON.stringify({ choices: [{ message: { content: JSON.stringify(data) } }] }),
+	});
+}
+
+const LLM = { apiKey: "test-key", fetchImpl: stubFetch(RENDER) };
 
 describe("auditClaim numerals", () => {
 	it("flags numerals missing from the union", () => {
@@ -87,8 +106,8 @@ describe("cover bridging slots", () => {
 });
 
 describe("gate input", () => {
-	it("refuses the CV on a FAIL summary", () => {
-		const result = buildTailoredCv({
+	it("refuses the CV on a FAIL summary", async () => {
+		const result = await buildTailoredCv({
 			postingText: POSTING,
 			company: "Acme",
 			role: "ML Engineer",
@@ -100,13 +119,16 @@ describe("gate input", () => {
 		assert.match(result.error, /^GATE_REFUSED/);
 	});
 
-	it("warns loudly on the CV when the summary is missing", () => {
-		const result = buildTailoredCv({
-			postingText: POSTING,
-			company: "Acme",
-			role: "ML Engineer",
-			profile: PROFILE,
-		});
+	it("warns loudly on the CV when the summary is missing", async () => {
+		const result = await buildTailoredCv(
+			{
+				postingText: POSTING,
+				company: "Acme",
+				role: "ML Engineer",
+				profile: PROFILE,
+			},
+			LLM,
+		);
 		assert.equal(result.ok, true);
 		if (!result.ok) return;
 		assert.ok(result.warnings.evaluationNote?.includes("blind"), "evaluation note present");
@@ -152,66 +174,35 @@ describe("gate input", () => {
 });
 
 describe("visible cuts", () => {
-	it("returns dropped bullets with their role and carries them in the JSON text", () => {
-		const bullets = [
-			"Python pipeline cut costs",
-			"SQL model improved recall",
-			"Docker deploy shortened cycle",
-			"Python review reduced risk",
-			"SQL dashboard saved hours",
-			"Extra fraud detection analysis",
-			"Extra payments reconciliation",
-		];
-		const result = buildTailoredCv({
-			postingText: POSTING,
-			company: "Acme",
-			role: "ML Engineer",
-			profile: PROFILE,
-			experience: [{ title: "Engineer", company: "Acme", period: "2020-2024", bullets }],
-			evaluation: PASS_SUMMARY,
-		});
+	it("reports no dropped bullets; the model owns selection", async () => {
+		const result = await buildTailoredCv(
+			{
+				postingText: POSTING,
+				company: "Acme",
+				role: "ML Engineer",
+				profile: PROFILE,
+				evaluation: PASS_SUMMARY,
+			},
+			LLM,
+		);
 		assert.equal(result.ok, true);
 		if (!result.ok) return;
-		assert.equal(result.droppedBullets.length, 2);
-		for (const dropped of result.droppedBullets) {
-			assert.ok(dropped.role.includes("Engineer"), `role carried, got ${dropped.role}`);
-			assert.ok(dropped.bullet.length > 0);
-		}
-		const parsed = JSON.parse(
-			JSON.stringify({
-				...result,
-				signals: {
-					pageBudget: {
-						kind: "cv",
-						pageLimit: 2,
-						wordCount: 10,
-						wordBudgetMin: null,
-						wordBudgetMax: null,
-						overBudget: false,
-						shapingNotes: [],
-					},
-					renderSafety: { passed: true, checks: [] },
-					layout: { degraded: false, note: null, problems: [] },
-				},
-			}),
-		) as { droppedBullets: { role: string; bullet: string }[] };
-		assert.equal(parsed.droppedBullets.length, 2);
-		for (const dropped of parsed.droppedBullets) {
-			assert.ok(dropped.role.includes("Engineer"), `role carried, got ${dropped.role}`);
-			assert.ok(dropped.bullet.length > 0);
-		}
+		assert.deepEqual(result.droppedBullets, []);
 	});
 });
 
 describe("fixed document renderers", () => {
-	it("uses fixed Puppeteer templates for both documents", () => {
-		const cv = buildTailoredCv({
-			postingText: POSTING,
-			company: "Acme",
-			role: "ML Engineer",
-			profile: PROFILE,
-			evaluation: PASS_SUMMARY,
-		});
+	it("uses fixed Puppeteer templates for both documents", async () => {
+		const cv = await buildTailoredCv(
+			{
+				postingText: POSTING,
+				company: "Acme",
+				role: "ML Engineer",
+				profile: PROFILE,
+				evaluation: PASS_SUMMARY,
+			},
+			LLM,
+		);
 		assert.equal(cv.ok, true);
 		if (!cv.ok) return;
 		assert.equal(cv.template, "modern-fixed-v1");
@@ -243,16 +234,19 @@ describe("fixed document renderers", () => {
 });
 
 describe("language fit", () => {
-	it("warns on the CV when posting and CV languages differ", () => {
-		const result = buildTailoredCv({
-			postingText: POSTING,
-			company: "Acme",
-			role: "ML Engineer",
-			profile: PROFILE,
-			cvLanguage: "en",
-			postingLanguage: "de",
-			evaluation: PASS_SUMMARY,
-		});
+	it("warns on the CV when posting and CV languages differ", async () => {
+		const result = await buildTailoredCv(
+			{
+				postingText: POSTING,
+				company: "Acme",
+				role: "ML Engineer",
+				profile: PROFILE,
+				cvLanguage: "en",
+				postingLanguage: "de",
+				evaluation: PASS_SUMMARY,
+			},
+			LLM,
+		);
 		assert.equal(result.ok, true);
 		if (!result.ok) return;
 		assert.ok(result.warnings.languageNote?.includes("de"), "mismatch named");

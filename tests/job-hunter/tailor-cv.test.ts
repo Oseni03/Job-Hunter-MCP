@@ -1,6 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
+import { sectionHeadings } from "@/lib/job-hunter/document.ts";
+import type { FetchLike } from "@/lib/job-hunter/fetch-posting.ts";
 import { buildTailoredCv } from "@/lib/job-hunter/tailor.ts";
 import type { Profile } from "@/lib/job-hunter/profile.ts";
 
@@ -15,6 +17,19 @@ const PROFILE: Profile = {
 	domains: [{ name: "fraud detection", category: "strong" as const }, { name: "credit risk", category: "adjacent" as const }],
 	energizingTasks: ["model building"],
 	drainingTasks: ["maintenance"],
+	experience: [
+		{
+			company: "R&D Corp",
+			position: "Data Analyst",
+			location: "",
+			startDate: "2020",
+			endDate: "2024",
+			current: false,
+			description: "Cut losses by 12% with Python models for fraud detection. Built SQL pipelines.",
+			achievements: [],
+			technologies: ["Python", "SQL"],
+		},
+	],
 };
 
 const POSTING = [
@@ -26,42 +41,67 @@ const POSTING = [
 	"Remote. Apply by 15 March 2026. Ref: ACME-123.",
 ].join("\n");
 
-const EXPERIENCE = [
-	{
-		title: "Data Analyst",
-		company: "R&D Corp",
-		period: "2020--2024",
-		bullets: [
-			"Did admin work.",
-			"Cut losses by 12% with Python models for fraud detection.",
-			"Attended meetings.",
-			"Built SQL pipelines.",
-			"Wrote reports.",
-			"Helped interns.",
-		],
-	},
-];
+/** Canned model output: every numeral and employer is grounded in PROFILE above. */
+const RENDER = {
+	name: "Test Candidate",
+	headline: "Senior ML Engineer",
+	location: "Copenhagen, Denmark",
+	email: "test@example.com",
+	phone: "+45 12345678",
+	statement: "Test Candidate brings Python, SQL and Machine Learning to ML Engineer work in fraud detection.",
+	competencies: [
+		{ label: "Python", body: "Direct match to a stated requirement." },
+		{ label: "SQL", body: "Direct match to a stated requirement." },
+		{ label: "Machine Learning", body: "Direct match to a stated requirement." },
+		{ label: "Docker", body: "Direct match to a stated nice-to-have requirement." },
+		{ label: "fraud detection", body: "Core strength for this role." },
+	],
+	experience: [
+		{
+			title: "Data Analyst",
+			company: "R&D Corp",
+			period: "2020-2024",
+			bullets: [
+				"Cut losses by 12% with Python models for fraud detection.",
+				"Built SQL pipelines.",
+				"Did admin work.",
+			],
+		},
+	],
+	education: [
+		{
+			degree: "MSc Data Science",
+			period: "2022-2024",
+			institution: "Test University",
+			inProgress: true,
+			expectedDate: "June 2026",
+		},
+	],
+	languages: [{ language: "English", level: "C1" }],
+	headings: sectionHeadings("en"),
+	experienceFirst: true,
+};
 
-const EDUCATION = [
-	{
-		degree: "MSc Data Science",
-		period: "2022-2024",
-		institution: "Test University",
-		inProgress: true,
-		expectedDate: "June 2026",
-	},
-];
+/** Stub Groq transport carrying canned model JSON, following the repo fetchImpl convention. */
+function stubFetch(data: unknown, status = 200): FetchLike {
+	return async () => ({
+		status,
+		body: JSON.stringify({ choices: [{ message: { content: JSON.stringify(data) } }] }),
+	});
+}
+
+const LLM = { apiKey: "test-key", fetchImpl: stubFetch(RENDER) };
+
+const CV_INPUT = {
+	postingText: POSTING,
+	company: "Acme",
+	role: "Senior ML Engineer",
+	profile: PROFILE,
+};
 
 describe("buildTailoredCv", () => {
-	it("derives the shared slug and stock file contract", () => {
-		const result = buildTailoredCv({
-			postingText: POSTING,
-			company: "Acme",
-			role: "Senior ML Engineer",
-			profile: PROFILE,
-			experience: EXPERIENCE,
-			education: EDUCATION,
-		});
+	it("derives the shared slug and stock file contract", async () => {
+		const result = await buildTailoredCv(CV_INPUT, LLM);
 		assert.equal(result.ok, true);
 		if (!result.ok) {
 			return;
@@ -73,15 +113,12 @@ describe("buildTailoredCv", () => {
 		assert.equal(result.pageLimit, 2);
 	});
 
-	it("emits escaped HTML output with ASCII date ranges", () => {
-		const result = buildTailoredCv({
-			postingText: POSTING,
-			company: "Acme",
-			role: "Senior ML Engineer",
-			profile: PROFILE,
-			experience: EXPERIENCE,
-			education: EDUCATION,
-		});
+	it("emits escaped HTML output with ASCII date ranges", async () => {
+		const doubleDash = {
+			...RENDER,
+			experience: [{ ...RENDER.experience[0], period: "2020--2024" }],
+		};
+		const result = await buildTailoredCv(CV_INPUT, { apiKey: "test-key", fetchImpl: stubFetch(doubleDash) });
 		assert.equal(result.ok, true);
 		if (!result.ok) {
 			return;
@@ -92,15 +129,8 @@ describe("buildTailoredCv", () => {
 		assert.ok(result.html.includes("In progress, expected June 2026."));
 	});
 
-	it("orders technical CVs as competencies, experience, then education", () => {
-		const result = buildTailoredCv({
-			postingText: POSTING,
-			company: "Acme",
-			role: "Senior ML Engineer",
-			profile: PROFILE,
-			experience: EXPERIENCE,
-			education: EDUCATION,
-		});
+	it("puts experience before education when the model sets experienceFirst", async () => {
+		const result = await buildTailoredCv(CV_INPUT, LLM);
 		assert.equal(result.ok, true);
 		if (!result.ok) {
 			return;
@@ -110,16 +140,17 @@ describe("buildTailoredCv", () => {
 		assert.ok(experienceAt > 0 && educationAt > experienceAt);
 	});
 
-	it("orders specialist CVs with education before experience", () => {
-		const result = buildTailoredCv({
-			postingText: "Requirements: credit risk analysis and regulatory reporting.",
-			company: "Acme",
-			role: "Risk Specialist",
-			profile: PROFILE,
-			experience: EXPERIENCE,
-			education: EDUCATION,
-			roleType: "specialist",
-		});
+	it("puts education before experience when the model clears experienceFirst", async () => {
+		const specialist = { ...RENDER, experienceFirst: false };
+		const result = await buildTailoredCv(
+			{
+				postingText: "Requirements: credit risk analysis and regulatory reporting.",
+				company: "Acme",
+				role: "Risk Specialist",
+				profile: PROFILE,
+			},
+			{ apiKey: "test-key", fetchImpl: stubFetch(specialist) },
+		);
 		assert.equal(result.ok, true);
 		if (!result.ok) {
 			return;
@@ -129,35 +160,20 @@ describe("buildTailoredCv", () => {
 		assert.ok(educationAt > 0 && educationAt < experienceAt);
 	});
 
-	it("builds 5 competencies with the posting terms as bold labels and never the gap", () => {
-		const result = buildTailoredCv({
-			postingText: POSTING,
-			company: "Acme",
-			role: "Senior ML Engineer",
-			profile: PROFILE,
-			experience: EXPERIENCE,
-			education: EDUCATION,
-		});
+	it("renders the model's competency list as-is with no padding", async () => {
+		const single = { ...RENDER, competencies: [RENDER.competencies[0]] };
+		const result = await buildTailoredCv(CV_INPUT, { apiKey: "test-key", fetchImpl: stubFetch(single) });
 		assert.equal(result.ok, true);
 		if (!result.ok) {
 			return;
 		}
 		const competencyHtml = result.html.match(/<ul class="competencies">[\s\S]*?<\/ul>/)?.[0] ?? "";
-		assert.equal(competencyHtml.match(/<strong>/g)?.length ?? 0, 5);
+		assert.equal(competencyHtml.match(/<strong>/g)?.length ?? 0, 1);
 		assert.ok(competencyHtml.includes("<strong>Python</strong>"));
-		assert.ok(competencyHtml.includes("<strong>Docker</strong>"));
-		assert.ok(!result.html.includes(">Kubernetes</strong>"));
 	});
 
-	it("relevance-orders bullets, keeps measurable outcomes, and caps the role at 5", () => {
-		const result = buildTailoredCv({
-			postingText: POSTING,
-			company: "Acme",
-			role: "Senior ML Engineer",
-			profile: PROFILE,
-			experience: EXPERIENCE,
-			education: EDUCATION,
-		});
+	it("renders the model-selected bullets verbatim in order", async () => {
+		const result = await buildTailoredCv(CV_INPUT, LLM);
 		assert.equal(result.ok, true);
 		if (!result.ok) {
 			return;
@@ -166,32 +182,22 @@ describe("buildTailoredCv", () => {
 		const pipelinesAt = result.html.indexOf("Built SQL pipelines.");
 		const adminAt = result.html.indexOf("Did admin work.");
 		assert.ok(cutAt > 0 && cutAt < pipelinesAt && pipelinesAt < adminAt);
-		assert.ok(!result.html.includes("Helped interns."));
 	});
 
-	it("pads short competency lists to 5 from profile skills, never inventing", () => {
-		const result = buildTailoredCv({
-			postingText: "Requirements: Python.",
-			company: "Acme",
-			role: "Engineer",
-			profile: PROFILE,
-		});
-		assert.equal(result.ok, true);
-		if (!result.ok) {
-			return;
-		}
-		const competencyHtml = result.html.match(/<ul class="competencies">[\s\S]*?<\/ul>/)?.[0] ?? "";
-		assert.equal(competencyHtml.match(/<strong>/g)?.length ?? 0, 5);
-		assert.ok(competencyHtml.includes("<strong>Python</strong>"));
-	});
-
-	it("leads with the domain-transfer argument when changing fields", () => {
-		const result = buildTailoredCv({
-			postingText: "Requirements: credit risk modeling.",
-			company: "Acme",
-			role: "Risk Analyst",
-			profile: PROFILE,
-		});
+	it("flows the model statement through untouched", async () => {
+		const transfer = {
+			...RENDER,
+			statement: "Moving from credit risk to Risk Analyst, Test Candidate brings SQL to ML Engineer work.",
+		};
+		const result = await buildTailoredCv(
+			{
+				postingText: "Requirements: credit risk modeling.",
+				company: "Acme",
+				role: "Risk Analyst",
+				profile: PROFILE,
+			},
+			{ apiKey: "test-key", fetchImpl: stubFetch(transfer) },
+		);
 		assert.equal(result.ok, true);
 		if (!result.ok) {
 			return;
@@ -199,29 +205,34 @@ describe("buildTailoredCv", () => {
 		assert.ok(result.html.includes("Moving from credit risk"));
 	});
 
-	it("flags secondary-skill bullets as keep/soften/drop stretches", () => {
-		const result = buildTailoredCv({
-			postingText: POSTING,
-			company: "Acme",
-			role: "Senior ML Engineer",
-			profile: PROFILE,
-		});
+	it("reports no heuristic stretch choices; the model owns framing", async () => {
+		const result = await buildTailoredCv(CV_INPUT, LLM);
 		assert.equal(result.ok, true);
 		if (!result.ok) {
 			return;
 		}
-		const docker = result.warnings.stretchChoices.find((choice) => choice.bullet === "Docker");
-		assert.ok(docker);
-		assert.deepEqual(docker.options, ["keep", "soften", "drop"]);
+		assert.deepEqual(result.warnings.stretchChoices, []);
 	});
 
-	it("warns before drafting when the posting matches nothing at all", () => {
-		const result = buildTailoredCv({
-			postingText: "Requirements: quantum satellite engineering.",
-			company: "Acme",
-			role: "Quantum Engineer",
-			profile: PROFILE,
-		});
+	it("reports no dropped bullets; the model owns selection", async () => {
+		const result = await buildTailoredCv(CV_INPUT, LLM);
+		assert.equal(result.ok, true);
+		if (!result.ok) {
+			return;
+		}
+		assert.deepEqual(result.droppedBullets, []);
+	});
+
+	it("warns before drafting when the posting matches nothing at all", async () => {
+		const result = await buildTailoredCv(
+			{
+				postingText: "Requirements: quantum satellite engineering.",
+				company: "Acme",
+				role: "Quantum Engineer",
+				profile: PROFILE,
+			},
+			LLM,
+		);
 		assert.equal(result.ok, true);
 		if (!result.ok) {
 			return;
@@ -229,16 +240,8 @@ describe("buildTailoredCv", () => {
 		assert.ok(result.warnings.reframingWarning);
 	});
 
-	it("keeps generated prose ban-clean and drift-free on the fixture", () => {
-		const result = buildTailoredCv({
-			postingText: POSTING,
-			company: "Acme",
-			role: "Senior ML Engineer",
-			profile: PROFILE,
-			experience: EXPERIENCE,
-			education: EDUCATION,
-			masterCvText: "Test Candidate: Python, SQL, Machine Learning, Docker, fraud detection, ML Engineer.",
-		});
+	it("keeps grounded model prose ban-clean and drift-free on the fixture", async () => {
+		const result = await buildTailoredCv(CV_INPUT, LLM);
 		assert.equal(result.ok, true);
 		if (!result.ok) {
 			return;
@@ -248,13 +251,44 @@ describe("buildTailoredCv", () => {
 		assert.deepEqual(result.warnings.profileConsistency, []);
 	});
 
-	it("uses the fixed modern template and ignores custom template input", () => {
-		const result = buildTailoredCv({
-			postingText: POSTING,
-			company: "Acme",
-			role: "Senior ML Engineer",
-			profile: PROFILE,
-		});
+	it("flags employers outside the profile as drift", async () => {
+		const invented = {
+			...RENDER,
+			experience: [{ ...RENDER.experience[0], company: "Invented Inc" }],
+		};
+		const result = await buildTailoredCv(CV_INPUT, { apiKey: "test-key", fetchImpl: stubFetch(invented) });
+		assert.equal(result.ok, true);
+		if (!result.ok) {
+			return;
+		}
+		assert.ok(result.warnings.draftDrift.some((entry) => entry.includes("Invented Inc")));
+	});
+
+	it("flags ungrounded numbers as drift", async () => {
+		const inflated = {
+			...RENDER,
+			experience: [
+				{ ...RENDER.experience[0], bullets: ["Cut losses by 99% with Python models."] },
+			],
+		};
+		const result = await buildTailoredCv(CV_INPUT, { apiKey: "test-key", fetchImpl: stubFetch(inflated) });
+		assert.equal(result.ok, true);
+		if (!result.ok) {
+			return;
+		}
+		assert.ok(result.warnings.draftDrift.some((entry) => entry.includes("99")));
+	});
+
+	it("uses the fixed modern template and ignores custom template input", async () => {
+		const result = await buildTailoredCv(
+			{
+				postingText: POSTING,
+				company: "Acme",
+				role: "Senior ML Engineer",
+				profile: PROFILE,
+			},
+			LLM,
+		);
 		assert.equal(result.ok, true);
 		if (!result.ok) {
 			return;
@@ -263,13 +297,44 @@ describe("buildTailoredCv", () => {
 		assert.equal(result.template, "modern-fixed-v1");
 	});
 
-	it("returns the EMPTY_SLUG hard error with no document when nothing identifies the posting", () => {
-		const result = buildTailoredCv({ postingText: "Requirements: Python.", profile: PROFILE });
+	it("returns the EMPTY_SLUG hard error with no document when nothing identifies the posting", async () => {
+		const result = await buildTailoredCv({ postingText: "Requirements: Python.", profile: PROFILE });
 		assert.equal(result.ok, false);
 		if (result.ok) {
 			return;
 		}
 		assert.ok(result.error.includes("EMPTY_SLUG"));
 		assert.ok(!("html" in result));
+	});
+
+	it("returns TAILOR_NO_LLM without a key instead of falling back", async () => {
+		const result = await buildTailoredCv(CV_INPUT);
+		assert.equal(result.ok, false);
+		if (result.ok) {
+			return;
+		}
+		assert.ok(result.error.includes("TAILOR_NO_LLM"));
+	});
+
+	it("returns TAILOR_INVALID on malformed model JSON", async () => {
+		const broken: FetchLike = async () => ({
+			status: 200,
+			body: JSON.stringify({ choices: [{ message: { content: "oops" } }] }),
+		});
+		const result = await buildTailoredCv(CV_INPUT, { apiKey: "test-key", fetchImpl: broken });
+		assert.equal(result.ok, false);
+		if (result.ok) {
+			return;
+		}
+		assert.ok(result.error.includes("TAILOR_INVALID"));
+	});
+
+	it("returns TAILOR_LLM_FAILED on transport errors", async () => {
+		const result = await buildTailoredCv(CV_INPUT, { apiKey: "test-key", fetchImpl: stubFetch(RENDER, 500) });
+		assert.equal(result.ok, false);
+		if (result.ok) {
+			return;
+		}
+		assert.ok(result.error.includes("TAILOR_LLM_FAILED"));
 	});
 });

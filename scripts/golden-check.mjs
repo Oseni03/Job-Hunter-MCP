@@ -67,11 +67,19 @@ const PROFILE = {
 
 const profile = resolveProfile(PROFILE);
 
-const cv = buildTailoredCv({
-	postingText: POSTING,
-	company: "Acme",
-	role: "Senior ML Engineer",
-	profile,
+// Canned model output: tailoring runs on Groq in production; the golden
+// script stubs the transport so the checks stay deterministic and offline.
+const GOLDEN_RENDER = {
+	name: "Test Candidate",
+	headline: "Senior ML Engineer",
+	location: "Test City",
+	email: "test@example.com",
+	phone: "+45 12345678",
+	statement: "Test Candidate brings Python, SQL and Machine Learning to ML Engineer work in fraud detection.",
+	competencies: [
+		{ label: "Python", body: "Direct match to a stated requirement." },
+		{ label: "fraud detection", body: "Core strength for this role." },
+	],
 	experience: [
 		{
 			title: "Data Analyst",
@@ -80,7 +88,27 @@ const cv = buildTailoredCv({
 			bullets: ["Cut losses by 12% with Python models for fraud detection."],
 		},
 	],
-});
+	education: [],
+	languages: [{ language: "English", level: "C1" }],
+	headings: sectionHeadings("en"),
+	experienceFirst: true,
+};
+
+const cv = await buildTailoredCv(
+	{
+		postingText: POSTING,
+		company: "Acme",
+		role: "Senior ML Engineer",
+		profile,
+	},
+	{
+		apiKey: "golden",
+		fetchImpl: async () => ({
+			status: 200,
+			body: JSON.stringify({ choices: [{ message: { content: JSON.stringify(GOLDEN_RENDER) } }] }),
+		}),
+	},
+);
 check("cv builds on the fixture posting", cv.ok === true);
 if (cv.ok) {
 	check("tailored HTML contains posting keywords", cv.html.includes("Python") && cv.html.includes("fraud"));

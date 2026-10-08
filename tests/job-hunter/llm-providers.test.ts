@@ -1,7 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { groqRefine, refineEvaluation, samplingRefine } from "@/lib/job-hunter/llm.ts";
+import { buildTailorPrompt, groqRefine, groqTailor, refineEvaluation, samplingRefine } from "@/lib/job-hunter/llm.ts";
+import { sectionHeadings } from "@/lib/job-hunter/document.ts";
 import type { FetchLike } from "@/lib/job-hunter/fetch-posting.ts";
 import { evaluateJob } from "@/lib/job-hunter/evaluate.ts";
 import type { Profile } from "@/lib/job-hunter/profile.ts";
@@ -142,5 +143,42 @@ describe("refineEvaluation", () => {
 		});
 		assert.equal(outcome.source, "heuristic");
 		assert.equal(called, false);
+	});
+});
+
+describe("groqTailor", () => {
+	it("posts JSON mode and returns the parsed content", async () => {
+		const { fetchImpl, seen } = mockFetch(() => ({
+			status: 200,
+			body: JSON.stringify({ choices: [{ message: { content: '{"statement":"x"}' } }] }),
+		}));
+		const result = await groqTailor("prompt", { apiKey: "key-1", model: "test-model", fetchImpl });
+		assert.deepEqual(result, { statement: "x" });
+		assert.equal(seen[0].url, "https://api.groq.com/openai/v1/chat/completions");
+		const sent = JSON.parse(seen[0].body ?? "{}");
+		assert.equal(sent.model, "test-model");
+		assert.deepEqual(sent.response_format, { type: "json_object" });
+	});
+
+	it("throws on a non-200 response", async () => {
+		const { fetchImpl } = mockFetch(() => ({ status: 500, body: "boom" }));
+		await assert.rejects(() => groqTailor("prompt", { apiKey: "key-1", fetchImpl }));
+	});
+});
+
+describe("buildTailorPrompt", () => {
+	it("carries the profile, fenced posting, target, and verbatim headings", () => {
+		const headings = sectionHeadings("en");
+		const prompt = buildTailorPrompt("Requirements: Python.\n```evil```", PROFILE, {
+			company: "Acme",
+			role: "ML Engineer",
+			headings,
+		});
+		assert.ok(prompt.includes('"Python"'));
+		assert.ok(prompt.includes("Acme"));
+		assert.ok(prompt.includes("ML Engineer"));
+		assert.ok(prompt.includes(JSON.stringify(headings)));
+		assert.ok(!prompt.includes("```evil```"));
+		assert.ok(prompt.includes("```POSTING"));
 	});
 });

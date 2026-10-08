@@ -34,9 +34,6 @@ export function registerSearchJobs(server: McpServer): void {
 					limit: input.limit,
 				},
 				profile,
-				seenKeys: input.seenKeys,
-				appliedPairs: input.appliedPairs,
-				scraperAdapters: input.scraperAdapters ?? ["all"],
 				cursor: input.cursor,
 			});
 			return {

@@ -248,11 +248,11 @@ export interface DocumentSignals {
 export function documentSignals(
 	kind: DocumentKind,
 	document: string,
-	options: { language?: string; sections?: string[]; bboxes?: BBoxPage[] } = {},
+	bboxes?: BBoxPage[],
 ): DocumentSignals {
 	return {
 		pageBudget: pageBudget(kind, document),
 		renderSafety: htmlSafety(document),
-		layout: layoutSignals(options.bboxes),
+		layout: layoutSignals(bboxes),
 	};
 }

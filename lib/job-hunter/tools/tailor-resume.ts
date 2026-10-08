@@ -2,12 +2,12 @@ import type { McpServer } from "@modelcontextprotocol/server";
 
 import { jobHunterAppMeta } from "@/lib/job-hunter/ui.ts";
 
-import { loadPrismaClient } from "@/lib/db.ts";
+import { prisma } from "@/lib/db.ts";
 import { sectionHeadings } from "@/lib/job-hunter/document.ts";
+import type { FetchLike } from "@/lib/job-hunter/fetch-posting.ts";
 import { loadActiveProfile, userIdFromRequest } from "@/lib/job-hunter/request-profile.ts";
 import {
 	buildResumeVerification,
-	buildResumeVersionRecord,
 	buildTailorEventNote,
 	logTailorEvent,
 	saveResumeVersion,
@@ -18,13 +18,14 @@ import { countPdfPages, renderHtmlToPdf } from "@/lib/job-hunter/render-tailored
 import { documentSignals } from "@/lib/job-hunter/verify.ts";
 import { TailorCvInput, TailorCvOutput } from "@/lib/job-hunter/schemas/tailor-resume.ts";
 
-export function registerTailorResume(server: McpServer): void {
+/** Test seam (repo convention): production leaves fetchImpl unset and uses the default fetch. */
+export function registerTailorResume(server: McpServer, options: { fetchImpl?: FetchLike } = {}): void {
 	server.registerTool(
 		"tailor-resume",
 		{
 			title: "Tailor resume",
 			description:
-				"Tailors a resume to one posting using the predefined modern HTML template. Returns HTML and a Puppeteer-rendered A4 PDF. EMPTY_SLUG is a hard error with no document output.",
+				"Tailors a resume to one posting: Groq fills the structured CV shape, rendered on the predefined modern HTML template. Returns HTML and a Puppeteer-rendered A4 PDF. EMPTY_SLUG is a hard error with no document output; a missing GROQ_API_KEY is an honest error, never a silent fallback.",
 			inputSchema: TailorCvInput,
 			outputSchema: TailorCvOutput,
 			...jobHunterAppMeta(),
@@ -38,10 +39,17 @@ export function registerTailorResume(server: McpServer): void {
 		async (input, extra) => {
 			const started = Date.now();
 			const profile = await loadActiveProfile(extra);
-			const result = buildTailoredCv({
-				...input,
-				profile,
-			});
+			const result = await buildTailoredCv(
+				{
+					...input,
+					profile,
+				},
+				{
+					apiKey: process.env["GROQ_API_KEY"] || undefined,
+					model: input.llm?.model ?? process.env["LLM_MODEL"] ?? undefined,
+					fetchImpl: options.fetchImpl,
+				},
+			);
 			if (!result.ok) {
 				return {
 					isError: true,
@@ -54,11 +62,7 @@ export function registerTailorResume(server: McpServer): void {
 				result.warnings.pageCountNote = `Rendered document uses ${renderedPageCount} pages; target is ${result.pageLimit} pages.`;
 			}
 			const { ok: _cvOk, ...cvStructured } = result;
-			const language = input.cvLanguage ?? "en";
-			const signals = documentSignals("cv-html", result.html, {
-				language,
-				sections: Object.values(sectionHeadings(language)),
-			});
+			const signals = documentSignals("cv-html", result.html);
 			const verification = buildResumeVerification({
 				coverage: result.coverage,
 				draftDrift: result.warnings.draftDrift,
@@ -77,17 +81,14 @@ export function registerTailorResume(server: McpServer): void {
 			// a tailoring call.
 			try {
 				const userId = userIdFromRequest(extra);
-				const client = await loadPrismaClient();
+				const client = prisma;
 				if (userId && client) {
-					const built = buildResumeVersionRecord({
+					const stored = await saveResumeVersion(client, {
 						userId,
 						jobKey: result.slug,
 						html: result.html,
 						verification,
-					});
-					const stored = built.ok
-						? await saveResumeVersion(client, built.record)
-						: { persisted: false as const, reason: built.error };
+					})
 					if (stored.persisted && stored.id !== undefined) {
 						payload["versionId"] = stored.id;
 					}
