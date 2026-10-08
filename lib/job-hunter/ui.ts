@@ -7,13 +7,14 @@ import { RESOURCE_MIME_TYPE, registerAppResource } from "@modelcontextprotocol/e
 /**
  * MCP App surface for the job-hunter server (ext-apps 2.x).
  *
- * One shared UI resource (single-file dashboard bundle) referenced by every
- * data tool via `jobHunterAppMeta()`. When any tool returns, a UI-capable
- * host renders the dashboard and forwards that call's arguments plus result;
- * the dashboard branches on the calling tool and renders rich cards from its
- * structured output, with the tool's markdown text as the Details section.
- * Text-only hosts are unaffected: they ignore `_meta` and keep the `content`
- * fallback every tool already returns.
+ * One shared UI resource (single-file bundle) referenced by every data tool
+ * via `jobHunterAppMeta()`. When any tool returns, a UI-capable host renders
+ * the bundle and forwards that call's arguments plus result; the app routes
+ * to that tool's own view (one per tool, unique to its output — there is no
+ * universal tool UI), with the tool's markdown text as the Details section.
+ * Next-step buttons invoke MCP tools via `callServerTool`, never external
+ * actions. Text-only hosts are unaffected: they ignore `_meta` and keep the
+ * `content` fallback every tool already returns.
  *
  * CSP: the bundle is fully self-contained (system fonts, inlined assets, no
  * fetch, no storage), so no custom `connectDomains`/`resourceDomains` are
@@ -81,7 +82,7 @@ export function registerJobHunterAppResource(server: McpServer): void {
 		JOB_HUNTER_APP_RESOURCE_URI,
 		{
 			description:
-				"Interactive job-hunter results dashboard (single-file bundle). Every data tool references it; it renders rich cards from the calling tool's structured output plus its markdown text.",
+				"Interactive job-hunter results views (single-file bundle). Every data tool references it; it routes to the calling tool's own view over its structured output plus its markdown text, with next steps invoking MCP tools.",
 		},
 		async () => {
 			const read = await readJobHunterAppHtml();

@@ -2,28 +2,33 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { SAMPLE_CALLS, SAMPLE_TOOLS } from "@/mcp-app/samples.ts";
-import { TOOL_LABELS, mapToolToDashboard } from "@/mcp-app/toolviews.ts";
+import { TOOL_LABELS, TOOL_NAMES, TOOL_VIEWS, mapToolToDashboard } from "@/mcp-app/toolviews.ts";
 import type { DashboardView } from "@/mcp-app/types.ts";
 
 const EXPECTED_VIEWS: Record<(typeof SAMPLE_TOOLS)[number], DashboardView> = {
 	"analyze-job": "analysis",
-	"tailor-resume": "overview",
-	"generate-cover-letter": "overview",
-	"track-application": "overview",
+	"tailor-resume": "cv",
+	"generate-cover-letter": "letter",
+	"track-application": "track",
 	"prepare-interview": "interview",
-	"career-strategy": "overview",
-	"draft-application-answers": "overview",
+	"career-strategy": "strategy",
+	"draft-application-answers": "answers",
 	"rank-jobs": "rank",
-	"research-company": "overview",
-	"research-job": "overview",
+	"research-company": "research",
+	"research-job": "brief",
 	"search-jobs": "search",
-	"setup-profile": "overview",
+	"setup-profile": "profile",
 	"due-followups": "followups",
 };
 
 describe("dashboard mappers", () => {
 	it("covers every registered tool with a labeled, non-empty view", () => {
 		assert.deepEqual([...SAMPLE_TOOLS].sort(), Object.keys(EXPECTED_VIEWS).sort());
+		assert.equal(
+			new Set(Object.values(EXPECTED_VIEWS)).size,
+			SAMPLE_TOOLS.length,
+			"every tool renders its own view, never a shared generic one",
+		);
 		for (const tool of SAMPLE_TOOLS) {
 			assert.ok(TOOL_LABELS[tool], `${tool} needs a human label for the picker`);
 			const sample = SAMPLE_CALLS[tool];
@@ -94,12 +99,8 @@ describe("dashboard mappers", () => {
 		);
 		assert.equal(linked.description, "Full posting: https://example.com/jobs/1");
 
-		const analysisJson = JSON.parse(analysis.markdown ?? "") as {
-			overallScore?: number;
-			verdict?: string;
-		};
-		assert.equal(analysisJson.overallScore, 82);
-		assert.equal(analysisJson.verdict, "Strong Fit");
+		assert.equal((analysis.details as { overallScore?: number }).overallScore, 82);
+		assert.equal((analysis.details as { verdict?: string }).verdict, "Strong Fit");
 
 		const analysisWithText = mapToolToDashboard(
 			"analyze-job",
@@ -107,7 +108,7 @@ describe("dashboard mappers", () => {
 			SAMPLE_CALLS["analyze-job"].structured,
 			SAMPLE_CALLS["analyze-job"].text,
 		);
-		assert.ok(!analysisWithText.markdown?.includes("## Job Fit Evaluation"));
+		assert.ok(analysisWithText.markdown?.includes("## Job Fit Evaluation"));
 
 		const rank = mapToolToDashboard("rank-jobs", {}, SAMPLE_CALLS["rank-jobs"].structured, null);
 		assert.equal(rank.items?.length, 1);
@@ -121,6 +122,62 @@ describe("dashboard mappers", () => {
 		);
 		assert.equal(followups.items?.length, 1);
 		assert.ok(followups.items?.[0].note?.includes("Send a short check-in."));
+	});
+
+	it("routes every tool to its own view, never a shared generic one", () => {
+		assert.deepEqual(Object.keys(TOOL_VIEWS).sort(), [...SAMPLE_TOOLS].sort());
+		for (const tool of SAMPLE_TOOLS) {
+			assert.ok(TOOL_VIEWS[tool], `${tool} needs its own view`);
+		}
+	});
+
+	it("targets next steps at MCP tools with prefilled args, never prose or external actions", () => {
+		for (const tool of SAMPLE_TOOLS) {
+			const sample = SAMPLE_CALLS[tool];
+			const data = mapToolToDashboard(tool, sample.args, sample.structured, sample.text);
+			for (const action of data.actions ?? []) {
+				assert.ok(action.label.length > 0, `${tool} action needs a label`);
+				assert.ok(
+					(TOOL_NAMES as readonly string[]).includes(action.tool),
+					`${tool} action targets unknown tool ${action.tool}`,
+				);
+			}
+			for (const item of data.items ?? []) {
+				if (!item.action) continue;
+				assert.ok(item.action.label.length > 0, `${tool} item action needs a label`);
+				assert.ok(
+					(TOOL_NAMES as readonly string[]).includes(item.action.tool),
+					`${tool} item action targets unknown tool ${item.action.tool}`,
+				);
+			}
+		}
+
+		const analysis = mapToolToDashboard(
+			"analyze-job",
+			SAMPLE_CALLS["analyze-job"].args,
+			SAMPLE_CALLS["analyze-job"].structured,
+			null,
+		);
+		const tailor = (analysis.actions ?? []).find((action) => action.tool === "tailor-resume");
+		assert.ok(tailor, "analyze-job offers tailor-resume");
+		assert.deepEqual(tailor?.args, {
+			company: "Acme Corp",
+			role: "Backend Engineer",
+		});
+
+		const rank = mapToolToDashboard("rank-jobs", {}, SAMPLE_CALLS["rank-jobs"].structured, null);
+		assert.equal(rank.items?.[0].action?.tool, "analyze-job");
+		assert.equal(
+			(rank.items?.[0].action?.args as { postingUrl?: string } | undefined)?.postingUrl,
+			"https://example.com/jobs/1",
+		);
+
+		const search = mapToolToDashboard("search-jobs", {}, SAMPLE_CALLS["search-jobs"].structured, null);
+		assert.equal(search.items?.[0].action?.tool, "analyze-job");
+
+		const followups = mapToolToDashboard("due-followups", {}, SAMPLE_CALLS["due-followups"].structured, null);
+		assert.equal(followups.items?.[0].action?.tool, "track-application");
+		assert.deepEqual(followups.items?.[0].action?.args, { company: "Acme Corp", role: "Backend Engineer" });
 	});
 
 	it("degrades gracefully on empty or unknown payloads without guessing", () => {

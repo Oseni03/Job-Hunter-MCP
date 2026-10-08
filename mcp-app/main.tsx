@@ -2,13 +2,62 @@ import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { useApp, useHostStyles, type App } from "@modelcontextprotocol/ext-apps/react";
 
-import { Dashboard } from "./dashboard.tsx";
 import { SAMPLE_CALLS, SAMPLE_TOOLS } from "./samples.ts";
-import { TOOL_LABELS, mapToolToDashboard } from "./toolviews.ts";
+import { TOOL_LABELS, TOOL_VIEWS, mapToolToDashboard } from "./toolviews.ts";
+import type { DashboardData, DashboardView, ToolAction } from "./types.ts";
+import { AnalysisView } from "./views/analysis.tsx";
+import { AnswersView } from "./views/answers.tsx";
+import { BriefView } from "./views/brief.tsx";
+import { CompanyView } from "./views/company.tsx";
+import { CvView } from "./views/cv.tsx";
+import { FollowupsView } from "./views/followups.tsx";
+import { InterviewView } from "./views/interview.tsx";
+import { LetterView } from "./views/letter.tsx";
+import { ProfileView } from "./views/profile.tsx";
+import { RankView } from "./views/rank.tsx";
+import { SearchView } from "./views/search.tsx";
+import { StrategyView } from "./views/strategy.tsx";
+import { TrackView } from "./views/track.tsx";
+import { UnknownView } from "./views/unknown.tsx";
+import { StatusCard } from "./views/_shared.tsx";
 import { Card } from "./components/ui/card.tsx";
+import { Label } from "./components/ui/label.tsx";
 import "./styles.css";
 
 const APP_INFO = { name: "job-hunter-dashboard", version: "1.0.0" } as const;
+
+type ViewProps = {
+	data: DashboardData;
+	onAction: (action: ToolAction) => void;
+	pending: string | null;
+	status?: string;
+};
+
+/**
+ * One view per tool, unique to its output. Unknown tools land on the
+ * fallback view with their markdown text; there is no universal tool UI.
+ */
+const VIEW_COMPONENTS: Record<DashboardView, (props: ViewProps) => React.JSX.Element> = {
+	analysis: AnalysisView,
+	cv: CvView,
+	letter: LetterView,
+	track: TrackView,
+	interview: InterviewView,
+	strategy: StrategyView,
+	answers: AnswersView,
+	rank: RankView,
+	research: CompanyView,
+	brief: BriefView,
+	search: SearchView,
+	profile: ProfileView,
+	followups: FollowupsView,
+	overview: UnknownView,
+};
+
+function viewForTool(toolName: string | null): DashboardView {
+	if (!toolName) return "overview";
+	return TOOL_VIEWS[toolName] ?? "overview";
+}
 
 function isMcpHost(): boolean {
 	if (typeof window === "undefined") return false;
@@ -53,20 +102,19 @@ function StandaloneApp(): React.JSX.Element {
 	const [note, setNote] = useState<string | null>(null);
 	const sample = SAMPLE_CALLS[tool];
 	const data = mapToolToDashboard(tool, sample.args, sample.structured, sample.text);
+	const View = VIEW_COMPONENTS[viewForTool(tool)];
 	return (
 		<>
 			<div className="min-h-screen bg-background font-sans text-foreground">
 				<div className="mx-auto flex max-w-[880px] flex-col gap-3.5 px-4 py-5">
-					<Card className="flex flex-wrap items-center gap-2.5 p-4">
-						<label className="text-[13px] text-muted-foreground" htmlFor="jh-tool">
-							Previewing tool output
-						</label>
-						<select
-							id="jh-tool"
-							className="max-w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm text-foreground"
-							value={tool}
-							onChange={(event) => setTool(event.target.value as (typeof SAMPLE_TOOLS)[number])}
-						>
+				<Card className="flex flex-wrap items-center gap-2.5 p-4">
+					<Label htmlFor="jh-tool">Previewing tool output</Label>
+					<select
+						id="jh-tool"
+						className="h-8 max-w-full rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						value={tool}
+						onChange={(event) => setTool(event.target.value as (typeof SAMPLE_TOOLS)[number])}
+					>
 							{SAMPLE_TOOLS.map((name) => (
 								<option key={name} value={name}>
 									{TOOL_LABELS[name] ?? name}
@@ -76,10 +124,11 @@ function StandaloneApp(): React.JSX.Element {
 					</Card>
 				</div>
 			</div>
-			<Dashboard
+			<View
 				data={data}
 				status={note ?? "Standalone preview with sample data"}
-				onAction={(step) => setNote(`Preview only — this step runs when connected: ${step.slice(0, 90)}`)}
+				onAction={(step) => setNote(`Preview only — this step runs when connected: ${step.label}`)}
+				pending={null}
 			/>
 		</>
 	);
@@ -97,6 +146,7 @@ function McpApp(): React.JSX.Element {
 	const [toolResult, setToolResult] = useState<ToolResultState | null>(null);
 	const [status, setStatus] = useState("Connecting to host…");
 	const [cancelled, setCancelled] = useState<string | null>(null);
+	const [calling, setCalling] = useState<string | null>(null);
 	const appRef = useRef<App | null>(null);
 
 	function refreshToolName(app: App | null): void {
@@ -122,7 +172,6 @@ function McpApp(): React.JSX.Element {
 			created.addEventListener("toolresult", (params) => {
 				setCancelled(null);
 				setToolResult(params);
-				refreshToolName(created);
 				setStatus(params.isError ? "Tool reported an error" : "Results ready");
 			});
 			created.addEventListener("toolcancelled", (params) => {
@@ -149,48 +198,66 @@ function McpApp(): React.JSX.Element {
 
 	const displayStatus = cancelled ? `Cancelled (${cancelled})` : status;
 
-	function requestStep(step: string): void {
-		const app = appRef.current;
-		if (!app) return;
-		void app
-			.sendMessage({ role: "user", content: [{ type: "text", text: step }] })
-			.catch(() => {});
+	/**
+	 * Next steps invoke MCP tools, never external actions. Preferred path is
+	 * `callServerTool` (host-proxied, same server); hosts without the
+	 * serverTools capability fall back to asking the assistant to run the
+	 * same tool with the same args. A successful call switches the UI to
+	 * the called tool's own view with its fresh output.
+	 */
+	async function handleAction(action: ToolAction): Promise<void> {
+		const current = appRef.current;
+		if (!current) return;
+		setCalling(action.label);
+		setStatus(`Calling ${action.tool}…`);
+		try {
+			if (current.getHostCapabilities()?.serverTools) {
+				const result = await current.callServerTool({
+					name: action.tool,
+					arguments: action.args ?? {},
+				});
+				setToolName(action.tool);
+				setToolArgs(action.args ?? null);
+				setToolResult(result);
+				setCancelled(null);
+				setStatus(result.isError ? "Tool reported an error" : "Results ready");
+			} else {
+				const argText =
+					action.args && Object.keys(action.args).length > 0 ? ` with ${JSON.stringify(action.args)}` : "";
+				await current.sendMessage({
+					role: "user",
+					content: [{ type: "text", text: `Run the ${action.tool} tool${argText}.` }],
+				});
+				setStatus(`Asked the assistant to run ${action.tool}`);
+			}
+		} catch {
+			setStatus(`Could not reach ${action.tool}; try again`);
+		} finally {
+			setCalling(null);
+		}
 	}
 
 	if (error) {
-		return (
-			<>
-				<div className="min-h-screen bg-background font-sans text-foreground">
-					<div className="mx-auto flex max-w-[880px] flex-col gap-3.5 px-4 py-5">
-						<div
-							className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
-							role="alert"
-						>
-							Could not connect to the MCP host: {error.message}.
-						</div>
-					</div>
-				</div>
-				<Dashboard data={{ view: "overview" }} status={displayStatus} />
-			</>
-		);
+		return <StatusCard title="Connection failed" message={`Could not connect to the MCP host: ${error.message}.`} />;
 	}
 
 	if (!isConnected || (!toolArgs && !toolResult)) {
-		return <Dashboard data={{ view: "overview" }} status={displayStatus} />;
+		return (
+			<StatusCard
+				title="Waiting for results"
+				message="The assistant has not sent tool results yet. Run a job-hunter tool and its outcome renders here."
+			/>
+		);
 	}
 
-	return (
-		<Dashboard
-			data={mapToolToDashboard(
-				toolName ?? "unknown-tool",
-				toolArgs,
-				toolResult?.structuredContent ?? null,
-				resultText(toolResult),
-			)}
-			status={toolName ? undefined : displayStatus}
-			onAction={requestStep}
-		/>
+	const data = mapToolToDashboard(
+		toolName ?? "unknown-tool",
+		toolArgs,
+		toolResult?.structuredContent ?? null,
+		resultText(toolResult),
 	);
+	const View = VIEW_COMPONENTS[viewForTool(toolName)];
+	return <View data={data} onAction={(action) => void handleAction(action)} pending={calling} status={displayStatus} />;
 }
 
 function Root(): React.JSX.Element {

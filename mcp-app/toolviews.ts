@@ -1,4 +1,4 @@
-import type { DashboardData, DashboardItem, DashboardView } from "./types.ts";
+import type { DashboardData, DashboardItem, DashboardView, ToolAction } from "./types.ts";
 
 /**
  * Maps each job-hunter tool's call (arguments + structured result + markdown
@@ -41,34 +41,57 @@ export const TOOL_LABELS: Record<string, string> = {
 	"due-followups": "Due follow-ups",
 };
 
-const TOOL_VIEWS: Record<string, DashboardView> = {
+/**
+ * Routing table: every tool renders its own view, unique to its output.
+ * Unknown tools fall back to "overview" with their markdown text.
+ */
+export const TOOL_VIEWS: Record<string, DashboardView> = {
 	"analyze-job": "analysis",
-	"rank-jobs": "rank",
-	"search-jobs": "search",
+	"tailor-resume": "cv",
+	"generate-cover-letter": "letter",
+	"track-application": "track",
 	"prepare-interview": "interview",
+	"career-strategy": "strategy",
+	"draft-application-answers": "answers",
+	"rank-jobs": "rank",
+	"research-company": "research",
+	"research-job": "brief",
+	"search-jobs": "search",
+	"setup-profile": "profile",
 	"due-followups": "followups",
 };
 
 type Rec = Record<string, unknown>;
 
-function rec(value: unknown): Rec {
+/** Field accessors shared with the per-tool views; missing fields yield nothing, never guesses. */
+export function rec(value: unknown): Rec {
 	return typeof value === "object" && value !== null ? (value as Rec) : {};
 }
 
-function list(value: unknown): unknown[] {
+export function list(value: unknown): unknown[] {
 	return Array.isArray(value) ? value : [];
 }
 
-function strings(value: unknown): string[] {
+export function strings(value: unknown): string[] {
 	return list(value).filter((entry): entry is string => typeof entry === "string");
 }
 
-function text(value: unknown, fallback = ""): string {
+export function text(value: unknown, fallback = ""): string {
 	return typeof value === "string" ? value : fallback;
 }
 
-function num(value: unknown): number | undefined {
+export function num(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+/** Builds tool-call args from the known string fields, skipping blanks. */
+export function toolArgs(source: Rec, ...fields: string[]): Record<string, unknown> {
+	const args: Record<string, unknown> = {};
+	for (const field of fields) {
+		const value = text(source[field]);
+		if (value !== "") args[field] = value;
+	}
+	return args;
 }
 
 const DESCRIPTION_EXCERPT_LIMIT = 2000;
@@ -78,15 +101,6 @@ function excerpt(value: unknown, limit: number): string | undefined {
 	if (str.trim() === "") return undefined;
 	if (str.length <= limit) return str;
 	return `${str.slice(0, limit)}\n\n…truncated to the first ${limit} characters`;
-}
-
-function prettyJson(value: Rec): string | undefined {
-	if (Object.keys(value).length === 0) return undefined;
-	try {
-		return JSON.stringify(value, null, 2);
-	} catch {
-		return undefined;
-	}
 }
 
 function postingTitle(role?: string, company?: string, fallback = "Result"): string {
@@ -113,16 +127,6 @@ function coverageItems(coverage: unknown): DashboardItem[] {
 	});
 }
 
-function documentActions(structured: Rec): string[] {
-	const warnings = rec(structured["warnings"]);
-	const stretch = list(warnings["stretchChoices"]).length;
-	const actions = strings(structured["banViolations"]).map((violation) => `Fix: ${violation}`);
-	if (stretch > 0) {
-		actions.push(`Decide keep, soften, or drop on ${stretch} stretch choice${stretch === 1 ? "" : "s"}`);
-	}
-	return actions;
-}
-
 function mapAnalysis(args: Rec, structured: Rec, markdown?: string): DashboardData {
 	const { company, role } = companyRole(args);
 	const verdict = text(structured["verdict"]) || null;
@@ -130,16 +134,16 @@ function mapAnalysis(args: Rec, structured: Rec, markdown?: string): DashboardDa
 	const eligibility = rec(structured["eligibility"]);
 	const languageGate = rec(structured["languageGate"]);
 	const dimensions = list(structured["dimensions"]);
-	const call = rec(structured["shouldCallEmployer"]);
 	const postingUrl = text(args["postingUrl"]);
 	const description =
 		excerpt(args["postingText"], DESCRIPTION_EXCERPT_LIMIT) ??
 		(postingUrl !== "" ? `Full posting: ${postingUrl}` : undefined);
-	const actions: string[] = [];
-	if (call["suggest"] === true && text(call["reason"]) !== "") {
-		actions.push(`Call the employer: ${text(call["reason"])}`);
-	}
-	actions.push("Confirm with the candidate before drafting tailored documents");
+	const posting = toolArgs(args, "company", "role", "postingUrl");
+	const actions: ToolAction[] = [
+		{ label: "Tailor a resume for this role", tool: "tailor-resume", args: posting },
+		{ label: "Draft the cover letter", tool: "generate-cover-letter", args: posting },
+		{ label: "Record this application", tool: "track-application", args: posting },
+	];
 	return {
 		view: "analysis",
 		title: postingTitle(role, company, "Job Fit Evaluation"),
@@ -156,15 +160,14 @@ function mapAnalysis(args: Rec, structured: Rec, markdown?: string): DashboardDa
 				note: text(dimension["notes"]) || undefined,
 			};
 		}),
-		markdown: prettyJson(structured) ?? markdown,
+		markdown,
 		actions,
 	};
 }
 
-function mapRank(structured: Rec, markdown?: string): DashboardData {
+function mapRank(_args: Rec, structured: Rec, markdown?: string): DashboardData {
 	const shortlist = list(structured["shortlist"]);
 	const excluded = list(structured["excluded"]);
-	const closingSoon = list(structured["closingSoon"]);
 	return {
 		view: "rank",
 		title: "Ranked shortlist",
@@ -177,12 +180,18 @@ function mapRank(structured: Rec, markdown?: string): DashboardData {
 		items: shortlist.map((entry) => {
 			const item = rec(entry);
 			const deadline = text(item["deadline"]);
+			const postingUrl = text(item["url"]);
+			const analyzeArgs = {
+				...toolArgs(item, "company"),
+				...(text(item["title"]) !== "" ? { role: text(item["title"]) } : {}),
+				...(postingUrl !== "" ? { postingUrl } : {}),
+			};
 			return {
 				title: text(item["title"], "Posting"),
 				company: text(item["company"]) || undefined,
 				score: num(item["score"]),
 				verdict: text(item["verdict"]) || undefined,
-				url: text(item["url"]) || undefined,
+				url: postingUrl || undefined,
 				note:
 					[
 						`Location ${text(item["locationVerdict"], "?")}`,
@@ -191,20 +200,17 @@ function mapRank(structured: Rec, markdown?: string): DashboardData {
 					]
 						.filter((part) => part !== "")
 						.join(" · ") || undefined,
+				...(postingUrl !== ""
+					? { action: { label: "Analyze this posting", tool: "analyze-job", args: analyzeArgs } }
+					: {}),
 			};
 		}),
 		markdown,
-		actions: [
-			...closingSoon.map((entry) => {
-				const item = rec(entry);
-				return `Closing soon: ${postingTitle(text(item["title"]) || undefined, text(item["company"]) || undefined)} — deadline ${text(item["deadline"], "unknown")}`;
-			}),
-			"Run analyze-job on a shortlisted pick for a full evaluation before drafting",
-		],
+		actions: [{ label: "Search for more roles", tool: "search-jobs" }],
 	};
 }
 
-function mapSearch(structured: Rec, markdown?: string): DashboardData {
+function mapSearch(_args: Rec, structured: Rec, markdown?: string): DashboardData {
 	const candidates = list(structured["candidates"]);
 	const filters = rec(structured["filters"]);
 	const keywords = text(filters["keywords"]);
@@ -222,21 +228,32 @@ function mapSearch(structured: Rec, markdown?: string): DashboardData {
 			const candidate = rec(entry);
 			const fit = rec(candidate["quickFit"]);
 			const language = rec(candidate["language"]);
+			const postingUrl = text(candidate["url"]);
+			const analyzeArgs = {
+				...toolArgs(candidate, "company"),
+				...(text(candidate["title"]) !== "" ? { role: text(candidate["title"]) } : {}),
+				...(postingUrl !== "" ? { postingUrl } : {}),
+			};
 			return {
 				title: text(candidate["title"], "Posting"),
 				company: text(candidate["company"]) || undefined,
 				score: num(fit["score"]),
 				verdict: text(fit["band"]) || undefined,
-				url: text(candidate["url"]) || undefined,
+				url: postingUrl || undefined,
 				note:
 					[`Language ${text(language["verdict"], "?")}`, text(candidate["portal"])].filter((part) => part !== "").join(" · ") ||
 					undefined,
+				...(postingUrl !== ""
+					? { action: { label: "Analyze this posting", tool: "analyze-job", args: analyzeArgs } }
+					: {}),
 			};
 		}),
 		markdown,
 		actions: [
-			"Run analyze-job on a pick for a full evaluation before drafting",
-			...(cursor !== "" ? ["Resume the remaining results with the returned cursor"] : []),
+			...(cursor !== ""
+				? [{ label: "Fetch the next page", tool: "search-jobs", args: { ...toolArgs(filters, "keywords", "location"), cursor } }]
+				: []),
+			{ label: "Rank the saved candidates", tool: "rank-jobs" },
 		],
 	};
 }
@@ -246,7 +263,6 @@ function mapInterview(args: Rec, structured: Rec, markdown?: string): DashboardD
 	const role = text(structured["role"]) || text(args["role"]) || undefined;
 	const questions = list(structured["questions"]);
 	const starMapping = list(structured["starMapping"]);
-	const missing = strings(structured["missingLogistics"]);
 	return {
 		view: "interview",
 		title: `Interview prep: ${postingTitle(role, company, "role")}`,
@@ -268,19 +284,24 @@ function mapInterview(args: Rec, structured: Rec, markdown?: string): DashboardD
 		}),
 		markdown: text(structured["packMarkdown"]) || markdown,
 		actions: [
-			...missing.map((item) => `Provide missing logistics: ${item}`),
-			"Log the outcome afterwards for calibration",
+			{ label: "Research the company", tool: "research-company", args: toolArgs(structured, "company") },
+			{
+				label: "Draft portal answers for this role",
+				tool: "draft-application-answers",
+				args: { ...toolArgs(structured, "company"), ...toolArgs(args, "role") },
+			},
 		],
 	};
 }
 
-function mapTailoredCv(structured: Rec, markdown?: string): DashboardData {
+function mapTailoredCv(args: Rec, structured: Rec, markdown?: string): DashboardData {
 	const coverage = list(structured["coverage"]);
 	const matched = coverage.filter((entry) => rec(entry)["status"] === "matched").length;
 	const bridged = coverage.filter((entry) => rec(entry)["status"] === "bridged").length;
 	const gaps = coverage.filter((entry) => rec(entry)["status"] === "gap").length;
+	const posting = toolArgs(args, "company", "role", "postingUrl");
 	return {
-		view: "overview",
+		view: "cv",
 		title: `Tailored CV (${text(structured["slug"], "draft")})`,
 		summary: [
 			`${matched} matched · ${bridged} bridged · ${gaps} gaps`,
@@ -288,21 +309,29 @@ function mapTailoredCv(structured: Rec, markdown?: string): DashboardData {
 		].join(" · "),
 		items: coverageItems(coverage),
 		markdown,
-		actions: documentActions(structured),
+		actions: [
+			{ label: "Draft the cover letter", tool: "generate-cover-letter", args: posting },
+			{ label: "Record this application", tool: "track-application", args: posting },
+			{ label: "Prep the interview", tool: "prepare-interview", args: toolArgs(args, "company", "role") },
+		],
 	};
 }
 
-function mapCoverLetter(structured: Rec, markdown?: string): DashboardData {
+function mapCoverLetter(args: Rec, structured: Rec, markdown?: string): DashboardData {
+	const posting = toolArgs(args, "company", "role", "postingUrl");
 	return {
-		view: "overview",
+		view: "letter",
 		title: `Cover letter (${text(structured["slug"], "draft")})`,
 		summary: [
 			`${num(structured["wordCount"]) ?? "?"} words (band 250-300), Puppeteer A4 render`,
-			`${text(structured["compileCommand"], "xelatex")} to exactly 1 page`,
+			`${text(structured["template"], "fixed template")} to exactly 1 page`,
 		].join(" · "),
 		items: coverageItems(structured["coverage"]),
 		markdown,
-		actions: documentActions(structured),
+		actions: [
+			{ label: "Record this application", tool: "track-application", args: posting },
+			{ label: "Prep the interview", tool: "prepare-interview", args: toolArgs(args, "company", "role") },
+		],
 	};
 }
 
@@ -311,9 +340,8 @@ function mapTrack(args: Rec, structured: Rec, markdown?: string): DashboardData 
 	const action = text(structured["action"], "record");
 	const hash = text(structured["trackerHash"]);
 	const archiveFile = text(structured["archiveFile"]);
-	const openMatches = num(structured["openMatchCount"]) ?? 0;
 	return {
-		view: "overview",
+		view: "track",
 		title: `Record application: ${action}`,
 		summary: `${action === "append" ? "Appended" : "Updated"} tracker row${hash !== "" ? ` · hash ${hash.slice(0, 8)}` : ""}`,
 		items: [
@@ -324,19 +352,17 @@ function mapTrack(args: Rec, structured: Rec, markdown?: string): DashboardData 
 		],
 		markdown,
 		actions: [
-			...(openMatches > 1
-				? [`Deduplicate: ${openMatches} open rows match this company and role`]
-				: []),
-			"Check due-followups to schedule the next nudge",
+			{ label: "Prep the interview", tool: "prepare-interview", args: toolArgs(args, "company", "role") },
+			{ label: "Check due follow-ups", tool: "due-followups" },
 		],
 	};
 }
 
-function mapStrategy(structured: Rec, markdown?: string): DashboardData {
+function mapStrategy(_args: Rec, structured: Rec, markdown?: string): DashboardData {
 	const directions = list(structured["directions"]);
 	const priorityGaps = strings(structured["priorityGaps"]);
 	return {
-		view: "overview",
+		view: "strategy",
 		title: "Career strategy",
 		summary:
 			priorityGaps.length > 0
@@ -355,17 +381,23 @@ function mapStrategy(structured: Rec, markdown?: string): DashboardData {
 			};
 		}),
 		markdown,
-		actions: priorityGaps.map((gap) => `Close priority gap: ${gap}`),
+		actions: [
+			...priorityGaps.map((gap) => ({
+				label: `Search roles closing: ${gap}`,
+				tool: "search-jobs",
+				args: { keywords: gap },
+			})),
+			{ label: "Rank saved jobs", tool: "rank-jobs" },
+		],
 	};
 }
 
-function mapFields(structured: Rec, markdown?: string): DashboardData {
+function mapFields(args: Rec, structured: Rec, markdown?: string): DashboardData {
 	const intros = list(structured["selfIntros"]);
 	const projects = list(structured["projectEntries"]);
 	const pitches = list(structured["pitches"]);
-	const ungrounded = strings(structured["ungrounded"]);
 	return {
-		view: "overview",
+		view: "answers",
 		title: "Application answers",
 		summary: `${intros.length} self-intros · ${projects.length} project entries · ${pitches.length} pitches`,
 		items: [
@@ -388,18 +420,17 @@ function mapFields(structured: Rec, markdown?: string): DashboardData {
 			}),
 		],
 		markdown: text(structured["copyPasteText"]) || markdown,
-		actions:
-			ungrounded.length > 0
-				? ungrounded.map((claim) => `Resolve ungrounded claim: ${claim}`)
-				: ["Paste the file text into the portal; it is ephemeral scratch, never a record"],
+		actions: [
+			{ label: "Record this application", tool: "track-application", args: toolArgs(args, "company", "role") },
+		],
 	};
 }
 
-function mapResearch(structured: Rec, markdown?: string): DashboardData {
+function mapResearch(args: Rec, structured: Rec, markdown?: string): DashboardData {
 	const claims = list(structured["claims"]);
 	const sourcing = rec(structured["sourcing"]);
 	return {
-		view: "overview",
+		view: "research",
 		title: `Company research: ${text(structured["company"], "company")}`,
 		summary: [
 			structured["cached"] === true ? "Cache hit" : "Fresh research",
@@ -416,7 +447,10 @@ function mapResearch(structured: Rec, markdown?: string): DashboardData {
 			};
 		}),
 		markdown,
-		actions: ["Re-fetch the listed URLs before landing any claim in a letter or prep pack"],
+		actions: [
+			{ label: "Brief this employer as a job target", tool: "research-job", args: toolArgs(args, "company") },
+			{ label: "Draft a cover letter for this company", tool: "generate-cover-letter", args: toolArgs(args, "company") },
+		],
 	};
 }
 
@@ -434,11 +468,9 @@ function mapJobResearch(args: Rec, structured: Rec, markdown?: string): Dashboar
 	const role = text(structured["role"]) || text(args["role"]) || undefined;
 	const snapshot = list(structured["snapshot"]);
 	const sourcing = rec(structured["sourcing"]);
-	const questions = strings(structured["questionsToAsk"]);
-	const queries = strings(structured["suggestedQueries"]);
 	const briefMode = structured["briefMode"] === true;
 	return {
-		view: "overview",
+		view: "brief",
 		title: `Job brief: ${postingTitle(role, company, "role")}`,
 		summary: [
 			briefMode ? "Research brief — no findings yet" : `${snapshot.length} findings`,
@@ -464,18 +496,34 @@ function mapJobResearch(args: Rec, structured: Rec, markdown?: string): Dashboar
 		],
 		markdown,
 		actions: [
-			...questions.map((question) => `Ask: ${question}`),
-			...(briefMode ? queries.map((query) => `Research: ${query}`) : []),
+			{
+				label: "Analyze this posting",
+				tool: "analyze-job",
+				args: {
+					...(company ? { company } : {}),
+					...(role ? { role } : {}),
+				},
+			},
+			{
+				label: "Tailor a resume for this role",
+				tool: "tailor-resume",
+				args: {
+					...(company ? { company } : {}),
+					...(role ? { role } : {}),
+				},
+			},
 		],
 	};
 }
 
-function mapProfile(structured: Rec, markdown?: string): DashboardData {
+function mapProfile(_args: Rec, structured: Rec, markdown?: string): DashboardData {
 	const profile = rec(structured["profile"]);
 	const unified = list(profile["skills"])
 		.map((entry) => text(rec(entry)["name"]))
 		.filter((name) => name !== "");
 	const skills = unified.length > 0 ? unified : strings(profile["primarySkills"]);
+	const keywords =
+		strings(rec(profile["preferences"])["targetRoles"])[0] ?? skills[0] ?? "";
 	const projects = list(profile["projects"]).flatMap((entry) => {
 		const project = rec(entry);
 		const name = text(project["name"]);
@@ -497,18 +545,21 @@ function mapProfile(structured: Rec, markdown?: string): DashboardData {
 		return [{ title, note: excerpt(role["description"], DESCRIPTION_EXCERPT_LIMIT) }];
 	});
 	return {
-		view: "overview",
+		view: "profile",
 		title: "Profile setup",
 		summary: [text(profile["name"]) || "Profile", text(profile["location"]), skills.length > 0 ? skills.join(", ") : "no primary skills yet"]
 			.filter((part) => part !== "")
 			.join(" · "),
 		items: [...experience, ...projects],
 		markdown,
-		actions: [],
+		actions: [
+			{ label: "Plan a career strategy", tool: "career-strategy" },
+			...(keywords !== "" ? [{ label: `Search ${keywords} roles`, tool: "search-jobs", args: { keywords } }] : []),
+		],
 	};
 }
 
-function mapFollowups(structured: Rec, markdown?: string): DashboardData {
+function mapFollowups(_args: Rec, structured: Rec, markdown?: string): DashboardData {
 	const due = list(structured["due"]);
 	const checked = num(structured["checked"]) ?? due.length;
 	return {
@@ -524,6 +575,11 @@ function mapFollowups(structured: Rec, markdown?: string): DashboardData {
 				title: `${text(item["company"], "Company")} — ${text(item["role"], "role")}`,
 				verdict: text(item["status"]) || undefined,
 				note: `${text(item["reason"])} · Action: ${text(item["suggestedAction"])}`,
+				action: {
+					label: "Record this follow-up",
+					tool: "track-application",
+					args: toolArgs(item, "company", "role"),
+				},
 			};
 		}),
 		markdown,
@@ -539,39 +595,55 @@ export function mapToolToDashboard(
 ): DashboardData {
 	const a = rec(args);
 	const s = rec(structuredContent);
+	let data: DashboardData;
 	const markdown = typeof textContent === "string" && textContent.trim() !== "" ? textContent : undefined;
 	switch (toolName) {
 		case "analyze-job":
-			return mapAnalysis(a, s, markdown);
+			data = mapAnalysis(a, s, markdown);
+			break;
 		case "tailor-resume":
-			return mapTailoredCv(s, markdown);
+			data = mapTailoredCv(a, s, markdown);
+			break;
 		case "generate-cover-letter":
-			return mapCoverLetter(s, markdown);
+			data = mapCoverLetter(a, s, markdown);
+			break;
 		case "track-application":
-			return mapTrack(a, s, markdown);
+			data = mapTrack(a, s, markdown);
+			break;
 		case "prepare-interview":
-			return mapInterview(a, s, markdown);
+			data = mapInterview(a, s, markdown);
+			break;
 		case "career-strategy":
-			return mapStrategy(s, markdown);
+			data = mapStrategy(a, s, markdown);
+			break;
 		case "draft-application-answers":
-			return mapFields(s, markdown);
+			data = mapFields(a, s, markdown);
+			break;
 		case "rank-jobs":
-			return mapRank(s, markdown);
+			data = mapRank(a, s, markdown);
+			break;
 		case "research-company":
-			return mapResearch(s, markdown);
+			data = mapResearch(a, s, markdown);
+			break;
 		case "research-job":
-			return mapJobResearch(a, s, markdown);
+			data = mapJobResearch(a, s, markdown);
+			break;
 		case "search-jobs":
-			return mapSearch(s, markdown);
+			data = mapSearch(a, s, markdown);
+			break;
 		case "setup-profile":
-			return mapProfile(s, markdown);
+			data = mapProfile(a, s, markdown);
+			break;
 		case "due-followups":
-			return mapFollowups(s, markdown);
+			data = mapFollowups(a, s, markdown);
+			break;
 		default:
-			return {
+			data = {
 				view: TOOL_VIEWS[toolName] ?? "overview",
 				title: TOOL_LABELS[toolName] ?? toolName,
 				markdown,
 			};
+			break;
 	}
+	return Object.keys(s).length > 0 ? { ...data, details: data.details ?? s } : data;
 }
