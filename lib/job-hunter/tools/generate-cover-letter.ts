@@ -40,10 +40,7 @@ export function registerGenerateCoverLetter(server: McpServer): void {
 			const pdf = await renderHtmlToPdf(result.html);
 			const renderedPageCount = await countPdfPages(pdf);
 			const { ok: _coverOk, ...coverStructured } = result;
-			const signals = documentSignals("letter-html", result.html, {
-				language: input.postingLanguage ?? "en",
-				sections: [],
-			});
+			const signals = documentSignals("letter-html", result.html);
 			const payload = {
 				...coverStructured,
 				pdfPath: `cover_letters/cover_${result.slug}.pdf`,

@@ -106,7 +106,7 @@ describe("layoutSignals", () => {
 
 describe("documentSignals", () => {
 	it("bundles page, safety, and degraded-layout signals for a document", () => {
-		const signals = documentSignals("cv-html", CLEAN_HTML, { language: "en" });
+		const signals = documentSignals("cv-html", CLEAN_HTML);
 		assert.equal(signals.pageBudget.pageLimit, 2);
 		assert.equal(signals.renderSafety.passed, true);
 		assert.equal(signals.layout.degraded, true);
