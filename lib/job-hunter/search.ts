@@ -163,6 +163,10 @@ export interface RawPosting {
 	postedDate?: string;
 	deadline?: string;
 	portal?: string;
+	/** Employer city/region as reported by the scraper adapter; absent when unknown. */
+	location?: string;
+	/** True when the adapter flags the posting as remote; absent/False means unknown, never onsite. */
+	remote?: boolean;
 }
 
 /** Injected scraper fetch: one query in, raw postings out. Keeps unit tests off the network. */
@@ -195,6 +199,30 @@ export interface SearchCandidate {
 	referralLinks: string[];
 	/** True when the employer is unknown: verify before evaluating (issue 13). */
 	needsVerification: boolean;
+	/**
+	 * Concise display excerpt of the scraper description (whitespace-collapsed,
+	 * capped at SNIPPET_LIMIT chars). Null when the adapter supplied no
+	 * description. Powers the interactive job-card UI; never invented.
+	 */
+	snippet?: string | null;
+	/** Adapter-reported location; null when unknown. */
+	location?: string | null;
+	/**
+	 * "remote" when the adapter flags remote; null otherwise (unknown, never
+	 * inferred onsite). Hybrid/onsite stay null until an adapter reports them.
+	 */
+	remoteType?: RemoteMode | null;
+	/**
+	 * Reserved display slots for the job-card representation. No adapter
+	 * reports these today, so they stay undefined: the UI omits them rather
+	 * than inventing logos, pay, or employment metadata.
+	 */
+	employmentType?: string | null;
+	experienceLevel?: string | null;
+	salary?: string | null;
+	companyLogo?: string | null;
+	applicationUrl?: string | null;
+	requirements?: string[];
 }
 
 export interface SearchInput {
@@ -267,6 +295,21 @@ function bandFor(score: number): FitBand {
 
 function referralLinksFor(company: string): string[] {
 	return [`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(company)}`];
+}
+
+/** Display excerpt budget for job-card descriptions: concise, never the full posting. */
+export const SEARCH_SNIPPET_LIMIT = 280;
+
+/**
+ * Collapses whitespace and caps at SEARCH_SNIPPET_LIMIT chars. Returns null
+ * when the adapter supplied no usable text — the UI then omits the
+ * description instead of inventing one.
+ */
+export function snippetFor(description: string | undefined): string | null {
+	const collapsed = (description ?? "").replace(/\s+/g, " ").trim();
+	if (collapsed === "") return null;
+	if (collapsed.length <= SEARCH_SNIPPET_LIMIT) return collapsed;
+	return `${collapsed.slice(0, SEARCH_SNIPPET_LIMIT).trimEnd()}…`;
 }
 
 /**
@@ -441,6 +484,11 @@ export async function planSearch(input: SearchInput): Promise<SearchPlan> {
 			referralLinks: resolved.band === "high" || resolved.band === "medium" ? referralLinksFor(company) : [],
 			// Unknown employers stay flagged for host verification before evaluating.
 			needsVerification: company === "Unknown company",
+			// Display fields for the interactive job cards: excerpt, location,
+			// and remote flag straight from the adapter — never invented.
+			snippet: snippetFor(raw.description),
+			location: raw.location?.trim() ? raw.location.trim() : null,
+			remoteType: raw.remote === true ? "remote" : null,
 		});
 	}
 
@@ -542,6 +590,8 @@ export function createScraperFetcher(
 			description: job.description,
 			postedDate: job.postedAt ? job.postedAt.toISOString().slice(0, 10) : undefined,
 			portal: job.source,
+			...(job.location !== undefined ? { location: job.location } : {}),
+			...(job.remote !== undefined ? { remote: job.remote } : {}),
 		}));
 	};
 }

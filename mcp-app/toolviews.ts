@@ -229,23 +229,55 @@ function mapSearch(_args: Rec, structured: Rec, markdown?: string): DashboardDat
 			const fit = rec(candidate["quickFit"]);
 			const language = rec(candidate["language"]);
 			const postingUrl = text(candidate["url"]);
-			const analyzeArgs = {
+			const title = text(candidate["title"]);
+			const company = text(candidate["company"]);
+			const researchArgs = {
 				...toolArgs(candidate, "company"),
-				...(text(candidate["title"]) !== "" ? { role: text(candidate["title"]) } : {}),
+				...(title !== "" ? { role: title } : {}),
+			};
+			const applyArgs = {
+				...toolArgs(candidate, "company"),
+				...(title !== "" ? { role: title } : {}),
 				...(postingUrl !== "" ? { postingUrl } : {}),
 			};
+			// Per-job buttons with real tool targets on this same server.
+			// Research needs company+role; Apply (analyze-job) starts the
+			// application workflow from the listing URL and never claims a
+			// submission — track-application records only after the human
+			// submits in the browser.
+			const actions: { label: string; tool: string; args?: Record<string, unknown> }[] = [];
+			if (company !== "" && title !== "") {
+				actions.push({ label: "Research job", tool: "research-job", args: researchArgs });
+			}
+			if (postingUrl !== "" || (company !== "" && title !== "")) {
+				actions.push({ label: "Apply", tool: "analyze-job", args: applyArgs });
+			}
+			const primary = actions.find((action) => action.tool === "analyze-job") ?? actions[0];
+			const postedRaw = candidate["postedDate"];
+			const requirements = strings(candidate["requirements"]);
 			return {
-				title: text(candidate["title"], "Posting"),
-				company: text(candidate["company"]) || undefined,
+				title: title !== "" ? title : "Posting",
+				id: text(candidate["key"]) || undefined,
+				company: company || undefined,
 				score: num(fit["score"]),
 				verdict: text(fit["band"]) || undefined,
 				url: postingUrl || undefined,
+				description: text(candidate["snippet"]) || undefined,
+				location: text(candidate["location"]) || undefined,
+				remoteType: text(candidate["remoteType"]) || undefined,
+				employmentType: text(candidate["employmentType"]) || undefined,
+				experienceLevel: text(candidate["experienceLevel"]) || undefined,
+				salary: text(candidate["salary"]) || undefined,
+				companyLogo: text(candidate["companyLogo"]) || undefined,
+				...(requirements.length > 0 ? { requirements } : {}),
+				source: text(candidate["portal"]) || undefined,
+				postedAt: typeof postedRaw === "string" && postedRaw !== "" ? postedRaw : null,
+				status: text(candidate["status"]) || undefined,
 				note:
 					[`Language ${text(language["verdict"], "?")}`, text(candidate["portal"])].filter((part) => part !== "").join(" · ") ||
 					undefined,
-				...(postingUrl !== ""
-					? { action: { label: "Analyze this posting", tool: "analyze-job", args: analyzeArgs } }
-					: {}),
+				...(actions.length > 0 ? { actions } : {}),
+				...(primary ? { action: primary } : {}),
 			};
 		}),
 		markdown,

@@ -1,13 +1,57 @@
-import type { DashboardData, ToolAction } from "../types.ts";
+import type { DashboardData, DashboardItem, ToolAction } from "../types.ts";
 import { list, num, rec, strings, text } from "../toolviews.ts";
 import { Badge } from "../components/ui/badge.tsx";
-import { ActionBar, AppShell, BulletList, DetailsCard, Hero, ItemActionButton, Notice, ScoreBar, Section } from "./_shared.tsx";
+import { Button } from "../components/ui/button.tsx";
+import { ActionBar, AppShell, BulletList, DetailsCard, Hero, Notice, Section } from "./_shared.tsx";
 
 export interface SearchViewProps {
 	data: DashboardData;
 	onAction: (action: ToolAction) => void;
 	pending: string | null;
 	status?: string;
+}
+
+function companyInitial(company?: string): string {
+	const initial = (company ?? "").trim().charAt(0).toUpperCase();
+	return initial !== "" ? initial : "•";
+}
+
+function badgesFor(candidate: DashboardItem): string[] {
+	const badges: string[] = [];
+	if (candidate.experienceLevel) badges.push(candidate.experienceLevel);
+	if (candidate.employmentType) badges.push(candidate.employmentType);
+	const place = [candidate.location, candidate.remoteType].filter((part) => part && part !== "").join(" · ");
+	if (place !== "") badges.push(place);
+	return badges;
+}
+
+function JobCardActions(props: {
+	candidate: DashboardItem;
+	onAction: (action: ToolAction) => void;
+	pending: string | null;
+}): React.JSX.Element | null {
+	const actions = props.candidate.actions ?? (props.candidate.action ? [props.candidate.action] : []);
+	if (actions.length === 0) return null;
+	const busy = props.pending !== null;
+	return (
+		<div className="mt-2.5 flex flex-wrap gap-2">
+			{actions.map((action, index) => {
+				const isPrimary = action.tool !== "research-job";
+				return (
+					<Button
+						key={`${action.tool}-${index}`}
+						variant={isPrimary ? "default" : "outline"}
+						size="sm"
+						disabled={busy}
+						aria-label={`${action.label}: ${props.candidate.title}`}
+						onClick={() => props.onAction(action)}
+					>
+						{props.pending === action.label ? "Working…" : action.label}
+					</Button>
+				);
+			})}
+		</div>
+	);
 }
 
 export function SearchView(props: SearchViewProps): React.JSX.Element {
@@ -35,47 +79,90 @@ export function SearchView(props: SearchViewProps): React.JSX.Element {
 
 			{candidates.length > 0 ? (
 				<Section title={`Candidates (${candidates.length})`}>
-					{candidates.map((candidate, index) => (
-						<div
-							key={`${candidate.title}-${index}`}
-							className="rounded-[10px] border border-border bg-background p-3"
-						>
-							<div className="flex flex-wrap items-baseline justify-between gap-2">
-								<span className="text-sm font-medium">
-									{candidate.title}
-									{candidate.company ? ` at ${candidate.company}` : ""}
-								</span>
-								{candidate.score !== undefined || candidate.verdict ? (
-									<Badge variant="outline">
-										{candidate.score !== undefined ? `${candidate.score}/100` : ""}
-										{candidate.score !== undefined && candidate.verdict ? " · " : ""}
-										{candidate.verdict ?? ""}
-									</Badge>
-								) : null}
-							</div>
-							{candidate.score !== undefined ? <ScoreBar score={candidate.score} /> : null}
-							{candidate.note ? (
-								<p className="mt-1 text-[13px] text-muted-foreground">{candidate.note}</p>
-							) : null}
-							{candidate.url ? (
-								<a
-									className="mt-1 block text-[13px] break-all text-primary underline underline-offset-2"
-									href={candidate.url}
-									target="_blank"
-									rel="noreferrer"
+					{candidates.map((candidate, index) => {
+						const badges = badgesFor(candidate);
+						return (
+							<article
+								key={`${candidate.id ?? candidate.title}-${index}`}
+								aria-label={`${candidate.title}${candidate.company ? ` at ${candidate.company}` : ""}`}
+								className="flex gap-3"
+							>
+								<div
+									aria-hidden="true"
+									className="flex size-11 shrink-0 items-center justify-center rounded-md bg-secondary text-sm font-semibold text-secondary-foreground"
 								>
-									{candidate.url}
-								</a>
-							) : null}
-							{candidate.action ? (
-								<div className="mt-2">
-									<ItemActionButton action={candidate.action} onAction={onAction} pending={pending} />
+									{companyInitial(candidate.company)}
 								</div>
-							) : null}
-						</div>
-					))}
+								<div className="min-w-0 flex-1">
+									<h3 className="text-[15px] leading-snug font-bold break-words">{candidate.title}</h3>
+									{candidate.company ? (
+										<p className="mt-0.5 text-[13px] text-muted-foreground">{candidate.company}</p>
+									) : null}
+									{badges.length > 0 || candidate.verdict || candidate.score !== undefined ? (
+										<div className="mt-1.5 flex flex-wrap gap-1.5">
+											{badges.map((badge) => (
+												<Badge key={badge} variant="secondary">
+													{badge}
+												</Badge>
+											))}
+											{candidate.verdict || candidate.score !== undefined ? (
+												<Badge variant="outline">
+													{candidate.score !== undefined ? `${candidate.score}/100` : ""}
+													{candidate.score !== undefined && candidate.verdict ? " · " : ""}
+													{candidate.verdict ?? ""}
+												</Badge>
+											) : null}
+										</div>
+									) : null}
+									{candidate.description ? (
+										<p className="mt-1.5 text-sm leading-relaxed break-words">{candidate.description}</p>
+									) : null}
+									{candidate.requirements && candidate.requirements.length > 0 ? (
+										<p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+											Key skills: {candidate.requirements.join("; ")}
+										</p>
+									) : null}
+									{candidate.salary || candidate.postedAt ? (
+										<p className="mt-1 text-[13px] text-muted-foreground">
+											{[candidate.salary, candidate.postedAt ? `Posted ${candidate.postedAt}` : ""]
+												.filter((part) => part !== "")
+												.join(" · ")}
+										</p>
+									) : null}
+									{candidate.source || candidate.url ? (
+										<p className="mt-1.5 text-[13px] text-muted-foreground">
+											{candidate.source ? `Source: ${candidate.source}` : "Source"}
+											{candidate.url ? (
+												<>
+													{" · "}
+													<a
+														className="text-primary underline underline-offset-2"
+														href={candidate.url}
+														target="_blank"
+														rel="noreferrer"
+													>
+														View original listing ↗
+													</a>
+												</>
+											) : null}
+										</p>
+									) : null}
+									<JobCardActions candidate={candidate} onAction={onAction} pending={pending} />
+								</div>
+							</article>
+						);
+					})}
 				</Section>
-			) : null}
+			) : (
+				<Section title="Candidates (0)">
+					<Notice title="No jobs found">
+						<p className="text-sm leading-relaxed">
+							This search returned no postings. Broaden the keywords, clear the location or remote filter, or run
+							again — adapters only return postings from the last 14 days and never invent listings.
+						</p>
+					</Notice>
+				</Section>
+			)}
 
 		{list(details["stale"]).length > 0 || notes.length > 0 ? (
 			<Section title="Run notes">

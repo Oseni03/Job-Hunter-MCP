@@ -30,6 +30,21 @@ export const SearchCandidateSchema = z
 		dateUnknown: z.boolean(),
 		status: z.enum(["active", "expired", "unknown"]),
 		portal: z.string(),
+		/**
+		 * Display fields for the interactive job cards. All optional and
+		 * nullable so older payloads still validate; the server populates
+		 * snippet/location/remoteType from adapter data and leaves the rest
+		 * absent rather than inventing logos, pay, or employment metadata.
+		 */
+		snippet: z.string().nullable().optional().describe("Concise description excerpt for the job card"),
+		location: z.string().nullable().optional().describe("Adapter-reported city/region; null when unknown"),
+		remoteType: z.enum(["remote", "hybrid", "onsite"]).nullable().optional().describe("Remote flag; null when unknown"),
+		employmentType: z.string().nullable().optional().describe("Reserved; absent until an adapter reports it"),
+		experienceLevel: z.string().nullable().optional().describe("Reserved; absent until an adapter reports it"),
+		salary: z.string().nullable().optional().describe("Reserved; absent until an adapter reports it"),
+		companyLogo: z.string().nullable().optional().describe("Reserved; absent until a reliable logo URL exists"),
+		applicationUrl: z.string().nullable().optional().describe("Reserved; absent until a direct apply URL is known"),
+		requirements: z.array(z.string()).optional().describe("Reserved; absent until key skills are extracted"),
 		quickFit: z
 			.object({
 				score: z.number(),

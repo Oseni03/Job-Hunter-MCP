@@ -33,6 +33,25 @@ export interface DashboardItem {
 	url?: string;
 	note?: string;
 	action?: ToolAction;
+	/**
+	 * Interactive job-card fields. `actions` holds the per-job buttons
+	 * (Research job + Apply); `action` is kept as the primary for backward
+	 * compatibility with older views/tests. All display fields are optional:
+	 * missing data is omitted in the UI, never invented.
+	 */
+	id?: string;
+	description?: string;
+	location?: string;
+	remoteType?: string;
+	employmentType?: string;
+	experienceLevel?: string;
+	salary?: string;
+	source?: string;
+	postedAt?: string | null;
+	status?: string;
+	companyLogo?: string;
+	requirements?: string[];
+	actions?: ToolAction[];
 }
 
 export interface DashboardData {
